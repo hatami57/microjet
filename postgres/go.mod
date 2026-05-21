@@ -19,7 +19,4 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 )
 
-replace (
-	github.com/hatami57/microjet/types => ../types
-	github.com/hatami57/microjet/utils => ../utils
-)
+

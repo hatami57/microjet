@@ -3,7 +3,6 @@ module github.com/hatami57/microjet/messaging
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.0.0-00010101000000-000000000000
 	github.com/nats-io/nats.go v1.51.0
 )
 
@@ -25,5 +24,3 @@ require (
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 )
-
-replace github.com/hatami57/microjet/core => ../core

@@ -5,10 +5,6 @@ go 1.26.2
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.15
-	github.com/hatami57/microjet/aws v0.0.0-00010101000000-000000000000
-	github.com/hatami57/microjet/core v0.0.0-00010101000000-000000000000
-	github.com/hatami57/microjet/http v0.0.0-00010101000000-000000000000
-	github.com/hatami57/microjet/messaging v0.0.0-00010101000000-000000000000
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )
@@ -56,8 +52,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hatami57/microjet/types v0.0.0-00010101000000-000000000000 // indirect
-	github.com/hatami57/microjet/utils v0.0.0-00010101000000-000000000000 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.7.6 // indirect
@@ -101,14 +95,4 @@ require (
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
-
-replace (
-	github.com/hatami57/microjet/aws => ../aws
-	github.com/hatami57/microjet/core => ../core
-	github.com/hatami57/microjet/http => ../http
-	github.com/hatami57/microjet/messaging => ../messaging
-	github.com/hatami57/microjet/postgres => ../postgres
-	github.com/hatami57/microjet/types => ../types
-	github.com/hatami57/microjet/utils => ../utils
 )

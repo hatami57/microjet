@@ -5,8 +5,6 @@ go 1.26.2
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.0.0-00010101000000-000000000000
-	github.com/hatami57/microjet/types v0.0.0-00010101000000-000000000000
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 )
@@ -63,10 +61,4 @@ require (
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
-
-replace (
-	github.com/hatami57/microjet/core => ../core
-	github.com/hatami57/microjet/types => ../types
-	github.com/hatami57/microjet/utils => ../utils
 )
