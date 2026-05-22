@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/http/middleware"
 	"github.com/hatami57/microjet/types"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 func FindTenantID(c *gin.Context) (uuid.UUID, error) {
@@ -96,7 +96,7 @@ func FindBoolQuery(c *gin.Context, key string) (bool, error) {
 	}
 	v, err := strconv.ParseBool(*value)
 	if err != nil {
-		return false, core.ErrInvalidInput.WithMessage(fmt.Sprintf("Invalid bool for '%s'", key))
+		return false, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid bool for '%s'", key))
 	}
 	return v, nil
 }
@@ -104,7 +104,7 @@ func FindBoolQuery(c *gin.Context, key string) (bool, error) {
 func Body[T any](c *gin.Context) (*T, error) {
 	var body T
 	if err := c.ShouldBindJSON(&body); err != nil {
-		return nil, core.ErrInvalidInput.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
+		return nil, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
 	}
 	return &body, nil
 }
@@ -124,7 +124,7 @@ func PagedRequest(c *gin.Context) *types.PagedResultRequest {
 func parseInt64(value, key string) (int64, error) {
 	n, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return 0, core.ErrInvalidInput.WithMessage(fmt.Sprintf("Invalid integer for '%s'", key))
+		return 0, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid integer for '%s'", key))
 	}
 	return n, nil
 }
@@ -132,7 +132,7 @@ func parseInt64(value, key string) (int64, error) {
 func parseUUID(value, key string) (uuid.UUID, error) {
 	v, err := uuid.Parse(value)
 	if err != nil {
-		return uuid.Nil, core.ErrInvalidInput.WithMessage(fmt.Sprintf("Invalid UUID for '%s'", key))
+		return uuid.Nil, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid UUID for '%s'", key))
 	}
 	return v, nil
 }

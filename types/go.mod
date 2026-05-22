@@ -3,6 +3,7 @@ module github.com/hatami57/microjet/types
 go 1.26.2
 
 require (
+	github.com/hatami57/microjet/utils v0.0.0-20260521123024-3d740a403117
 	github.com/json-iterator/go v1.1.12
 	github.com/shopspring/decimal v1.4.0
 )
@@ -10,5 +11,6 @@ require (
 require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 )

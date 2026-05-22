@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.26
-	github.com/hatami57/microjet/utils v0.0.0-20260521094629-c8ded28c33a2
+	github.com/hatami57/microjet/utils v0.0.0-20260521123024-3d740a403117
 )
 
 require (
@@ -25,5 +25,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 )
