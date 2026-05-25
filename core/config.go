@@ -131,7 +131,6 @@ func Load(dest any, envPrefix string) error {
 		v.AddConfigPath(dir)
 	}
 	v.SetConfigType("toml")
-	fmt.Printf("Config directories to look into: %v\n", dirs)
 
 	v.SetDefault("app.namespace", "App")
 	v.SetDefault("app.environment", "development")
@@ -150,18 +149,16 @@ func Load(dest any, envPrefix string) error {
 
 	v.SetConfigName("config")
 	if err := v.ReadInConfig(); err != nil {
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if errors.As(err, &configFileNotFoundError) {
-			return fmt.Errorf("config file not found, using defaults")
+		// A missing config file is not fatal: defaults + env vars are enough to
+		// boot. Any other read error (malformed TOML, permissions) is fatal.
+		var notFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &notFound) {
+			return fmt.Errorf("reading config file: %w", err)
 		}
-		return err
 	}
-	fmt.Printf("Using config file: %s\n", v.ConfigFileUsed())
 
 	v.SetConfigName("config.local")
-	if err := v.MergeInConfig(); err == nil {
-		fmt.Printf("Local config file merged: %s\n", v.ConfigFileUsed())
-	}
+	_ = v.MergeInConfig() // optional overlay; absence is fine
 
 	if err := v.Unmarshal(dest); err != nil {
 		return fmt.Errorf("error unmarshaling config: %w", err)

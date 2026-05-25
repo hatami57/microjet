@@ -1,5 +1,9 @@
 # microjet
 
+[![CI](https://github.com/hatami57/microjet/actions/workflows/ci.yml/badge.svg)](https://github.com/hatami57/microjet/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/hatami57/microjet.svg)](https://pkg.go.dev/github.com/hatami57/microjet)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A Go micro-framework for building production-grade microservices with minimal boilerplate.
 
 ```go
@@ -8,13 +12,13 @@ import "github.com/hatami57/microjet/host"
 
 ## Features
 
-- **Application Orchestrator** — Fluent builder API (`New().WithHTTP().WithPostgreSQL().WithMessaging().MustRun(...)`) with dependency injection container and graceful shutdown.
+- **Application Orchestrator** — Fluent builder API (`MustNew().WithPostgreSQL().WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, and managed graceful shutdown.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, and `errors.As` extraction.
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections.
-- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI, typed param/query/body binding, multi-tenant support, and graceful shutdown.
+- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support, and graceful shutdown.
 - **PostgreSQL / GORM** — Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
-- **NATS Messaging** — Pub/sub with typed message envelopes and graceful drain.
+- **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain.
 - **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation.
 - **Time Utilities** — `TimeProvider` interface for testability, sortable timestamp formats.
 - **Type Converters** — Generic JSON, struct-to-map, and pointer coalescing utilities.
@@ -50,13 +54,16 @@ package main
 import "github.com/hatami57/microjet/host"
 
 func main() {
-	app := host.New()
+	app := host.MustNew()
 	defer app.Close()
 
 	app.Logger.Info("started")
 	host.WaitForExitSignal()
 }
 ```
+
+`host.New()` returns `(*App, error)` so it is safe to use in libraries and
+tests; `host.MustNew()` is the panic-on-error convenience for `main()`.
 
 ### With Custom App Config
 
@@ -67,8 +74,14 @@ type MyConfig struct {
 }
 
 func main() {
-	app := host.NewWithEnvPrefix("MYAPP")
+	app := host.MustNew(host.WithEnvPrefix("MYAPP"))
 	defer app.Close()
+
+	cfg, err := core.GetExtra[MyConfig](app.Config, "myapp")
+	if err != nil {
+		panic(err)
+	}
+	app.Logger.Info("started", "service", cfg.ServiceName)
 	host.WaitForExitSignal()
 }
 ```
@@ -92,10 +105,12 @@ type User struct {
 }
 
 func main() {
-	app := host.New()
-	defer app.Close()
+	app := host.MustNew()
 
 	app.WithPostgreSQL().
+		Setup(func(a *host.App) error {
+			return a.DB.AutoMigrate(&User{})
+		}).
 		WithHTTPServer(func(a *host.App) error {
 			userTable := postgres.NewTable[User](a.DB)
 			a.HTTPServer.Router.GET("/users", func(c *gin.Context) {
@@ -105,18 +120,20 @@ func main() {
 			})
 			return nil
 		}).
-		MustRun(func(a *host.App) error {
-			return a.DB.AutoMigrate(&User{})
-		})
-
-	go app.StartHTTP()
-	host.WaitForExitSignal()
+		MustRun() // inits services, starts HTTP, blocks until signal, then shuts down
 }
 ```
 
+`Run()` / `MustRun()` manage the full lifecycle: they initialize registered
+services, start the HTTP server, block until SIGINT/SIGTERM (or a fatal server
+error), and then perform a graceful shutdown — so you don't need a separate
+`defer app.Close()`. Use `Setup(...)` for one-off startup steps like migrations.
+For manual control, use `app.StartHTTP()` + `host.WaitForExitSignal()` with
+`defer app.Close()` instead.
+
 ## Configuration
 
-Create `config.toml` (auto-discovered from working directory, `./config/`, or exe path):
+Create `config.toml` (auto-discovered from working directory, `./config/`, or exe directory). An optional `config.local.toml` in the same locations is merged on top — useful for local overrides that should not be committed.
 
 ```toml
 [app]
@@ -154,12 +171,11 @@ level = "info"
 format = "json"
 ```
 
-Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_SERVER_PORT=443` (prefix defaults to `APP`, configurable via `NewWithEnvPrefix`).
+Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_SERVER_PORT=443` (prefix defaults to `APP`, configurable via `host.WithEnvPrefix`).
 
 ### Extra Config
 
 ```go
-var cfg CustomExtra
 cfg, err := core.GetExtra[CustomExtra](app.Config, "mySection")
 ```
 
@@ -175,14 +191,14 @@ err := core.NewNotFoundError("User", "user not found").
 
 // Sentinel errors
 if err != nil {
-    return core.ErrInvalidInput.WithSubject("email")
+    return core.ErrBadRequest.WithSubject("email")
 }
 
 // Check error type
 switch {
 case core.IsNotFoundError(err):
     // handle 404
-case core.IsInvalidInputError(err):
+case core.IsBadRequestError(err):
     // handle 400
 }
 ```
@@ -243,16 +259,26 @@ func (s *UserService) Init(app *host.App) error {
     return nil
 }
 
-app := host.New()
+app := host.MustNew()
 host.ProvideService(app, &UserService{})
 
-// Later:
+// Later — returns (T, bool):
 svc, ok := host.ResolveService[*UserService](app)
+
+// Or panic if not registered:
+svc := host.MustResolveService[*UserService](app)
 ```
 
 ## Graceful Shutdown
 
-`app.Close()` drains messaging, stops HTTP server, closes DB connections, and calls all registered `ServiceCloser` implementations — all running concurrently with a `sync.WaitGroup`.
+`app.Close()` drains messaging, stops the HTTP server, closes DB connections, and calls all registered `ServiceCloser` implementations — all running concurrently with a `sync.WaitGroup`. It is idempotent (guarded by `sync.Once`), so it is safe to call it via both `Run()`/`MustRun()` and a `defer app.Close()`.
+
+## Examples
+
+Runnable example services live in [`examples/`](examples/):
+
+- [`examples/minimal`](examples/minimal) — smallest possible app.
+- [`examples/http-postgres`](examples/http-postgres) — HTTP CRUD backed by PostgreSQL.
 
 ## Architecture
 

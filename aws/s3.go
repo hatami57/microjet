@@ -27,7 +27,7 @@ type S3UploadFileRequest struct {
 	LocalFilePath string
 }
 
-func (a *AWS) S3DownloadFiles(reqs []S3DownloadFileRequest, maxWorkers int) error {
+func (a *AWS) S3DownloadFiles(ctx context.Context, reqs []S3DownloadFileRequest, maxWorkers int) error {
 	if maxWorkers <= 0 {
 		maxWorkers = 1
 	}
@@ -42,7 +42,7 @@ func (a *AWS) S3DownloadFiles(reqs []S3DownloadFileRequest, maxWorkers int) erro
 		go func(r S3DownloadFileRequest) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			errCh <- a.internalS3DownloadFile(&r)
+			errCh <- a.internalS3DownloadFile(ctx, &r)
 		}(req)
 	}
 
@@ -54,14 +54,14 @@ func (a *AWS) S3DownloadFiles(reqs []S3DownloadFileRequest, maxWorkers int) erro
 	return nil
 }
 
-func (a *AWS) S3DownloadFile(req *S3DownloadFileRequest) error {
+func (a *AWS) S3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
 	if a.S3Client == nil {
 		return fmt.Errorf("s3 client is not configured")
 	}
-	return a.internalS3DownloadFile(req)
+	return a.internalS3DownloadFile(ctx, req)
 }
 
-func (a *AWS) internalS3DownloadFile(req *S3DownloadFileRequest) error {
+func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
 	f, err := os.Create(req.LocalFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %v", err)
@@ -69,7 +69,7 @@ func (a *AWS) internalS3DownloadFile(req *S3DownloadFileRequest) error {
 	defer f.Close()
 
 	a.Logger.Debug("downloading from s3", slog.String("path", req.LocalFilePath))
-	result, err := a.S3Client.GetObject(context.TODO(), &s3.GetObjectInput{
+	result, err := a.S3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(req.BucketName),
 		Key:    aws.String(req.ObjectKey),
 	})
@@ -95,7 +95,7 @@ func (a *AWS) internalS3DownloadFile(req *S3DownloadFileRequest) error {
 	return nil
 }
 
-func (a *AWS) S3UploadFile(req *S3UploadFileRequest) error {
+func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error {
 	if req == nil {
 		return fmt.Errorf("req is nil")
 	}
@@ -121,7 +121,7 @@ func (a *AWS) S3UploadFile(req *S3UploadFileRequest) error {
 	}
 
 	a.Logger.Debug("uploading to s3", slog.String("path", req.LocalFilePath))
-	_, err = uploader.Upload(context.TODO(), &s3.PutObjectInput{
+	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      &req.BucketName,
 		Key:         &req.ObjectKey,
 		ContentType: &req.ContentType,

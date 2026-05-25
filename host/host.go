@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -24,41 +25,137 @@ type App struct {
 	HTTPServer *libhttp.Server
 	DB         *gorm.DB
 
+	envPrefix            string
 	container            sync.Map
 	isServiceInitialized bool
+	err                  error
+	closeOnce            sync.Once
 }
 
+// HandlerFunc is a setup/lifecycle callback that receives the App and may fail.
 type HandlerFunc func(app *App) error
 
-func New() *App {
-	return NewWithEnvPrefix("")
+// Option configures an App at construction time.
+type Option func(*App)
+
+// WithEnvPrefix overrides the environment-variable prefix used for config
+// overrides (defaults to "APP", e.g. APP_SERVER_PORT).
+func WithEnvPrefix(prefix string) Option {
+	return func(a *App) { a.envPrefix = prefix }
 }
 
-func NewWithEnvPrefix(envPrefix string) *App {
+// New constructs an App, loading configuration and the logger. It returns an
+// error instead of panicking so it can be used safely in libraries and tests.
+func New(opts ...Option) (*App, error) {
+	a := &App{}
+	for _, opt := range opts {
+		opt(a)
+	}
+
 	config := &core.Config{}
-	if err := core.Load(config, envPrefix); err != nil {
+	if err := core.Load(config, a.envPrefix); err != nil {
+		return nil, fmt.Errorf("loading config: %w", err)
+	}
+	a.Config = config
+	a.Logger = core.NewLogger(config.Log)
+	return a, nil
+}
+
+// MustNew is like New but panics on error. Convenient for main().
+func MustNew(opts ...Option) *App {
+	a, err := New(opts...)
+	if err != nil {
 		panic(err)
 	}
-	return &App{
-		Config: config,
-		Logger: core.NewLogger(config.Log),
+	return a
+}
+
+// Err returns the first error recorded while building the App via the fluent
+// With* / Setup methods, or nil if the chain succeeded.
+func (a *App) Err() error { return a.err }
+
+// fail records the first build error and short-circuits the fluent chain.
+func (a *App) fail(err error) *App {
+	if a.err == nil && err != nil {
+		a.err = err
+	}
+	return a
+}
+
+// Setup runs a setup handler as part of the fluent chain (e.g. migrations or
+// route registration). Errors are deferred and surfaced by Run/MustRun/Err.
+func (a *App) Setup(handler HandlerFunc) *App {
+	if a.err != nil || handler == nil {
+		return a
+	}
+	if err := handler(a); err != nil {
+		return a.fail(err)
+	}
+	return a
+}
+
+// Run initializes services, starts the HTTP server (if configured), blocks
+// until a termination signal or a fatal server error, then gracefully shuts
+// down. It returns any startup or server error.
+func (a *App) Run() error {
+	if a.err != nil {
+		a.Close()
+		return a.err
+	}
+	if err := a.initServices(); err != nil {
+		a.Close()
+		return fmt.Errorf("initializing services: %w", err)
+	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	var httpErr chan error
+	if a.HTTPServer != nil {
+		httpErr = make(chan error, 1)
+		go func() {
+			if err := a.StartHTTP(); err != nil {
+				httpErr <- err
+			}
+		}()
+	}
+
+	select {
+	case sig := <-quit:
+		a.Logger.Info("received shutdown signal", "signal", sig.String())
+		a.Close()
+		return nil
+	case err := <-httpErr:
+		a.Logger.Error("HTTP server failed", "error", err)
+		a.Close()
+		return err
 	}
 }
 
+// MustRun is like Run but logs and exits the process on error.
+func (a *App) MustRun() {
+	if err := a.Run(); err != nil {
+		a.Logger.Error("application error", "error", err)
+		a.Close()
+		os.Exit(1)
+	}
+}
+
+// WaitForExitSignal blocks until the process receives SIGINT or SIGTERM. Use
+// it when managing the lifecycle manually instead of via Run.
 func WaitForExitSignal() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 }
 
-func (a *App) MustRun(handler HandlerFunc) {
-	if err := handler(a); err != nil {
-		a.Logger.Error("handler failed", "error", err)
-		os.Exit(1)
-	}
+// Close gracefully shuts down all managed resources. It is safe to call more
+// than once (e.g. via both Run and a deferred Close).
+func (a *App) Close() {
+	a.closeOnce.Do(a.close)
 }
 
-func (a *App) Close() {
+func (a *App) close() {
 	a.Logger.Info("Shutting down...")
 
 	var wg sync.WaitGroup

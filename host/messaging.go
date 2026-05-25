@@ -1,22 +1,31 @@
 package host
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/hatami57/microjet/messaging"
 )
 
-func (a *App) WithMessaging(setup HandlerFunc) *App {
+// WithMessaging connects to the messaging broker (NATS) using the [messaging]
+// config section and runs the optional setup handlers (typically subscriptions).
+// Errors are deferred to Run/MustRun/Err.
+func (a *App) WithMessaging(setup ...HandlerFunc) *App {
+	if a.err != nil {
+		return a
+	}
 	client, err := messaging.New(a.Config.Messaging, a.Logger)
 	if err != nil {
-		a.Logger.Error("failed to connect to messaging", "error", err)
-		os.Exit(1)
+		return a.fail(fmt.Errorf("messaging: %w", err))
 	}
 	a.Messaging = client
 
-	if setup != nil {
-		a.MustRun(setup)
+	for _, s := range setup {
+		if s == nil {
+			continue
+		}
+		if err := s(a); err != nil {
+			return a.fail(err)
+		}
 	}
-
 	return a
 }

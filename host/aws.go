@@ -2,14 +2,19 @@ package host
 
 import (
 	"context"
-	"os"
+	"fmt"
 
-	"github.com/hatami57/microjet/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/hatami57/microjet/aws"
 )
 
+// WithAWS loads AWS configuration and initializes the requested service clients
+// (S3, SQS, DynamoDB). Errors are deferred to Run/MustRun/Err.
 func (a *App) WithAWS(services ...aws.AWSService) *App {
+	if a.err != nil {
+		return a
+	}
 	a.AWS = &aws.AWS{Logger: a.Logger}
 
 	var options []func(*awsConfig.LoadOptions) error
@@ -29,16 +34,12 @@ func (a *App) WithAWS(services ...aws.AWSService) *App {
 
 	cfg, err := awsConfig.LoadDefaultConfig(context.TODO(), options...)
 	if err != nil {
-		a.Close()
-		a.Logger.Error("failed to load aws config", "error", err)
-		os.Exit(1)
+		return a.fail(fmt.Errorf("aws: load config: %w", err))
 	}
 	a.AWS.DefaultConfig = cfg
 
 	if err = a.AWS.InitServices(services...); err != nil {
-		a.Close()
-		a.Logger.Error("failed to init aws services", "error", err)
-		os.Exit(1)
+		return a.fail(fmt.Errorf("aws: init services: %w", err))
 	}
 
 	return a

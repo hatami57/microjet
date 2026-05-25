@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hatami57/microjet/http/middleware"
 	"github.com/gin-gonic/gin"
+	"github.com/hatami57/microjet/http/middleware"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -45,7 +45,7 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	}
 
 	router.Use(middleware.Logger(logger))
-	router.Use(middleware.Error())
+	router.Use(middleware.Error(cfg.Debug))
 	router.Use(gin.Recovery())
 
 	router.GET("/health", func(c *gin.Context) {

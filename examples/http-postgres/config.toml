@@ -1,0 +1,21 @@
+[app]
+name = "user-service"
+environment = "development"
+debug = true
+
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+driver = "postgres"
+host = "localhost"
+port = 5432
+user = "postgres"
+password = "postgres"
+name = "users"
+sslMode = "disable"
+
+[log]
+level = "info"
+format = "json"

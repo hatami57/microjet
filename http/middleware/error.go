@@ -13,10 +13,13 @@ type ErrorResponse struct {
 	Subject      string  `json:"subject"`
 	Message      string  `json:"message"`
 	Code         int     `json:"code"`
-	InnerMessage *string `json:"innerMessage"`
+	InnerMessage *string `json:"innerMessage,omitempty"`
 }
 
-func Error() gin.HandlerFunc {
+// Error translates errors recorded on the gin context into structured JSON
+// responses. When debug is false, internal causes (inner error strings) are
+// never exposed to clients to avoid leaking implementation details.
+func Error(debug bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -32,7 +35,7 @@ func Error() gin.HandlerFunc {
 		switch {
 		case errors.As(err, &v):
 			var innerMessage *string
-			if v.Inner != nil {
+			if debug && v.Inner != nil {
 				inner := v.Inner.Error()
 				innerMessage = &inner
 			}
@@ -53,11 +56,17 @@ func Error() gin.HandlerFunc {
 				status = http.StatusForbidden
 				response = ErrorResponse{Error: "forbidden", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
 			default:
+				// Internal errors: expose the developer-authored message but only
+				// leak the inner cause in debug mode.
 				response = ErrorResponse{Error: "internal_server_error", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
 			}
 		default:
-			errorString := err.Error()
-			response = ErrorResponse{Error: "internal_server_error", Subject: "Unknown", Message: "An internal server error occurred", Code: 0, InnerMessage: &errorString}
+			// Untyped error: never expose the raw string in production.
+			response = ErrorResponse{Error: "internal_server_error", Subject: "Unknown", Message: "An internal server error occurred", Code: 0}
+			if debug {
+				errorString := err.Error()
+				response.InnerMessage = &errorString
+			}
 		}
 
 		c.JSON(status, response)

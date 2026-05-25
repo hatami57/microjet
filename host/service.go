@@ -70,33 +70,49 @@ func (a *App) ProvideKey(key string, value any) *App {
 }
 
 func (a *App) WithProvider(provider HandlerFunc) *App {
-	a.MustRun(provider)
-	a.initServices()
+	if a.err != nil {
+		return a
+	}
+	if provider != nil {
+		if err := provider(a); err != nil {
+			return a.fail(err)
+		}
+	}
+	if err := a.initServices(); err != nil {
+		return a.fail(err)
+	}
 	return a
 }
 
 func (a *App) InitServices() *App {
-	a.initServices()
+	if a.err != nil {
+		return a
+	}
+	if err := a.initServices(); err != nil {
+		return a.fail(err)
+	}
 	return a
 }
 
-func (a *App) initServices() {
+func (a *App) initServices() error {
 	if a.isServiceInitialized {
-		return
+		return nil
 	}
-	var err error
+	var initErr error
 	a.container.Range(func(_, item any) bool {
 		if svc, ok := item.(ServiceIniter); ok {
-			if err = svc.Init(a); err != nil {
+			if err := svc.Init(a); err != nil {
+				initErr = err
 				return false
 			}
 		}
 		return true
 	})
-	if err != nil {
-		a.Logger.Error("Service initialization error", "error", err)
+	if initErr != nil {
+		return initErr
 	}
 	a.isServiceInitialized = true
+	return nil
 }
 
 func (a *App) closeServices() error {

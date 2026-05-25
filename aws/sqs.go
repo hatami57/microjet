@@ -3,8 +3,8 @@ package aws
 import (
 	"context"
 
-	"github.com/hatami57/microjet/utils"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/hatami57/microjet/utils"
 )
 
 func (a *AWS) SQSSendMessage(ctx context.Context, message any) error {

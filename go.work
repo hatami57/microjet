@@ -1,0 +1,14 @@
+go 1.26.3
+
+use (
+	./aws
+	./core
+	./examples/http-postgres
+	./examples/minimal
+	./host
+	./http
+	./messaging
+	./postgres
+	./types
+	./utils
+)

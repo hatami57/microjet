@@ -59,10 +59,10 @@ func (r *ListRequestByID[TEntity]) CreateNextPageToken(items []TEntity) (*string
 	return types.EncodePageToken(&PageDataByID{LastID: lastID})
 }
 
-func (r *ListRequestByID[TEntity]) Where() (any, []any)    { return r.where, r.args }
+func (r *ListRequestByID[TEntity]) Where() (any, []any)      { return r.where, r.args }
 func (r *ListRequestByID[TEntity]) WhereMap() map[string]any { return r.whereMap }
-func (r *ListRequestByID[TEntity]) PageSize() int           { return int(r.PagedResultRequest.PageSize) }
-func (r *ListRequestByID[TEntity]) OrderBy() string         { return "id ASC" }
+func (r *ListRequestByID[TEntity]) PageSize() int            { return int(r.PagedResultRequest.PageSize) }
+func (r *ListRequestByID[TEntity]) OrderBy() string          { return "id ASC" }
 
 // --- CreatedAt-based pagination ---
 
@@ -115,10 +115,10 @@ func (r *ListRequestByCreatedAt[TEntity]) CreateNextPageToken(items []TEntity) (
 	return types.EncodePageToken(&PageDataByCreatedAt{LastCreatedAt: lastCreatedAt})
 }
 
-func (r *ListRequestByCreatedAt[TEntity]) Where() (any, []any)    { return r.where, r.args }
+func (r *ListRequestByCreatedAt[TEntity]) Where() (any, []any)      { return r.where, r.args }
 func (r *ListRequestByCreatedAt[TEntity]) WhereMap() map[string]any { return r.whereMap }
-func (r *ListRequestByCreatedAt[TEntity]) PageSize() int           { return int(r.PagedResultRequest.PageSize) }
-func (r *ListRequestByCreatedAt[TEntity]) OrderBy() string         { return "created_at ASC" }
+func (r *ListRequestByCreatedAt[TEntity]) PageSize() int            { return int(r.PagedResultRequest.PageSize) }
+func (r *ListRequestByCreatedAt[TEntity]) OrderBy() string          { return "created_at ASC" }
 
 // --- helpers ---
 

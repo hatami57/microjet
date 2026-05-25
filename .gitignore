@@ -18,7 +18,9 @@
 # vendor/
 
 # Go workspace file
-go.work
+# go.work is committed: this is a multi-module monorepo and the workspace is the
+# canonical local dev setup (lets `go build/test ./...` span all modules without
+# replace directives that would leak into published modules).
 go.work.sum
 
 # env file

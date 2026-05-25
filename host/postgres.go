@@ -11,6 +11,10 @@ import (
 	gormLogger "gorm.io/gorm/logger"
 )
 
+// WithPostgreSQL connects to PostgreSQL using the [database] config section and
+// assigns the gorm handle to App.DB. Connection errors are deferred to
+// Run/MustRun/Err.
+
 var logLevelMap = map[string]gormLogger.LogLevel{
 	"silent": gormLogger.Silent,
 	"error":  gormLogger.Error,
@@ -19,11 +23,12 @@ var logLevelMap = map[string]gormLogger.LogLevel{
 }
 
 func (a *App) WithPostgreSQL() *App {
+	if a.err != nil {
+		return a
+	}
 	db, err := newPostgreSQL(a)
 	if err != nil {
-		a.Close()
-		a.Logger.Error("failed to connect to postgresql", "error", err)
-		os.Exit(1)
+		return a.fail(fmt.Errorf("postgres: %w", err))
 	}
 	a.DB = db
 	return a
