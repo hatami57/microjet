@@ -27,3 +27,8 @@ go.work.sum
 .env
 
 .idea/
+
+# Compiled example binaries (same name as their directory, no extension)
+examples/http-postgres/http-postgres
+examples/minimal/minimal
+
