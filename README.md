@@ -13,13 +13,14 @@ import "github.com/hatami57/microjet/host"
 ## Features
 
 - **Application Orchestrator** — Fluent builder API (`MustNew().WithPostgreSQL().WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, and managed graceful shutdown.
-- **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, and `errors.As` extraction.
-- **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections.
+- **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, core.ErrNotFound)`).
+- **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support, and graceful shutdown.
+- **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`); `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
 - **PostgreSQL / GORM** — Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain.
-- **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation.
+- **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation, plus integer minor-unit conversion (`FromMinorUnits`/`MinorUnits`) with a zero/two/three-decimal currency registry.
 - **Time Utilities** — `TimeProvider` interface for testability, sortable timestamp formats.
 - **Type Converters** — Generic JSON, struct-to-map, and pointer coalescing utilities.
 - **Logging** — Structured `log/slog` with configurable level and format (text/JSON).
@@ -30,7 +31,7 @@ import "github.com/hatami57/microjet/host"
 |---|---|---|
 | `host` | `github.com/hatami57/microjet/host` | Application orchestrator, DI container, lifecycle |
 | `core` | `github.com/hatami57/microjet/core` | Errors, config loading, logging, time |
-| `http` | `github.com/hatami57/microjet/http` | Gin HTTP server, middleware, request helpers |
+| `http` | `github.com/hatami57/microjet/http` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
 | `postgres` | `github.com/hatami57/microjet/postgres` | Generic GORM CRUD + cursor pagination |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |

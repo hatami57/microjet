@@ -145,6 +145,31 @@ func (e *Error) MarshalJSON() ([]byte, error) {
 
 func (e *Error) Unwrap() error { return e.Inner }
 
+// Is reports whether e matches target for errors.Is, letting a typed *Error be
+// used as a sentinel by category. target matches when it is an *Error of the
+// same Type; if target also sets a non-zero Code it must match, and if target
+// sets a Subject other than the default "General" it must match too. This makes
+// the package sentinels match any error of their category —
+// errors.Is(err, ErrNotFound) is true for any NotFound error — while a custom
+// sentinel carrying a Subject and/or Code matches more narrowly. Wrapped
+// non-Error sentinels still match through Unwrap as usual.
+func (e *Error) Is(target error) bool {
+	t, ok := target.(*Error)
+	if !ok {
+		return false
+	}
+	if t.Type != e.Type {
+		return false
+	}
+	if t.Code != 0 && t.Code != e.Code {
+		return false
+	}
+	if t.Subject != "" && t.Subject != "General" && t.Subject != e.Subject {
+		return false
+	}
+	return true
+}
+
 // ErrorResponse is the JSON body returned by the HTTP error middleware.
 type ErrorResponse struct {
 	Error      string         `json:"error"`

@@ -64,3 +64,20 @@ func (m *Money) Equal(money *Money) bool {
 }
 
 func (m *Money) IsZero() bool { return m.Value.Equal(decimal.Zero) }
+
+// FromMinorUnits builds a Money from an integer count of the currency's smallest
+// unit — cents for USD, fils for KWD, whole Rials for IRR — using the currency's
+// Exponent. For example FromMinorUnits(1050, "USD") is 10.50 USD, while
+// FromMinorUnits(1050, "IRR") is 1050 IRR (IRR has no minor unit). Use it when a
+// payment gateway or ledger speaks integer amounts.
+func FromMinorUnits(amount int64, currency CurrencyCode) Money {
+	return Money{Value: decimal.New(amount, -currency.Exponent()), CurrencyCode: currency}
+}
+
+// MinorUnits returns the amount as an integer count of the currency's smallest
+// unit (the inverse of FromMinorUnits). The value is scaled by the currency's
+// Exponent and rounded to the nearest whole minor unit, so 10.50 USD yields 1050
+// and 1050 IRR yields 1050.
+func (m *Money) MinorUnits() int64 {
+	return m.Value.Shift(m.CurrencyCode.Exponent()).Round(0).IntPart()
+}
