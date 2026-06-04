@@ -13,7 +13,7 @@ import (
 
 func init() { gin.SetMode(gin.TestMode) }
 
-func runWith(debug bool, handler gin.HandlerFunc) (*httptest.ResponseRecorder, ErrorResponse) {
+func runWith(debug bool, handler gin.HandlerFunc) (*httptest.ResponseRecorder, core.ErrorResponse) {
 	r := gin.New()
 	r.Use(Error(debug))
 	r.GET("/", handler)
@@ -22,7 +22,7 @@ func runWith(debug bool, handler gin.HandlerFunc) (*httptest.ResponseRecorder, E
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.ServeHTTP(w, req)
 
-	var resp ErrorResponse
+	var resp core.ErrorResponse
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	return w, resp
 }
@@ -39,13 +39,22 @@ func TestTypedErrorMapsToStatus(t *testing.T) {
 	}
 }
 
+func TestTypedErrorIncludesParams(t *testing.T) {
+	_, resp := runWith(false, func(c *gin.Context) {
+		c.Error(core.ErrBadRequest.WithSubject("email").WithParams("field", "email"))
+	})
+	if resp.Params == nil || resp.Params["field"] != "email" {
+		t.Errorf("params not propagated: %+v", resp.Params)
+	}
+}
+
 func TestInnerCauseHiddenWithoutDebug(t *testing.T) {
 	secret := "connection string user:pass@db"
 	_, resp := runWith(false, func(c *gin.Context) {
 		c.Error(core.ErrInternal.WithInner(errors.New(secret)))
 	})
-	if resp.InnerMessage != nil {
-		t.Errorf("inner cause leaked in production: %q", *resp.InnerMessage)
+	if resp.InnerError != nil {
+		t.Errorf("inner cause leaked in production: %q", *resp.InnerError)
 	}
 }
 
@@ -54,8 +63,8 @@ func TestInnerCauseShownWithDebug(t *testing.T) {
 	_, resp := runWith(true, func(c *gin.Context) {
 		c.Error(core.ErrInternal.WithInner(errors.New(cause)))
 	})
-	if resp.InnerMessage == nil || *resp.InnerMessage != cause {
-		t.Errorf("inner cause not exposed in debug: %v", resp.InnerMessage)
+	if resp.InnerError == nil || *resp.InnerError != cause {
+		t.Errorf("inner cause not exposed in debug: %v", resp.InnerError)
 	}
 }
 
@@ -63,8 +72,8 @@ func TestUntypedErrorIsGenericInProduction(t *testing.T) {
 	_, resp := runWith(false, func(c *gin.Context) {
 		c.Error(errors.New("raw internal detail"))
 	})
-	if resp.InnerMessage != nil {
-		t.Errorf("untyped error leaked detail: %q", *resp.InnerMessage)
+	if resp.InnerError != nil {
+		t.Errorf("untyped error leaked detail: %q", *resp.InnerError)
 	}
 	if resp.Message != "An internal server error occurred" {
 		t.Errorf("message = %q", resp.Message)

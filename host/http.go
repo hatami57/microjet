@@ -1,8 +1,6 @@
 package host
 
 import (
-	"fmt"
-
 	libhttp "github.com/hatami57/microjet/http"
 )
 
@@ -29,12 +27,3 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 	return a
 }
 
-// StartHTTP starts the HTTP server and blocks until it stops. It returns an
-// error if the server is not configured or fails to bind/serve.
-func (a *App) StartHTTP() error {
-	if a.HTTPServer == nil {
-		return fmt.Errorf("http server not configured; call WithHTTPServer first")
-	}
-	a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
-	return a.HTTPServer.Start()
-}

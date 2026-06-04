@@ -1,18 +1,25 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 )
 
 type Error struct {
-	Type    ErrorType `json:"type"`
-	Subject string    `json:"subject"`
-	Message string    `json:"message"`
-	Code    int       `json:"code"`
-	Inner   error     `json:"inner"`
+	Type    ErrorType      `json:"type"`
+	Subject string         `json:"subject"`
+	Message string         `json:"message"`
+	Params  map[string]any `json:"params,omitempty"`
+	Code    int            `json:"code"`
+	Inner   error          `json:"-"`
 }
 
+// ErrorType identifies the category of an error and controls HTTP status mapping:
+// BadRequest→400, Unauthorized→401, Forbidden→403, NotFound→404, Business→409, Internal→500.
 type ErrorType string
 
 const (
@@ -76,15 +83,77 @@ func IsForbiddenError(err error) bool    { return isErrorTypeEqual(err, Forbidde
 func IsInternalError(err error) bool     { return isErrorTypeEqual(err, InternalErrorType) }
 
 func (e *Error) WithSubject(subject string) *Error { n := *e; n.Subject = subject; return &n }
-func (e *Error) WithMessage(message string) *Error { n := *e; n.Message = message; return &n }
-func (e *Error) WithCode(code int) *Error          { n := *e; n.Code = code; return &n }
-func (e *Error) WithInner(inner error) *Error      { n := *e; n.Inner = inner; return &n }
+
+// WithMessage returns a copy of the error with the message replaced.
+// Optional key-value pairs are merged into Params (same semantics as WithParams).
+func (e *Error) WithMessage(message string, params ...any) *Error {
+	n := e.WithParams(params...)
+	n.Message = message
+	return n
+}
+
+// WithParams returns a copy of the error with additional key-value pairs merged into Params.
+// Keys must be strings; non-string keys are silently skipped.
+func (e *Error) WithParams(keyvals ...any) *Error {
+	if len(keyvals) == 0 && len(e.Params) == 0 {
+		n := *e
+		return &n
+	}
+	newParams := make(map[string]any, len(e.Params)+len(keyvals)/2)
+	maps.Copy(newParams, e.Params)
+	copySliceToMap(keyvals, newParams)
+	n := *e
+	if len(newParams) == 0 {
+		n.Params = nil
+	} else {
+		n.Params = newParams
+	}
+	return &n
+}
+
+func (e *Error) WithCode(code int) *Error     { n := *e; n.Code = code; return &n }
+func (e *Error) WithInner(inner error) *Error { n := *e; n.Inner = inner; return &n }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("[%s] Subject: %s, Message: %s", e.Type, e.Subject, e.Message)
+	var s strings.Builder
+	fmt.Fprintf(&s, "[%s] Subject: %s, Message: %s", e.Type, e.Subject, e.Message)
+	keys := make([]string, 0, len(e.Params))
+	for k := range e.Params {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&s, ", %s=%v", k, e.Params[k])
+	}
+	if e.Inner != nil {
+		fmt.Fprintf(&s, ", inner=%s", e.Inner.Error())
+	}
+	return s.String()
+}
+
+func (e *Error) MarshalJSON() ([]byte, error) {
+	type alias Error
+	v := struct {
+		*alias
+		Inner string `json:"inner,omitempty"`
+	}{alias: (*alias)(e)}
+	if e.Inner != nil {
+		v.Inner = e.Inner.Error()
+	}
+	return json.Marshal(v)
 }
 
 func (e *Error) Unwrap() error { return e.Inner }
+
+// ErrorResponse is the JSON body returned by the HTTP error middleware.
+type ErrorResponse struct {
+	Error      string         `json:"error"`
+	Subject    string         `json:"subject"`
+	Message    string         `json:"message"`
+	Params     map[string]any `json:"params,omitempty"`
+	Code       int            `json:"code"`
+	InnerError *string        `json:"innerError,omitempty"`
+}
 
 var (
 	ErrBadRequest   = NewBadRequestError("General", "Bad Request")
@@ -98,4 +167,12 @@ var (
 func isErrorTypeEqual(err error, errType ErrorType) bool {
 	t, ok := GetErrorType(err)
 	return ok && t == errType
+}
+
+func copySliceToMap(src []any, dst map[string]any) {
+	for i := 0; i+1 < len(src); i += 2 {
+		if key, ok := src[i].(string); ok {
+			dst[key] = src[i+1]
+		}
+	}
 }

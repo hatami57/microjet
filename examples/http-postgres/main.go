@@ -29,10 +29,10 @@ func main() {
 
 	app.WithPostgreSQL().
 		Setup(func(a *host.App) error {
-			return a.DB.AutoMigrate(&User{})
+			return a.DB().AutoMigrate(&User{})
 		}).
 		WithHTTPServer(func(a *host.App) error {
-			registerRoutes(a, postgres.NewTable[User](a.DB))
+			registerRoutes(a, postgres.NewTable[User](a.DB()))
 			return nil
 		}).
 		MustRun()

@@ -17,16 +17,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// DefaultDatabase is the key used for the primary database registered via WithDatabase or WithPostgreSQL.
+const DefaultDatabase = "default"
+
+// App is the central runtime object for a service. Build it with the fluent
+// New().With*() chain at service startup.
 type App struct {
 	Config     *core.Config
 	Logger     *slog.Logger
 	Messaging  messaging.Client
 	AWS        *aws.AWS
 	HTTPServer *libhttp.Server
-	DB         *gorm.DB
 
 	envPrefix            string
+	databases            map[string]*gorm.DB
 	container            sync.Map
+	workers              []worker
 	isServiceInitialized bool
 	err                  error
 	closeOnce            sync.Once
@@ -44,14 +50,13 @@ func WithEnvPrefix(prefix string) Option {
 	return func(a *App) { a.envPrefix = prefix }
 }
 
-// New constructs an App, loading configuration and the logger. It returns an
-// error instead of panicking so it can be used safely in libraries and tests.
+// New constructs an App, loading configuration and the logger. Returns an
+// error instead of panicking so callers can handle config failures gracefully.
 func New(opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {
 		opt(a)
 	}
-
 	config := &core.Config{}
 	if err := core.Load(config, a.envPrefix); err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
@@ -71,7 +76,7 @@ func MustNew(opts ...Option) *App {
 }
 
 // Err returns the first error recorded while building the App via the fluent
-// With* / Setup methods, or nil if the chain succeeded.
+// With*/Setup methods, or nil if the chain succeeded.
 func (a *App) Err() error { return a.err }
 
 // fail records the first build error and short-circuits the fluent chain.
@@ -79,6 +84,35 @@ func (a *App) fail(err error) *App {
 	if a.err == nil && err != nil {
 		a.err = err
 	}
+	return a
+}
+
+// DB returns the default database connection, or nil if none has been registered.
+func (a *App) DB() *gorm.DB {
+	return a.NamedDB(DefaultDatabase)
+}
+
+// NamedDB returns a named database connection, or nil if not found.
+func (a *App) NamedDB(name string) *gorm.DB {
+	if a.databases == nil {
+		return nil
+	}
+	return a.databases[name]
+}
+
+// WithDatabase registers db as the default database.
+// Called internally by WithPostgreSQL.
+func (a *App) WithDatabase(db *gorm.DB) *App {
+	return a.WithNamedDatabase(DefaultDatabase, db)
+}
+
+// WithNamedDatabase registers a named database for multi-database setups.
+// Retrieve it later with NamedDB(name).
+func (a *App) WithNamedDatabase(name string, db *gorm.DB) *App {
+	if a.databases == nil {
+		a.databases = make(map[string]*gorm.DB)
+	}
+	a.databases[name] = db
 	return a
 }
 
@@ -94,9 +128,9 @@ func (a *App) Setup(handler HandlerFunc) *App {
 	return a
 }
 
-// Run initializes services, starts the HTTP server (if configured), blocks
-// until a termination signal or a fatal server error, then gracefully shuts
-// down. It returns any startup or server error.
+// Run initializes services, starts workers and the HTTP server (if configured),
+// then blocks until a termination signal or fatal server error. On exit it
+// cancels workers, waits for them, and gracefully shuts down.
 func (a *App) Run() error {
 	if a.err != nil {
 		a.Close()
@@ -107,50 +141,65 @@ func (a *App) Run() error {
 		return fmt.Errorf("initializing services: %w", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	workerWg := a.startWorkers(ctx)
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	var httpErr chan error
+	var httpErrCh <-chan error
 	if a.HTTPServer != nil {
-		httpErr = make(chan error, 1)
+		ch := make(chan error, 1)
+		httpErrCh = ch
 		go func() {
-			if err := a.StartHTTP(); err != nil {
-				httpErr <- err
+			a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
+			if err := a.HTTPServer.Start(); err != nil {
+				ch <- err
 			}
 		}()
 	}
 
+	var runErr error
 	select {
 	case sig := <-quit:
 		a.Logger.Info("received shutdown signal", "signal", sig.String())
-		a.Close()
-		return nil
-	case err := <-httpErr:
+	case err := <-httpErrCh:
 		a.Logger.Error("HTTP server failed", "error", err)
-		a.Close()
-		return err
+		runErr = err
 	}
+
+	cancel()
+	workerWg.Wait()
+	a.Close()
+	return runErr
 }
 
 // MustRun is like Run but logs and exits the process on error.
 func (a *App) MustRun() {
 	if err := a.Run(); err != nil {
 		a.Logger.Error("application error", "error", err)
-		a.Close()
 		os.Exit(1)
 	}
 }
 
-// WaitForExitSignal blocks until the process receives SIGINT or SIGTERM. Use
-// it when managing the lifecycle manually instead of via Run.
+// StartHTTP starts the HTTP server and blocks until it stops. Kept for
+// callers that manage the lifecycle manually instead of via Run.
+func (a *App) StartHTTP() error {
+	if a.HTTPServer == nil {
+		return fmt.Errorf("http server not configured; call WithHTTPServer first")
+	}
+	a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
+	return a.HTTPServer.Start()
+}
+
+// WaitForExitSignal blocks until the process receives SIGINT or SIGTERM.
 func WaitForExitSignal() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 }
 
-// Close gracefully shuts down all managed resources. It is safe to call more
-// than once (e.g. via both Run and a deferred Close).
+// Close gracefully shuts down all managed resources. Safe to call more than once.
 func (a *App) Close() {
 	a.closeOnce.Do(a.close)
 }
@@ -182,16 +231,19 @@ func (a *App) close() {
 		}()
 	}
 
-	if a.DB != nil {
+	for name, db := range a.databases {
 		wg.Add(1)
-		go func() {
+		go func(name string, db *gorm.DB) {
 			defer wg.Done()
-			if db, err := a.DB.DB(); err != nil {
-				a.Logger.Error("Failed to get db instance", "error", err)
-			} else if err := db.Close(); err != nil {
-				a.Logger.Error("Failed to close db connection", "error", err)
+			sqlDB, err := db.DB()
+			if err != nil {
+				a.Logger.Error("Failed to get db instance", "db", name, "error", err)
+				return
 			}
-		}()
+			if err := sqlDB.Close(); err != nil {
+				a.Logger.Error("Failed to close db connection", "db", name, "error", err)
+			}
+		}(name, db)
 	}
 
 	wg.Add(1)

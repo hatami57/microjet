@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	ErrServiceNotRegistered = core.NewInternalError("General", "Service is not registered")
+	ErrServiceNotRegistered  = core.NewInternalError("General", "Service is not registered")
+	ErrDatabaseNotInitialized = core.NewInternalError("Database", "Database is not initialized")
 )
 
 type ServiceIniter interface {
@@ -25,7 +26,7 @@ type providedItem[T, V any] struct {
 }
 
 func ResolveType[T any]() reflect.Type {
-	return reflect.TypeOf((*T)(nil)).Elem()
+	return reflect.TypeFor[T]()
 }
 
 func ProvideType[T any](service T) *providedItem[reflect.Type, any] {
@@ -69,6 +70,26 @@ func (a *App) ProvideKey(key string, value any) *App {
 	return a
 }
 
+func (a *App) ResolveKey(key string) (any, bool) {
+	return a.container.Load(key)
+}
+
+func (a *App) ResolveService(key reflect.Type) (any, bool) {
+	raw, ok := a.container.Load(key)
+	if !ok {
+		zero := reflect.New(key).Elem().Interface()
+		return zero, false
+	}
+	return raw, true
+}
+
+func (a *App) MustResolveService(key reflect.Type) any {
+	if svc, ok := a.ResolveService(key); ok {
+		return svc
+	}
+	panic(ErrServiceNotRegistered.WithParams("name", key.String()))
+}
+
 func (a *App) WithProvider(provider HandlerFunc) *App {
 	if a.err != nil {
 		return a
@@ -98,31 +119,44 @@ func (a *App) initServices() error {
 	if a.isServiceInitialized {
 		return nil
 	}
+	a.Logger.Debug("initializing services")
 	var initErr error
 	a.container.Range(func(_, item any) bool {
-		if svc, ok := item.(ServiceIniter); ok {
-			if err := svc.Init(a); err != nil {
-				initErr = err
-				return false
-			}
+		svc, ok := item.(ServiceIniter)
+		if !ok {
+			return true
 		}
+		name := reflect.TypeOf(item).String()
+		a.Logger.Debug("initializing service", "type", name)
+		if err := svc.Init(a); err != nil {
+			a.Logger.Error("failed to initialize service", "type", name, "error", err)
+			initErr = err
+			return false
+		}
+		a.Logger.Debug("service initialized", "type", name)
 		return true
 	})
 	if initErr != nil {
 		return initErr
 	}
 	a.isServiceInitialized = true
+	a.Logger.Info("all services initialized")
 	return nil
 }
 
 func (a *App) closeServices() error {
 	var errs error
+	a.Logger.Debug("closing services")
 	a.container.Range(func(_, item any) bool {
-		if svc, ok := item.(ServiceCloser); ok {
-			if err := svc.Close(a); err != nil {
-				a.Logger.Error("service close error", "error", err)
-				errs = errors.Join(errs, err)
-			}
+		svc, ok := item.(ServiceCloser)
+		if !ok {
+			return true
+		}
+		name := reflect.TypeOf(item).String()
+		a.Logger.Debug("closing service", "type", name)
+		if err := svc.Close(a); err != nil {
+			a.Logger.Error("failed to close service", "type", name, "error", err)
+			errs = errors.Join(errs, err)
 		}
 		return true
 	})

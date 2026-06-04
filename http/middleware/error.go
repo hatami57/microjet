@@ -8,17 +8,8 @@ import (
 	"github.com/hatami57/microjet/core"
 )
 
-type ErrorResponse struct {
-	Error        string  `json:"error"`
-	Subject      string  `json:"subject"`
-	Message      string  `json:"message"`
-	Code         int     `json:"code"`
-	InnerMessage *string `json:"innerMessage,omitempty"`
-}
-
 // Error translates errors recorded on the gin context into structured JSON
-// responses. When debug is false, internal causes (inner error strings) are
-// never exposed to clients to avoid leaking implementation details.
+// responses. When debug is false, inner causes are never exposed to clients.
 func Error(debug bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
@@ -30,42 +21,52 @@ func Error(debug bool) gin.HandlerFunc {
 		err := c.Errors.Last().Err
 		status := http.StatusInternalServerError
 
-		var response ErrorResponse
+		var response core.ErrorResponse
 		var v *core.Error
 		switch {
 		case errors.As(err, &v):
-			var innerMessage *string
+			var innerError *string
 			if debug && v.Inner != nil {
-				inner := v.Inner.Error()
-				innerMessage = &inner
+				s := v.Inner.Error()
+				innerError = &s
+			}
+			response = core.ErrorResponse{
+				Subject:    v.Subject,
+				Message:    v.Message,
+				Params:     v.Params,
+				Code:       v.Code,
+				InnerError: innerError,
 			}
 			switch v.Type {
 			case core.NotFoundErrorType:
 				status = http.StatusNotFound
-				response = ErrorResponse{Error: "not_found", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
+				response.Error = "not_found"
 			case core.BadRequestErrorType:
 				status = http.StatusBadRequest
-				response = ErrorResponse{Error: "invalid_input", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
+				response.Error = "invalid_input"
 			case core.BusinessErrorType:
 				status = http.StatusConflict
-				response = ErrorResponse{Error: "conflict", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
+				response.Error = "conflict"
 			case core.UnauthorizedErrorType:
 				status = http.StatusUnauthorized
-				response = ErrorResponse{Error: "unauthorized", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
+				response.Error = "unauthorized"
 			case core.ForbiddenErrorType:
 				status = http.StatusForbidden
-				response = ErrorResponse{Error: "forbidden", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
+				response.Error = "forbidden"
 			default:
-				// Internal errors: expose the developer-authored message but only
-				// leak the inner cause in debug mode.
-				response = ErrorResponse{Error: "internal_server_error", Subject: v.Subject, Message: v.Message, Code: v.Code, InnerMessage: innerMessage}
+				// Internal or unknown typed error.
+				response.Error = "internal_server_error"
 			}
 		default:
 			// Untyped error: never expose the raw string in production.
-			response = ErrorResponse{Error: "internal_server_error", Subject: "Unknown", Message: "An internal server error occurred", Code: 0}
+			response = core.ErrorResponse{
+				Error:   "internal_server_error",
+				Subject: "Unknown",
+				Message: "An internal server error occurred",
+			}
 			if debug {
-				errorString := err.Error()
-				response.InnerMessage = &errorString
+				s := err.Error()
+				response.InnerError = &s
 			}
 		}
 
