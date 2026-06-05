@@ -50,18 +50,14 @@ All three implemented and committed (see `feat(httpx)`, `fix(host)`,
 
 ---
 
-## Phase 2 — Do next (opt-in, common)
+## Phase 2 — DONE ✅
 
-### 4. Prometheus metrics middleware + `/metrics`  `feat`
-- RED metrics: request count, error count, duration histogram, labeled by
-  method/route/status. Expose `/metrics`. Register from host like `/readyz`.
-
-### 5. HTTP client retries with backoff  `feat`
-- Add retry policy to `httpx.Client` (max attempts, backoff, retry on network
-  errors + configurable status codes, idempotent methods by default). Honor ctx.
-
-### 6. CORS middleware  `feat`
-- Configurable allowed origins/methods/headers; opt-in via a middleware ctor.
+All three implemented and committed (`feat(httpx)`):
+- ✅ Prometheus metrics middleware + `/metrics` (RED metrics on a private
+  registry, auto-wired into the server alongside `/health` and `/readyz`).
+- ✅ HTTP client retries with exponential backoff + jitter (`WithRetry`,
+  idempotent methods by default, honors ctx).
+- ✅ Configurable CORS middleware (`CORS` / `DefaultCORSConfig`, opt-in).
 
 ---
 
