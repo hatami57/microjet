@@ -2,7 +2,9 @@ package host
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -56,7 +58,7 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 			a.Logger.Info("worker started", "worker", name)
 			if interval > 0 {
 				a.runPeriodic(ctx, name, interval, fn)
-			} else if err := fn(ctx, a); err != nil && ctx.Err() == nil {
+			} else if err := a.safeRun(ctx, name, fn); err != nil && ctx.Err() == nil {
 				a.Logger.Error("worker exited with error", "worker", name, "error", err)
 			}
 			a.Logger.Info("worker stopped", "worker", name)
@@ -102,7 +104,9 @@ func (a *App) runPeriodic(ctx context.Context, name string, interval time.Durati
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
-		if err := fn(ctx, a); err != nil && ctx.Err() == nil {
+		// A panic or error on one tick is logged but never stops the ticker:
+		// periodic workers keep running on schedule.
+		if err := a.safeRun(ctx, name, fn); err != nil && ctx.Err() == nil {
 			a.Logger.Error("worker error", "worker", name, "error", err)
 		}
 		select {
@@ -111,4 +115,17 @@ func (a *App) runPeriodic(ctx context.Context, name string, interval time.Durati
 		case <-ticker.C:
 		}
 	}
+}
+
+// safeRun invokes a worker function, converting a panic into an error so a
+// crashing worker is logged (with its stack) instead of taking down the whole
+// process. A one-shot worker that panics ends; a periodic worker keeps ticking.
+func (a *App) safeRun(ctx context.Context, name string, fn func(context.Context, *App) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.Logger.Error("worker panic recovered", "worker", name, "panic", r, "stack", string(debug.Stack()))
+			err = fmt.Errorf("worker %q panicked: %v", name, r)
+		}
+	}()
+	return fn(ctx, a)
 }

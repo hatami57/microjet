@@ -17,6 +17,29 @@ func (w *countingWorker) Go(ctx context.Context, _ *App) error {
 	return nil
 }
 
+func TestWorkerPanicIsRecovered(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ran := make(chan struct{})
+	app.WithWorker("panicker", func(_ context.Context, _ *App) error {
+		defer close(ran)
+		panic("boom")
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wg := app.startWorkers(ctx)
+
+	// If the panic were not recovered the test process would crash; reaching
+	// here (and the worker goroutine completing) proves it was contained.
+	<-ran
+	cancel()
+	wg.Wait()
+}
+
 func TestDIAsyncWorkerStartsExactlyOnce(t *testing.T) {
 	app, err := New()
 	if err != nil {
