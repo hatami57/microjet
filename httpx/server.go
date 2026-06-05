@@ -85,6 +85,7 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 		},
 	}
 
+	router.Use(middleware.RequestID())
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.Error(cfg.Debug))
 	router.Use(gin.Recovery())

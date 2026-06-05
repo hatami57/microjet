@@ -1,7 +1,9 @@
 package httpx
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +12,18 @@ import (
 	"github.com/hatami57/microjet/httpx/middleware"
 	"github.com/hatami57/microjet/types"
 )
+
+// RequestID returns the correlation id for the current request (set by the
+// RequestID middleware), or "" if none.
+func RequestID(c *gin.Context) string {
+	return middleware.RequestIDFromContext(c.Request.Context())
+}
+
+// LoggerFrom returns the request-scoped logger carried by ctx (tagged with the
+// request id), falling back to slog.Default() when none is present.
+func LoggerFrom(ctx context.Context) *slog.Logger {
+	return middleware.LoggerFromContext(ctx)
+}
 
 func FindTenantID(c *gin.Context) (uuid.UUID, error) {
 	return middleware.FindTenantID(c)

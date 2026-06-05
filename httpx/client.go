@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/httpx/middleware"
 )
 
 // DefaultClientTimeout bounds every request made by a Client that was not given
@@ -106,6 +107,10 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any, opt
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	// Propagate the inbound correlation id so the upstream can join the trace.
+	if id := middleware.RequestIDFromContext(ctx); id != "" {
+		req.Header.Set(middleware.DefaultRequestIDHeader, id)
 	}
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
