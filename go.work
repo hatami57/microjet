@@ -4,6 +4,7 @@ use (
 	./aws
 	./cache
 	./core
+	./examples/features
 	./examples/http-postgres
 	./examples/minimal
 	./examples/sqlite

@@ -32,6 +32,7 @@ go.work.sum
 examples/http-postgres/http-postgres
 examples/minimal/minimal
 examples/sqlite/sqlite
+examples/features/features
 
 # SQLite database files created by examples at runtime
 *.db
