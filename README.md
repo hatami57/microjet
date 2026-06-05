@@ -1,4 +1,4 @@
-# microjet
+# MicroJet
 
 [![CI](https://github.com/hatami57/microjet/actions/workflows/ci.yml/badge.svg)](https://github.com/hatami57/microjet/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/hatami57/microjet.svg)](https://pkg.go.dev/github.com/hatami57/microjet)
@@ -56,11 +56,11 @@ package main
 import "github.com/hatami57/microjet/host"
 
 func main() {
-	app := host.MustNew()
-	defer app.Close()
+ app := host.MustNew()
+ defer app.Close()
 
-	app.Logger.Info("started")
-	host.WaitForExitSignal()
+ app.Logger.Info("started")
+ host.WaitForExitSignal()
 }
 ```
 
@@ -71,20 +71,20 @@ tests; `host.MustNew()` is the panic-on-error convenience for `main()`.
 
 ```go
 type MyConfig struct {
-	ServiceName string `mapstructure:"serviceName"`
-	MaxWorkers  int    `mapstructure:"maxWorkers"`
+ ServiceName string `mapstructure:"serviceName"`
+ MaxWorkers  int    `mapstructure:"maxWorkers"`
 }
 
 func main() {
-	app := host.MustNew(host.WithEnvPrefix("MYAPP"))
-	defer app.Close()
+ app := host.MustNew(host.WithEnvPrefix("MYAPP"))
+ defer app.Close()
 
-	cfg, err := core.GetExtra[MyConfig](app.Config, "myapp")
-	if err != nil {
-		panic(err)
-	}
-	app.Logger.Info("started", "service", cfg.ServiceName)
-	host.WaitForExitSignal()
+ cfg, err := core.GetExtra[MyConfig](app.Config, "myapp")
+ if err != nil {
+  panic(err)
+ }
+ app.Logger.Info("started", "service", cfg.ServiceName)
+ host.WaitForExitSignal()
 }
 ```
 
@@ -94,35 +94,35 @@ func main() {
 package main
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/httpx"
-	"github.com/hatami57/microjet/host"
-	"github.com/hatami57/microjet/gormx"
+ "github.com/gin-gonic/gin"
+ "github.com/hatami57/microjet/httpx"
+ "github.com/hatami57/microjet/host"
+ "github.com/hatami57/microjet/gormx"
 )
 
 type User struct {
-	ID    uint   `gorm:"primaryKey"`
-	Name  string `gorm:"not null"`
-	Email string `gorm:"unique;not null"`
+ ID    uint   `gorm:"primaryKey"`
+ Name  string `gorm:"not null"`
+ Email string `gorm:"unique;not null"`
 }
 
 func main() {
-	app := host.MustNew()
+ app := host.MustNew()
 
-	app.WithPostgreSQL().
-		Setup(func(a *host.App) error {
-			return a.DB.AutoMigrate(&User{})
-		}).
-		WithHTTPServer(func(a *host.App) error {
-			userTable := gormx.NewTable[User](a.DB)
-			a.HTTPServer.Router.GET("/users", func(c *gin.Context) {
-				items, _ := userTable.ListAll(c.Request.Context(),
-					gormx.NewListRequestByID[User](httpx.PagedRequest(c)))
-				c.JSON(200, items)
-			})
-			return nil
-		}).
-		MustRun() // inits services, starts HTTP, blocks until signal, then shuts down
+ app.WithPostgreSQL().
+  Setup(func(a *host.App) error {
+   return a.DB.AutoMigrate(&User{})
+  }).
+  WithHTTPServer(func(a *host.App) error {
+   userTable := gormx.NewTable[User](a.DB)
+   a.HTTPServer.Router.GET("/users", func(c *gin.Context) {
+    items, _ := userTable.ListAll(c.Request.Context(),
+     gormx.NewListRequestByID[User](httpx.PagedRequest(c)))
+    c.JSON(200, items)
+   })
+   return nil
+  }).
+  MustRun() // inits services, starts HTTP, blocks until signal, then shuts down
 }
 ```
 
@@ -147,8 +147,8 @@ To select the driver from config instead of hard-coding it, call
 
 ```go
 app.WithDatabaseFromConfig(). // uses [database].driver
-	Setup(func(a *host.App) error { return a.DB().AutoMigrate(&Note{}) }).
-	MustRun()
+ Setup(func(a *host.App) error { return a.DB().AutoMigrate(&Note{}) }).
+ MustRun()
 ```
 
 ### Cached tenant lookups

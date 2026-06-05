@@ -1,11 +1,11 @@
-# Contributing to microjet
+# Contributing to MicroJet
 
-Thanks for your interest in improving microjet! This document explains how the
+Thanks for your interest in improving MicroJet! This document explains how the
 repository is laid out and how to work on it locally.
 
 ## Repository layout
 
-microjet is a **multi-module monorepo**. Each top-level directory is its own Go
+MicroJet is a **multi-module monorepo**. Each top-level directory is its own Go
 module with its own `go.mod`:
 
 | Module | Path |
@@ -56,7 +56,7 @@ released by tagging each affected module with a module-scoped tag:
 
 ```bash
 git tag core/v0.2.0
-git tag http/v0.2.0
+git tag httpx/v0.2.0
 git push --tags
 ```
 

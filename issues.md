@@ -1,6 +1,6 @@
-# microjet — Roadmap: features & genericity
+# MicroJet — Roadmap: features & genericity
 
-Production-microservice features microjet is missing, and places where it is too
+Production-microservice features MicroJet is missing, and places where it is too
 specific. Ordered by recommended execution. Each top-level item should be its own
 commit (Conventional Commits format, e.g. `feat:`, `refactor:`; no AI attribution).
 
@@ -10,6 +10,7 @@ commit (Conventional Commits format, e.g. `feat:`, `refactor:`; no AI attributio
 
 All three implemented and committed (see `feat(httpx)`, `fix(host)`,
 `refactor(core,aws)`):
+
 - ✅ Request/correlation ID middleware + per-request logger + client propagation.
 - ✅ Worker panic recovery (`safeRun`).
 - ✅ AWS config moved out of `core` (`core.ConfigViper` + `aws.LoadConfig`).
@@ -17,6 +18,7 @@ All three implemented and committed (see `feat(httpx)`, `fix(host)`,
 <details><summary>Original Phase 1 spec</summary>
 
 ### 1. Request/correlation ID middleware + per-request logger  `feat`
+
 - New `httpx/middleware` RequestID middleware: read `X-Request-ID` (configurable
   header) or generate a UUID; store it on the gin context and echo it in the
   response header.
@@ -31,6 +33,7 @@ All three implemented and committed (see `feat(httpx)`, `fix(host)`,
   header and in log attrs.
 
 ### 2. Worker panic recovery  `fix`
+
 - In `host/workers.go`, wrap each worker invocation (`launch` / `runPeriodic`)
   with `recover()`; log the panic + stack and keep the process alive.
 - Decision (M2): a panicking/returning periodic worker keeps ticking; a one-shot
@@ -38,6 +41,7 @@ All three implemented and committed (see `feat(httpx)`, `fix(host)`,
 - Test: a worker that panics does not crash the process and is logged.
 
 ### 3. Decouple AWS (and provider specifics) from `core.Config`  `refactor` (breaking)
+
 - `core.Config` currently hard-codes `AWSConfig` (S3/SQS/DynamoDB). Move
   provider-specific config out of `core` so the foundational module stays
   vendor-neutral. Keep `App`/`Server`/`Log`/`Database`/`Messaging` + `Extra`.
@@ -53,6 +57,7 @@ All three implemented and committed (see `feat(httpx)`, `fix(host)`,
 ## Phase 2 — DONE ✅
 
 All three implemented and committed (`feat(httpx)`):
+
 - ✅ Prometheus metrics middleware + `/metrics` (RED metrics on a private
   registry, auto-wired into the server alongside `/health` and `/readyz`).
 - ✅ HTTP client retries with exponential backoff + jitter (`WithRetry`,
@@ -78,6 +83,7 @@ Not done (was lower-priority, not selected): **DB migration guidance
 ---
 
 ## Deferred earlier (judgment calls, intentionally not done)
+
 - H2 `Error()` prints inner (stdlib-consistent; output-format choice)
 - H3 `Must*` reachable from handlers (needs usage-contract policy)
 - M3 `MustGetExtra*` panics (taste / API surface)
