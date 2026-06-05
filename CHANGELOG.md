@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-06-05
+
+First tagged multi-module release. Each module is tagged independently
+(`<module>/v0.2.0`); install with the module-prefixed version, e.g.
+`go get github.com/hatami57/microjet/httpx@v0.2.0`.
 
 This release contains several **breaking changes** (module/package renames and
 interface signatures). See _Changed_ below.
