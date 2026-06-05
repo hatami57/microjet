@@ -18,11 +18,11 @@ type Money struct {
 
 var Zero = Money{Value: decimal.Zero, CurrencyCode: ""}
 
-func FromMap(m map[string]interface{}) (*Money, error) {
+func FromMap(m map[string]any) (*Money, error) {
 	return utils.MapTo[*Money](m)
 }
 
-func (m *Money) ToMap() map[string]interface{} {
+func (m *Money) ToMap() map[string]any {
 	if m == nil {
 		return nil
 	}

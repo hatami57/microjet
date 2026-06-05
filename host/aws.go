@@ -17,24 +17,26 @@ func (a *App) WithAWS(services ...aws.AWSService) *App {
 	}
 	a.AWS = &aws.AWS{Logger: a.Logger}
 
-	var options []func(*awsConfig.LoadOptions) error
-
-	if a.Config.AWS != nil {
-		if ak, sk := a.Config.AWS.AccessKey, a.Config.AWS.SecretKey; ak != "" && sk != "" {
-			options = append(options, awsConfig.WithCredentialsProvider(
-				credentials.NewStaticCredentialsProvider(ak, sk, ""),
-			))
-		}
-		if r := a.Config.AWS.Region; r != "" {
-			options = append(options, awsConfig.WithRegion(r))
-		}
-		a.AWS.DefaultS3BucketName = a.Config.AWS.S3BucketName
-		a.AWS.DefaultSQSQueueURL = a.Config.AWS.SQSQueueURL
+	awsCfg, err := aws.LoadConfig(a.envPrefix)
+	if err != nil {
+		return a.fail(fmt.Errorf("aws: load config: %w", err))
 	}
+
+	var options []func(*awsConfig.LoadOptions) error
+	if ak, sk := awsCfg.AccessKey, awsCfg.SecretKey; ak != "" && sk != "" {
+		options = append(options, awsConfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(ak, sk, ""),
+		))
+	}
+	if r := awsCfg.Region; r != "" {
+		options = append(options, awsConfig.WithRegion(r))
+	}
+	a.AWS.DefaultS3BucketName = awsCfg.S3BucketName
+	a.AWS.DefaultSQSQueueURL = awsCfg.SQSQueueURL
 
 	cfg, err := awsConfig.LoadDefaultConfig(context.TODO(), options...)
 	if err != nil {
-		return a.fail(fmt.Errorf("aws: load config: %w", err))
+		return a.fail(fmt.Errorf("aws: aws-sdk load config: %w", err))
 	}
 	a.AWS.DefaultConfig = cfg
 

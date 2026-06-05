@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatami57/microjet/core"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -19,15 +20,17 @@ func (a *App) WithPostgreSQL() *App {
 	if a.err != nil {
 		return a
 	}
-	db, err := newPostgreSQL(a)
+	if a.Config.Database == nil {
+		return a.fail(fmt.Errorf("postgres: no [database] config section"))
+	}
+	db, err := newPostgreSQL(a, a.Config.Database)
 	if err != nil {
 		return a.fail(fmt.Errorf("postgres: %w", err))
 	}
 	return a.WithDatabase(db)
 }
 
-func newPostgreSQL(a *App) (*gorm.DB, error) {
-	dbCfg := a.Config.Database
+func newPostgreSQL(a *App, dbCfg *core.DatabaseConfig) (*gorm.DB, error) {
 	a.Logger.Debug("connecting to postgresql",
 		"host", dbCfg.Host,
 		"port", dbCfg.Port,

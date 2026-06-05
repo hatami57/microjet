@@ -108,7 +108,7 @@ func (h *plainTextHandler) Enabled(_ context.Context, l slog.Level) bool {
 
 func (h *plainTextHandler) Handle(_ context.Context, r slog.Record) error {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s [%s] %s", r.Time.UTC().Format("2006-01-02T15:04:05.000")+"Z", levelLabel(r.Level), r.Message)
+	fmt.Fprintf(&buf, "%s [%s] %s", r.Time.UTC().Format("2006-01-02T15:04:05.000Z"), levelLabel(r.Level), r.Message)
 	writeAttrs(&buf, h.grp, h.pre)
 	r.Attrs(func(a slog.Attr) bool {
 		writeAttr(&buf, h.grp, a)

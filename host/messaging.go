@@ -18,7 +18,21 @@ func (a *App) WithMessaging(setup ...HandlerFunc) *App {
 		return a.fail(fmt.Errorf("messaging: %w", err))
 	}
 	a.Messaging = client
+	return a.runMessagingSetup(setup...)
+}
 
+// WithMessagingClient injects a pre-built messaging.Client (e.g. an in-memory
+// fake in tests, or a non-NATS implementation) instead of dialing NATS, then
+// runs the optional setup handlers. Errors are deferred to Run/MustRun/Err.
+func (a *App) WithMessagingClient(client messaging.Client, setup ...HandlerFunc) *App {
+	if a.err != nil {
+		return a
+	}
+	a.Messaging = client
+	return a.runMessagingSetup(setup...)
+}
+
+func (a *App) runMessagingSetup(setup ...HandlerFunc) *App {
 	for _, s := range setup {
 		if s == nil {
 			continue

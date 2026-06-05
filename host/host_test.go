@@ -3,6 +3,9 @@ package host
 import (
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/hatami57/microjet/core"
 )
 
 func TestNewUsesDefaults(t *testing.T) {
@@ -15,6 +18,23 @@ func TestNewUsesDefaults(t *testing.T) {
 	}
 	if app.Config.Server.Port != 8080 {
 		t.Errorf("default port = %d, want 8080", app.Config.Server.Port)
+	}
+	if app.Clock == nil {
+		t.Error("expected a default Clock to be set")
+	}
+}
+
+func TestWithClockInjectsTimeProvider(t *testing.T) {
+	fixed := core.NewFixedClock(time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC))
+	app, err := New(WithClock(fixed))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if app.Clock != fixed {
+		t.Errorf("Clock = %v, want injected FixedClock", app.Clock)
+	}
+	if !app.Clock.Now().Equal(fixed.Now()) {
+		t.Error("app clock does not report the injected time")
 	}
 }
 

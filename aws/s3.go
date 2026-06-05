@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"golang.org/x/sync/errgroup"
 )
 
 type S3DownloadFileRequest struct {
@@ -35,23 +36,19 @@ func (a *AWS) S3DownloadFiles(ctx context.Context, reqs []S3DownloadFileRequest,
 		return fmt.Errorf("s3 client is not configured")
 	}
 
-	sem := make(chan struct{}, maxWorkers)
-	errCh := make(chan error, len(reqs))
-
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxWorkers)
 	for _, req := range reqs {
-		go func(r S3DownloadFileRequest) {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			errCh <- a.internalS3DownloadFile(ctx, &r)
-		}(req)
+		g.Go(func() error {
+			// errgroup cancels ctx on first error; honor it before each download
+			// so we don't keep launching work after a failure.
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return a.internalS3DownloadFile(ctx, &req)
+		})
 	}
-
-	for range reqs {
-		if err := <-errCh; err != nil {
-			return err
-		}
-	}
-	return nil
+	return g.Wait()
 }
 
 func (a *AWS) S3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
@@ -64,7 +61,7 @@ func (a *AWS) S3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) er
 func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
 	f, err := os.Create(req.LocalFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %v", err)
+		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer f.Close()
 
@@ -74,22 +71,12 @@ func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileReq
 		Key:    aws.String(req.ObjectKey),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get object from s3: %v", err)
+		return fmt.Errorf("failed to get object from s3: %w", err)
 	}
 	defer result.Body.Close()
 
-	buffer := make([]byte, 20*1024*1024)
-	for {
-		n, err := result.Body.Read(buffer)
-		if err != nil && err != io.EOF {
-			return fmt.Errorf("failed to read from s3: %v", err)
-		}
-		if n == 0 {
-			break
-		}
-		if _, err := f.Write(buffer[:n]); err != nil {
-			return fmt.Errorf("failed to write to file: %v", err)
-		}
+	if _, err := io.Copy(f, result.Body); err != nil {
+		return fmt.Errorf("failed to stream object to file: %w", err)
 	}
 	a.Logger.Debug("download completed from s3", slog.String("path", req.LocalFilePath))
 	return nil
@@ -109,6 +96,8 @@ func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error 
 	}
 	defer file.Close()
 
+	// TODO: migrate to feature/s3/transfermanager once it stabilizes.
+	//lint:ignore SA1019 manager.Uploader is the current stable multipart uploader; its successor lives in a separate module.
 	uploader := manager.NewUploader(a.S3Client)
 
 	var tagging *string
@@ -121,6 +110,7 @@ func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error 
 	}
 
 	a.Logger.Debug("uploading to s3", slog.String("path", req.LocalFilePath))
+	//lint:ignore SA1019 see note above; using the stable manager.Uploader API.
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      &req.BucketName,
 		Key:         &req.ObjectKey,

@@ -1,0 +1,17 @@
+[app]
+name = "note-service"
+environment = "development"
+debug = true
+
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+driver = "sqlite"
+# A file path, or ":memory:" for an ephemeral in-memory database.
+name = "notes.db"
+
+[log]
+level = "info"
+format = "json"

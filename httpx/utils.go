@@ -1,15 +1,29 @@
 package httpx
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/http/middleware"
+	"github.com/hatami57/microjet/httpx/middleware"
 	"github.com/hatami57/microjet/types"
 )
+
+// RequestID returns the correlation id for the current request (set by the
+// RequestID middleware), or "" if none.
+func RequestID(c *gin.Context) string {
+	return middleware.RequestIDFromContext(c.Request.Context())
+}
+
+// LoggerFrom returns the request-scoped logger carried by ctx (tagged with the
+// request id), falling back to slog.Default() when none is present.
+func LoggerFrom(ctx context.Context) *slog.Logger {
+	return middleware.LoggerFromContext(ctx)
+}
 
 func FindTenantID(c *gin.Context) (uuid.UUID, error) {
 	return middleware.FindTenantID(c)
@@ -101,14 +115,21 @@ func FindBoolQuery(c *gin.Context, key string) (bool, error) {
 	return v, nil
 }
 
-func Body[T any](c *gin.Context) (*T, error) {
+// Body decodes and validates the JSON request body into a value of type T.
+// It returns the value directly (not a pointer): request bodies are value-shaped
+// data, and returning T avoids a nil-pointer footgun on the error path.
+func Body[T any](c *gin.Context) (T, error) {
 	var body T
 	if err := c.ShouldBindJSON(&body); err != nil {
-		return nil, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
+		return body, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
 	}
-	return &body, nil
+	return body, nil
 }
 
+// PagedRequest builds a pagination request from the query string. The pageSize
+// query param defaults to 10 when absent, and a malformed pageSize also falls
+// back to 10 rather than erroring — listing endpoints favor a sensible default
+// over rejecting the request.
 func PagedRequest(c *gin.Context) *types.PagedResultRequest {
 	pageSize, err := strconv.ParseInt(c.DefaultQuery("pageSize", "10"), 10, 32)
 	if err != nil {

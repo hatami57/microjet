@@ -12,7 +12,7 @@ import (
 
 	"github.com/hatami57/microjet/aws"
 	"github.com/hatami57/microjet/core"
-	libhttp "github.com/hatami57/microjet/http"
+	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/messaging"
 	"gorm.io/gorm"
 )
@@ -25,11 +25,13 @@ const DefaultDatabase = "default"
 type App struct {
 	Config     *core.Config
 	Logger     *slog.Logger
+	Clock      core.TimeProvider
 	Messaging  messaging.Client
 	AWS        *aws.AWS
-	HTTPServer *libhttp.Server
+	HTTPServer *httpx.Server
 
 	envPrefix            string
+	shutdownTimeout      time.Duration
 	databases            map[string]*gorm.DB
 	container            sync.Map
 	workers              []worker
@@ -50,12 +52,28 @@ func WithEnvPrefix(prefix string) Option {
 	return func(a *App) { a.envPrefix = prefix }
 }
 
+// WithClock injects the time source used by the App and its components. Pass
+// core.UTC in production (the default) or a *core.FixedClock in tests to make
+// time-dependent behavior deterministic.
+func WithClock(clock core.TimeProvider) Option {
+	return func(a *App) { a.Clock = clock }
+}
+
+// WithShutdownTimeout bounds how long Close waits for managed resources (HTTP
+// server, databases, messaging, services) to stop. Defaults to 15s.
+func WithShutdownTimeout(d time.Duration) Option {
+	return func(a *App) { a.shutdownTimeout = d }
+}
+
 // New constructs an App, loading configuration and the logger. Returns an
 // error instead of panicking so callers can handle config failures gracefully.
 func New(opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {
 		opt(a)
+	}
+	if a.Clock == nil {
+		a.Clock = core.UTC
 	}
 	config := &core.Config{}
 	if err := core.Load(config, a.envPrefix); err != nil {
@@ -70,7 +88,7 @@ func New(opts ...Option) (*App, error) {
 func MustNew(opts ...Option) *App {
 	a, err := New(opts...)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("host.MustNew: %w", err))
 	}
 	return a
 }
@@ -116,6 +134,25 @@ func (a *App) WithNamedDatabase(name string, db *gorm.DB) *App {
 	return a
 }
 
+// WithDatabaseFromConfig connects the default database from the [database]
+// config section, dispatching on its "driver" field. Supported drivers:
+// "postgres"/"postgresql" and "sqlite"/"sqlite3" (case-insensitive). An empty or
+// unknown driver defers an error to Run/MustRun/Err. For additional connections
+// see WithDatabasesFromConfig.
+func (a *App) WithDatabaseFromConfig() *App {
+	if a.err != nil {
+		return a
+	}
+	if a.Config.Database == nil {
+		return a.fail(fmt.Errorf("database: no [database] config section"))
+	}
+	db, err := a.connectDatabase(a.Config.Database)
+	if err != nil {
+		return a.fail(fmt.Errorf("database: %w", err))
+	}
+	return a.WithDatabase(db)
+}
+
 // Setup runs a setup handler as part of the fluent chain (e.g. migrations or
 // route registration). Errors are deferred and surfaced by Run/MustRun/Err.
 func (a *App) Setup(handler HandlerFunc) *App {
@@ -144,8 +181,7 @@ func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	workerWg := a.startWorkers(ctx)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	quit := notifySignals()
 
 	var httpErrCh <-chan error
 	if a.HTTPServer != nil {
@@ -153,9 +189,10 @@ func (a *App) Run() error {
 		httpErrCh = ch
 		go func() {
 			a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
-			if err := a.HTTPServer.Start(); err != nil {
-				ch <- err
-			}
+			// Always report the outcome: Start returns nil on a clean shutdown
+			// (http.ErrServerClosed) and an error otherwise. Either way the server
+			// is no longer serving, which is a reason to wind the app down.
+			ch <- a.HTTPServer.Start()
 		}()
 	}
 
@@ -164,8 +201,12 @@ func (a *App) Run() error {
 	case sig := <-quit:
 		a.Logger.Info("received shutdown signal", "signal", sig.String())
 	case err := <-httpErrCh:
-		a.Logger.Error("HTTP server failed", "error", err)
-		runErr = err
+		if err != nil {
+			a.Logger.Error("HTTP server failed", "error", err)
+			runErr = err
+		} else {
+			a.Logger.Warn("HTTP server stopped unexpectedly")
+		}
 	}
 
 	cancel()
@@ -194,9 +235,15 @@ func (a *App) StartHTTP() error {
 
 // WaitForExitSignal blocks until the process receives SIGINT or SIGTERM.
 func WaitForExitSignal() {
+	<-notifySignals()
+}
+
+// notifySignals returns a channel that receives SIGINT/SIGTERM. The buffer of 1
+// ensures a signal arriving before the receiver is ready is not dropped.
+func notifySignals() chan os.Signal {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	return quit
 }
 
 // Close gracefully shuts down all managed resources. Safe to call more than once.
@@ -206,6 +253,13 @@ func (a *App) Close() {
 
 func (a *App) close() {
 	a.Logger.Info("Shutting down...")
+
+	timeout := a.shutdownTimeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	var wg sync.WaitGroup
 
@@ -223,8 +277,6 @@ func (a *App) close() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
 			if err := a.HTTPServer.Stop(ctx); err != nil {
 				a.Logger.Error("Failed to stop http server", "error", err)
 			}
@@ -252,6 +304,18 @@ func (a *App) close() {
 		a.closeServices()
 	}()
 
-	wg.Wait()
+	// Bound the overall shutdown: a misbehaving service must not block exit
+	// forever. Branches whose APIs don't take a context (Disconnect, db.Close)
+	// are still covered by this deadline.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		a.Logger.Error("shutdown timed out; exiting anyway", "timeout", timeout)
+	}
 	a.Logger.Info("Goodbye!")
 }

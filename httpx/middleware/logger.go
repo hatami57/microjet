@@ -10,6 +10,16 @@ import (
 func Logger(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+
+		// Derive a request-scoped logger tagged with the correlation id (set by
+		// the RequestID middleware, if installed) and expose it to handlers via
+		// the request context so their logs correlate automatically.
+		reqLogger := logger
+		if id := RequestIDFromContext(c.Request.Context()); id != "" {
+			reqLogger = logger.With("request_id", id)
+		}
+		c.Request = c.Request.WithContext(ContextWithLogger(c.Request.Context(), reqLogger))
+
 		c.Next()
 
 		latency := time.Since(start).Microseconds()
@@ -30,11 +40,11 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 
 		switch {
 		case status >= 500:
-			logger.LogAttrs(c.Request.Context(), slog.LevelError, "Server error", attrs...)
+			reqLogger.LogAttrs(c.Request.Context(), slog.LevelError, "Server error", attrs...)
 		case status >= 400:
-			logger.LogAttrs(c.Request.Context(), slog.LevelWarn, "Client error", attrs...)
+			reqLogger.LogAttrs(c.Request.Context(), slog.LevelWarn, "Client error", attrs...)
 		default:
-			logger.LogAttrs(c.Request.Context(), slog.LevelInfo, "Success", attrs...)
+			reqLogger.LogAttrs(c.Request.Context(), slog.LevelInfo, "Success", attrs...)
 		}
 	}
 }

@@ -2,7 +2,11 @@ package host
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"runtime/debug"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -54,43 +58,74 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 			a.Logger.Info("worker started", "worker", name)
 			if interval > 0 {
 				a.runPeriodic(ctx, name, interval, fn)
-			} else if err := fn(ctx, a); err != nil && ctx.Err() == nil {
+			} else if err := a.safeRun(ctx, name, fn); err != nil && ctx.Err() == nil {
 				a.Logger.Error("worker exited with error", "worker", name, "error", err)
 			}
 			a.Logger.Info("worker stopped", "worker", name)
 		}()
 	}
 
+	// Explicitly registered workers first, in registration order.
 	for _, w := range a.workers {
 		launch(w.name, w.interval, w.fn)
 	}
 
-	// Also start any DI-registered services that implement AsyncWorker or PeriodicWorker.
+	// Then DI-registered services implementing AsyncWorker/PeriodicWorker.
+	// sync.Map iteration order is non-deterministic, so collect them and sort by
+	// type name for a stable, reproducible start order. Dedupe by type so a
+	// service that satisfies both interfaces (or is seen twice) starts only once;
+	// PeriodicWorker takes precedence over AsyncWorker.
+	var diWorkers []worker
+	seen := make(map[string]bool)
 	a.container.Range(func(_, item any) bool {
 		name := reflect.TypeOf(item).String()
-		if pw, ok := item.(PeriodicWorker); ok {
-			interval := pw.GoInterval()
-			fn := pw.Go
-			launch(name, interval, fn)
-		} else if aw, ok := item.(AsyncWorker); ok {
-			fn := aw.Go
-			launch(name, 0, fn)
+		if seen[name] {
+			return true
+		}
+		switch w := item.(type) {
+		case PeriodicWorker:
+			seen[name] = true
+			diWorkers = append(diWorkers, worker{name: name, fn: w.Go, interval: w.GoInterval()})
+		case AsyncWorker:
+			seen[name] = true
+			diWorkers = append(diWorkers, worker{name: name, fn: w.Go})
 		}
 		return true
 	})
+	slices.SortFunc(diWorkers, func(x, y worker) int { return strings.Compare(x.name, y.name) })
+	for _, w := range diWorkers {
+		launch(w.name, w.interval, w.fn)
+	}
 
 	return &wg
 }
 
 func (a *App) runPeriodic(ctx context.Context, name string, interval time.Duration, fn func(context.Context, *App) error) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
-		if err := fn(ctx, a); err != nil && ctx.Err() == nil {
+		// A panic or error on one tick is logged but never stops the ticker:
+		// periodic workers keep running on schedule.
+		if err := a.safeRun(ctx, name, fn); err != nil && ctx.Err() == nil {
 			a.Logger.Error("worker error", "worker", name, "error", err)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
+		case <-ticker.C:
 		}
 	}
+}
+
+// safeRun invokes a worker function, converting a panic into an error so a
+// crashing worker is logged (with its stack) instead of taking down the whole
+// process. A one-shot worker that panics ends; a periodic worker keeps ticking.
+func (a *App) safeRun(ctx context.Context, name string, fn func(context.Context, *App) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.Logger.Error("worker panic recovered", "worker", name, "panic", r, "stack", string(debug.Stack()))
+			err = fmt.Errorf("worker %q panicked: %v", name, r)
+		}
+	}()
+	return fn(ctx, a)
 }

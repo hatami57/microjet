@@ -11,9 +11,9 @@ module with its own `go.mod`:
 | Module | Path |
 |---|---|
 | `core` | `github.com/hatami57/microjet/core` |
-| `http` | `github.com/hatami57/microjet/http` |
+| `httpx` | `github.com/hatami57/microjet/httpx` |
 | `host` | `github.com/hatami57/microjet/host` |
-| `postgres` | `github.com/hatami57/microjet/postgres` |
+| `gormx` | `github.com/hatami57/microjet/gormx` |
 | `messaging` | `github.com/hatami57/microjet/messaging` |
 | `aws` | `github.com/hatami57/microjet/aws` |
 | `types` | `github.com/hatami57/microjet/types` |

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hatami57/microjet/core"
 )
@@ -68,6 +70,67 @@ func TestClientNon2xxReturnsStructuredError(t *testing.T) {
 	ce := core.GetError(err)
 	if ce == nil || ce.Params["status"] != 502 {
 		t.Errorf("error params = %+v, want status 502", ce)
+	}
+}
+
+func TestClientRetriesThenSucceeds(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"ok": "yes"})
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithRetry(3, time.Millisecond))
+	var out struct {
+		OK string `json:"ok"`
+	}
+	if err := c.GetJSON(context.Background(), "/", &out); err != nil {
+		t.Fatalf("GetJSON with retry: %v", err)
+	}
+	if out.OK != "yes" {
+		t.Errorf("ok = %q, want yes", out.OK)
+	}
+	if got := calls.Load(); got != 3 {
+		t.Errorf("server saw %d calls, want 3 (2 retries)", got)
+	}
+}
+
+func TestClientRetriesExhaustedReturnsError(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithRetry(2, time.Millisecond))
+	if err := c.GetJSON(context.Background(), "/", nil); err == nil {
+		t.Fatal("expected error after retries exhausted")
+	}
+	if got := calls.Load(); got != 3 {
+		t.Errorf("server saw %d calls, want 3 (1 initial + 2 retries)", got)
+	}
+}
+
+func TestClientDoesNotRetryNonIdempotentByDefault(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	// POST is not in the default retryable method set.
+	c := NewClient(srv.URL, WithRetry(3, time.Millisecond))
+	if err := c.PostJSON(context.Background(), "/", map[string]string{"a": "b"}, nil); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := calls.Load(); got != 1 {
+		t.Errorf("server saw %d calls, want 1 (POST not retried by default)", got)
 	}
 }
 

@@ -70,7 +70,7 @@ func TestBodyBinding(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	body, err := Body[createUser](c)
-	if err != nil || body == nil || body.Name != "bob" {
+	if err != nil || body.Name != "bob" {
 		t.Fatalf("Body = %v, %v; want {bob}", body, err)
 	}
 

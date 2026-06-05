@@ -14,8 +14,6 @@ func FromJSON[T any](jsonStr string, target T) error {
 	return jsoniter.Unmarshal([]byte(jsonStr), &target)
 }
 
-func IgnoreError[T any](data T, _ error) T { return data }
-
 func Coalesce[T any](ptrs ...*T) *T {
 	for _, p := range ptrs {
 		if p != nil {

@@ -196,8 +196,12 @@ func isErrorTypeEqual(err error, errType ErrorType) bool {
 
 func copySliceToMap(src []any, dst map[string]any) {
 	for i := 0; i+1 < len(src); i += 2 {
+		// Mirror slog's behavior: a non-string key is a programming error, so
+		// surface it under "!BADKEY" rather than silently dropping the value.
 		if key, ok := src[i].(string); ok {
 			dst[key] = src[i+1]
+		} else {
+			dst["!BADKEY"] = src[i+1]
 		}
 	}
 }
