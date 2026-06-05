@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -135,11 +134,11 @@ func (a *App) WithNamedDatabase(name string, db *gorm.DB) *App {
 	return a
 }
 
-// WithDatabaseFromConfig connects to the database named by the [database]
-// config section's "driver" field, dispatching to WithPostgreSQL or
-// WithSQLite. Supported drivers: "postgres"/"postgresql" and "sqlite"/"sqlite3"
-// (case-insensitive). An empty or unknown driver defers an error to
-// Run/MustRun/Err.
+// WithDatabaseFromConfig connects the default database from the [database]
+// config section, dispatching on its "driver" field. Supported drivers:
+// "postgres"/"postgresql" and "sqlite"/"sqlite3" (case-insensitive). An empty or
+// unknown driver defers an error to Run/MustRun/Err. For additional connections
+// see WithDatabasesFromConfig.
 func (a *App) WithDatabaseFromConfig() *App {
 	if a.err != nil {
 		return a
@@ -147,17 +146,11 @@ func (a *App) WithDatabaseFromConfig() *App {
 	if a.Config.Database == nil {
 		return a.fail(fmt.Errorf("database: no [database] config section"))
 	}
-	driver := strings.ToLower(strings.TrimSpace(a.Config.Database.Driver))
-	switch driver {
-	case "postgres", "postgresql":
-		return a.WithPostgreSQL()
-	case "sqlite", "sqlite3":
-		return a.WithSQLite()
-	case "":
-		return a.fail(fmt.Errorf("database: no driver configured (set database.driver)"))
-	default:
-		return a.fail(fmt.Errorf("database: unsupported driver %q", a.Config.Database.Driver))
+	db, err := a.connectDatabase(a.Config.Database)
+	if err != nil {
+		return a.fail(fmt.Errorf("database: %w", err))
 	}
+	return a.WithDatabase(db)
 }
 
 // Setup runs a setup handler as part of the fluent chain (e.g. migrations or

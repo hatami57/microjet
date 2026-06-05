@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/glebarez/sqlite"
+	"github.com/hatami57/microjet/core"
 	"gorm.io/gorm"
 )
 
@@ -21,15 +22,15 @@ func (a *App) WithSQLite() *App {
 	if a.Config.Database == nil {
 		return a.fail(fmt.Errorf("sqlite: no [database] config section"))
 	}
-	db, err := newSQLite(a)
+	db, err := newSQLite(a, a.Config.Database)
 	if err != nil {
 		return a.fail(fmt.Errorf("sqlite: %w", err))
 	}
 	return a.WithDatabase(db)
 }
 
-func newSQLite(a *App) (*gorm.DB, error) {
-	path := a.Config.Database.Name
+func newSQLite(a *App, dbCfg *core.DatabaseConfig) (*gorm.DB, error) {
+	path := dbCfg.Name
 	a.Logger.Debug("connecting to sqlite", "path", path)
 
 	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{

@@ -14,12 +14,16 @@ import (
 )
 
 type Config struct {
-	App       *AppConfig       `mapstructure:"app"`
-	Server    *ServerConfig    `mapstructure:"server"`
-	Database  *DatabaseConfig  `mapstructure:"database"`
-	Messaging *MessagingConfig `mapstructure:"messaging"`
-	Log       *LogConfig       `mapstructure:"log"`
-	Extra     map[string]any   `mapstructure:"extra"`
+	App      *AppConfig      `mapstructure:"app"`
+	Server   *ServerConfig   `mapstructure:"server"`
+	Database *DatabaseConfig `mapstructure:"database"`
+	// Databases holds additional named connections from the [databases.<name>]
+	// config tables, registered via host.WithDatabasesFromConfig. The single
+	// [database] section above remains the default connection.
+	Databases map[string]*DatabaseConfig `mapstructure:"databases"`
+	Messaging *MessagingConfig           `mapstructure:"messaging"`
+	Log       *LogConfig                 `mapstructure:"log"`
+	Extra     map[string]any             `mapstructure:"extra"`
 }
 
 type MessagingConfig struct {
