@@ -2,14 +2,15 @@ go 1.26.2
 
 use (
 	./aws
+	./cache
 	./core
 	./examples/http-postgres
 	./examples/minimal
 	./examples/sqlite
+	./gormx
 	./host
 	./httpx
 	./messaging
-	./gormx
 	./types
 	./utils
 	./versioninfo

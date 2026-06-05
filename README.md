@@ -33,7 +33,8 @@ import "github.com/hatami57/microjet/host"
 | `core` | `github.com/hatami57/microjet/core` | Errors, config loading, logging, time |
 | `httpx` | `github.com/hatami57/microjet/httpx` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
 | `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
-| `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client |
+| `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
+| `cache` | `github.com/hatami57/microjet/cache` | Cache interface with Redis and in-memory implementations |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
 | `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
 | `types/money` | `github.com/hatami57/microjet/types/money` | Currency-aware decimal money |

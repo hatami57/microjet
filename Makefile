@@ -1,4 +1,4 @@
-MODULES := core types utils aws messaging gormx httpx host versioninfo
+MODULES := core types utils aws messaging gormx httpx host cache versioninfo
 
 .PHONY: build vet test fmt tidy lint staticcheck $(MODULES)
 
