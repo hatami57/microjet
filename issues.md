@@ -61,17 +61,19 @@ All three implemented and committed (`feat(httpx)`):
 
 ---
 
-## Phase 3 — Decide first (breaking / API direction)
+## Phase 3 — DONE ✅
 
-- **Rename `postgres` → `store`/`repo`/`gormx`**: package is generic GORM CRUD +
-  cursor pagination that also works with SQLite; the name misleads.
-- **Add `context.Context` + message metadata/headers to `messaging.Client`**:
-  current `Publish(subject, []byte)` can't carry deadlines, cancellation, trace
-  context, or headers; limits tracing and non-NATS backends.
-- **Named multi-database config**: code supports `WithNamedDatabase`, but config
-  models only a single `[database]` section.
-- **Auth/JWT middleware**, **rate limiting**, **Redis-backed cache**,
-  **DB migration guidance (golang-migrate/goose)** — opt-in, lower priority.
+- ✅ Renamed `postgres` → `gormx` (generic GORM helpers; NoSQL/DynamoDB get their
+  own packages).
+- ✅ `messaging.Client` now takes `context.Context` and a `Message`/headers map
+  (enables cancellation + metadata/trace propagation).
+- ✅ Named multi-database config (`[databases.<name>]` + `WithDatabasesFromConfig`).
+- ✅ JWT auth middleware (`middleware.JWT`).
+- ✅ Per-client rate limiting (`middleware.RateLimit`).
+- ✅ Redis + in-memory cache in a new `cache` module.
+
+Not done (was lower-priority, not selected): **DB migration guidance
+(golang-migrate/goose)** — left as documentation for the consumer to choose.
 
 ---
 
