@@ -313,6 +313,9 @@ Runnable example services live in [`examples/`](examples/):
 - [`examples/minimal`](examples/minimal) — smallest possible app.
 - [`examples/http-postgres`](examples/http-postgres) — HTTP CRUD backed by PostgreSQL.
 - [`examples/sqlite`](examples/sqlite) — HTTP CRUD backed by SQLite; runs with no external database.
+- [`examples/features`](examples/features) — middleware (CORS, rate limit, JWT), request-scoped logging, the cache, and the JSON client with retries.
+
+For database migrations in production, see [`docs/migrations.md`](docs/migrations.md).
 
 ## Architecture
 
