@@ -83,6 +83,8 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 }
 
 func (a *App) runPeriodic(ctx context.Context, name string, interval time.Duration, fn func(context.Context, *App) error) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
 		if err := fn(ctx, a); err != nil && ctx.Err() == nil {
 			a.Logger.Error("worker error", "worker", name, "error", err)
@@ -90,7 +92,7 @@ func (a *App) runPeriodic(ctx context.Context, name string, interval time.Durati
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
+		case <-ticker.C:
 		}
 	}
 }

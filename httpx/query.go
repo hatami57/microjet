@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/hatami57/microjet/core"
 )
 
 type QueryParamBase struct {
@@ -22,9 +23,17 @@ func (q *QueryParamBase) SetField(name string, value any) {
 
 func (q *QueryParamBase) GetMap() map[string]any { return q.data }
 
-func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) {
-	v := reflect.ValueOf(target).Elem()
-	t := reflect.TypeOf(target).Elem()
+// BindQueryParams maps query parameters onto the tagged fields of target (a
+// pointer to a struct) and records them in the param map. A malformed value
+// (e.g. ?id=notauuid) returns a core.BadRequest error naming the offending
+// parameter rather than silently substituting a zero value.
+func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) error {
+	rv := reflect.ValueOf(target)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("BindQueryParams: target must be a non-nil pointer to a struct, got %T", target)
+	}
+	v := rv.Elem()
+	t := v.Type()
 
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
@@ -40,17 +49,21 @@ func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) {
 		}
 		defaultTag := fieldType.Tag.Get("default")
 
-		queryValue, exists := c.GetQuery(queryTag)
-		if exists {
-			if fv, err := parseQueryField(field, queryValue); err == nil {
-				q.SetField(mapKey, fv)
+		value, exists := c.GetQuery(queryTag)
+		if !exists {
+			if defaultTag == "" {
+				continue
 			}
-		} else if defaultTag != "" {
-			if fv, err := parseQueryField(field, defaultTag); err == nil {
-				q.SetField(mapKey, fv)
-			}
+			value = defaultTag
 		}
+
+		fv, err := parseQueryField(field, value)
+		if err != nil {
+			return core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid value for query param '%s'", queryTag))
+		}
+		q.SetField(mapKey, fv)
 	}
+	return nil
 }
 
 func parseQueryField(field reflect.Value, queryValue string) (any, error) {

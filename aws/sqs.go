@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/hatami57/microjet/utils"
@@ -13,20 +14,23 @@ func (a *AWS) SQSSendMessage(ctx context.Context, message any) error {
 		return err
 	}
 
+	if a.SQSClient == nil {
+		return fmt.Errorf("sqs client is not configured")
+	}
+
 	input := &sqs.SendMessageInput{
 		MessageBody: &messageJSON,
 		QueueUrl:    a.DefaultSQSQueueURL,
 	}
 
-	if a.SQSClient != nil {
-		output, err := a.SQSClient.SendMessage(ctx, input)
-		if err != nil {
-			return err
-		}
-		a.Logger.Info("SQS send message successfully", "messageID", *output.MessageId)
-	} else {
-		a.Logger.Error("SQS client is not configured")
+	output, err := a.SQSClient.SendMessage(ctx, input)
+	if err != nil {
+		return fmt.Errorf("sqs send message: %w", err)
 	}
-
+	messageID := ""
+	if output.MessageId != nil {
+		messageID = *output.MessageId
+	}
+	a.Logger.Info("SQS send message successfully", "messageID", messageID)
 	return nil
 }

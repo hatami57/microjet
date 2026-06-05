@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/http/middleware"
+	"github.com/hatami57/microjet/httpx/middleware"
 	"github.com/hatami57/microjet/types"
 )
 
@@ -101,12 +101,15 @@ func FindBoolQuery(c *gin.Context, key string) (bool, error) {
 	return v, nil
 }
 
-func Body[T any](c *gin.Context) (*T, error) {
+// Body decodes and validates the JSON request body into a value of type T.
+// It returns the value directly (not a pointer): request bodies are value-shaped
+// data, and returning T avoids a nil-pointer footgun on the error path.
+func Body[T any](c *gin.Context) (T, error) {
 	var body T
 	if err := c.ShouldBindJSON(&body); err != nil {
-		return nil, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
+		return body, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
 	}
-	return &body, nil
+	return body, nil
 }
 
 func PagedRequest(c *gin.Context) *types.PagedResultRequest {

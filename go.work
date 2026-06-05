@@ -5,8 +5,9 @@ use (
 	./core
 	./examples/http-postgres
 	./examples/minimal
+	./examples/sqlite
 	./host
-	./http
+	./httpx
 	./messaging
 	./postgres
 	./types

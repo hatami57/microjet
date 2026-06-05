@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrServiceNotRegistered  = core.NewInternalError("General", "Service is not registered")
+	ErrServiceNotRegistered   = core.NewInternalError("General", "Service is not registered")
 	ErrDatabaseNotInitialized = core.NewInternalError("Database", "Database is not initialized")
 )
 

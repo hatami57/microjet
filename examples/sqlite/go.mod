@@ -1,8 +1,13 @@
-module github.com/hatami57/microjet/examples/minimal
+module github.com/hatami57/microjet/examples/sqlite
 
 go 1.26.2
 
-require github.com/hatami57/microjet/host v0.0.0-00010101000000-000000000000
+require (
+	github.com/gin-gonic/gin v1.12.0
+	github.com/hatami57/microjet/core v0.0.0-20260604224834-751363ab6d2b
+	github.com/hatami57/microjet/host v0.0.0-00010101000000-000000000000
+	github.com/hatami57/microjet/httpx v0.0.0-20260604224834-751363ab6d2b
+)
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -34,10 +39,12 @@ require (
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
-	github.com/gin-gonic/gin v1.12.0 // indirect
+	github.com/glebarez/go-sqlite v1.21.2 // indirect
+	github.com/glebarez/sqlite v1.11.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.6 // indirect
 	github.com/go-openapi/spec v0.20.4 // indirect
@@ -49,11 +56,9 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hatami57/microjet/aws v0.0.0-00010101000000-000000000000 // indirect
-	github.com/hatami57/microjet/core v0.0.0-20260521123024-3d740a403117 // indirect
-	github.com/hatami57/microjet/httpx v0.0.0-00010101000000-000000000000 // indirect
-	github.com/hatami57/microjet/messaging v0.0.0-00010101000000-000000000000 // indirect
-	github.com/hatami57/microjet/types v0.0.0-00010101000000-000000000000 // indirect
+	github.com/hatami57/microjet/aws v0.0.0-20260604224834-751363ab6d2b // indirect
+	github.com/hatami57/microjet/messaging v0.0.0-20260604224834-751363ab6d2b // indirect
+	github.com/hatami57/microjet/types v0.0.0-20260604224834-751363ab6d2b // indirect
 	github.com/hatami57/microjet/utils v0.0.0-20260521123024-3d740a403117 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
@@ -76,6 +81,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
@@ -100,6 +106,10 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect
 	gorm.io/gorm v1.31.1 // indirect
+	modernc.org/libc v1.22.5 // indirect
+	modernc.org/mathutil v1.5.0 // indirect
+	modernc.org/memory v1.5.0 // indirect
+	modernc.org/sqlite v1.23.1 // indirect
 )
 
 replace (

@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/host"
-	httpx "github.com/hatami57/microjet/http"
+	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/postgres"
 )
 
@@ -78,7 +78,7 @@ func registerRoutes(a *host.App, users *postgres.Table[User]) {
 			c.Error(err)
 			return
 		}
-		if err := users.Create(c.Request.Context(), body); err != nil {
+		if err := users.Create(c.Request.Context(), &body); err != nil {
 			c.Error(err)
 			return
 		}

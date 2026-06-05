@@ -64,7 +64,7 @@ func NewTableFor[TEntity any](r *BaseRepository) *Table[TEntity] {
 // return copies and leave the original Table unchanged.
 type Table[TEntity any] struct {
 	entity   *TEntity
-	DB       *gorm.DB
+	gormDB   *gorm.DB
 	preloads []string
 	scopes   []func(*gorm.DB) *gorm.DB
 }
@@ -114,18 +114,18 @@ func (b *BaseListRequest[T]) CreateNextPageToken(_ []T) (*string, error) { retur
 
 func NewTable[TEntity any](db *gorm.DB) *Table[TEntity] {
 	var entity TEntity
-	return &Table[TEntity]{entity: &entity, DB: db}
+	return &Table[TEntity]{entity: &entity, gormDB: db}
 }
 
 func (t *Table[TEntity]) CloneWithTx(tx *gorm.DB) *Table[TEntity] {
-	return &Table[TEntity]{entity: t.entity, DB: tx, preloads: t.preloads, scopes: t.scopes}
+	return &Table[TEntity]{entity: t.entity, gormDB: tx, preloads: t.preloads, scopes: t.scopes}
 }
 
 // Tx runs op inside a database transaction. The Table passed to op shares the
 // transaction context so all operations participate in the same transaction.
 func (t *Table[TEntity]) Tx(ctx context.Context, op func(*Table[TEntity]) error) error {
-	return t.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return op(&Table[TEntity]{entity: t.entity, DB: tx})
+	return t.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return op(&Table[TEntity]{entity: t.entity, gormDB: tx})
 	})
 }
 
@@ -134,7 +134,7 @@ func (t *Table[TEntity]) Tx(ctx context.Context, op func(*Table[TEntity]) error)
 func (t *Table[TEntity]) Preload(fields ...string) *Table[TEntity] {
 	return &Table[TEntity]{
 		entity:   t.entity,
-		DB:       t.DB,
+		gormDB:   t.gormDB,
 		preloads: append(append([]string{}, t.preloads...), fields...),
 		scopes:   t.scopes,
 	}
@@ -158,7 +158,7 @@ func (t *Table[TEntity]) WhereIf(condition bool, where ...any) *Table[TEntity] {
 	}
 	return &Table[TEntity]{
 		entity:   t.entity,
-		DB:       t.DB,
+		gormDB:   t.gormDB,
 		preloads: t.preloads,
 		scopes:   append(append([]func(*gorm.DB) *gorm.DB{}, t.scopes...), scope),
 	}
@@ -169,7 +169,7 @@ func (t *Table[TEntity]) db(ctx context.Context) *gorm.DB {
 	if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
 		base = tx.WithContext(ctx)
 	} else {
-		base = t.DB.WithContext(ctx)
+		base = t.gormDB.WithContext(ctx)
 	}
 	for _, s := range t.scopes {
 		base = s(base)

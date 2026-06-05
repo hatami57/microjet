@@ -31,4 +31,8 @@ go.work.sum
 # Compiled example binaries (same name as their directory, no extension)
 examples/http-postgres/http-postgres
 examples/minimal/minimal
+examples/sqlite/sqlite
+
+# SQLite database files created by examples at runtime
+*.db
 

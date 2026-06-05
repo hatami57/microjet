@@ -1,4 +1,4 @@
-module github.com/hatami57/microjet/http
+module github.com/hatami57/microjet/httpx
 
 go 1.26.2
 

@@ -15,9 +15,9 @@ import "github.com/hatami57/microjet/host"
 - **Application Orchestrator** — Fluent builder API (`MustNew().WithPostgreSQL().WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, and managed graceful shutdown.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, core.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
-- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support, and graceful shutdown.
+- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`); `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
-- **PostgreSQL / GORM** — Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading.
+- **SQL / GORM** — `WithPostgreSQL()` and `WithSQLite()` (pure-Go, no cgo), or `WithDatabaseFromConfig()` to pick the driver from config. Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain.
 - **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation, plus integer minor-unit conversion (`FromMinorUnits`/`MinorUnits`) with a zero/two/three-decimal currency registry.
@@ -31,8 +31,8 @@ import "github.com/hatami57/microjet/host"
 |---|---|---|
 | `host` | `github.com/hatami57/microjet/host` | Application orchestrator, DI container, lifecycle |
 | `core` | `github.com/hatami57/microjet/core` | Errors, config loading, logging, time |
-| `http` | `github.com/hatami57/microjet/http` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
-| `postgres` | `github.com/hatami57/microjet/postgres` | Generic GORM CRUD + cursor pagination |
+| `httpx` | `github.com/hatami57/microjet/httpx` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
+| `postgres` | `github.com/hatami57/microjet/postgres` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
 | `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
@@ -94,7 +94,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	httpx "github.com/hatami57/microjet/http"
+	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/postgres"
 )
@@ -131,6 +131,37 @@ error), and then perform a graceful shutdown — so you don't need a separate
 `defer app.Close()`. Use `Setup(...)` for one-off startup steps like migrations.
 For manual control, use `app.StartHTTP()` + `host.WaitForExitSignal()` with
 `defer app.Close()` instead.
+
+### Database drivers
+
+`WithPostgreSQL()` and `WithSQLite()` both read the `[database]` config section
+and register the connection as the default database (retrieve it with
+`app.DB()`). SQLite uses the pure-Go [`glebarez/sqlite`](https://github.com/glebarez/sqlite)
+driver — no cgo or C toolchain required — and takes its file path from
+`database.name` (use `":memory:"` for an in-memory database).
+
+To select the driver from config instead of hard-coding it, call
+`WithDatabaseFromConfig()`, which dispatches on `database.driver`
+(`postgres`/`postgresql` or `sqlite`/`sqlite3`):
+
+```go
+app.WithDatabaseFromConfig(). // uses [database].driver
+	Setup(func(a *host.App) error { return a.DB().AutoMigrate(&Note{}) }).
+	MustRun()
+```
+
+### Cached tenant lookups
+
+`middleware.Tenant(store)` resolves the tenant on every request from the
+`X-Tenant-ID` header or `tenantId` query param. To avoid a per-request store
+hit, wrap any `TenantStore` in `middleware.NewCachedTenantStore` — it caches
+both hits and "not found" results for the given TTL and exposes `Invalidate(id)`
+for when a tenant changes:
+
+```go
+cached := middleware.NewCachedTenantStore(dbStore, 5*time.Minute)
+router.Use(middleware.Tenant(cached))
+```
 
 ## Configuration
 
@@ -207,7 +238,7 @@ case core.IsBadRequestError(err):
 ## HTTP Helpers
 
 ```go
-import httpx "github.com/hatami57/microjet/http"
+import "github.com/hatami57/microjet/httpx"
 
 // Typed param/query extraction
 id, _ := httpx.FindUUIDParam(c, "id")
@@ -225,7 +256,7 @@ pagedReq := httpx.PagedRequest(c)
 
 ```go
 import (
-    httpx "github.com/hatami57/microjet/http"
+    "github.com/hatami57/microjet/httpx"
     "github.com/hatami57/microjet/postgres"
 )
 
@@ -280,6 +311,7 @@ Runnable example services live in [`examples/`](examples/):
 
 - [`examples/minimal`](examples/minimal) — smallest possible app.
 - [`examples/http-postgres`](examples/http-postgres) — HTTP CRUD backed by PostgreSQL.
+- [`examples/sqlite`](examples/sqlite) — HTTP CRUD backed by SQLite; runs with no external database.
 
 ## Architecture
 

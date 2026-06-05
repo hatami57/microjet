@@ -6,13 +6,14 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/hatami57/microjet/aws"
 	"github.com/hatami57/microjet/core"
-	libhttp "github.com/hatami57/microjet/http"
+	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/messaging"
 	"gorm.io/gorm"
 )
@@ -25,11 +26,13 @@ const DefaultDatabase = "default"
 type App struct {
 	Config     *core.Config
 	Logger     *slog.Logger
+	Clock      core.TimeProvider
 	Messaging  messaging.Client
 	AWS        *aws.AWS
-	HTTPServer *libhttp.Server
+	HTTPServer *httpx.Server
 
 	envPrefix            string
+	shutdownTimeout      time.Duration
 	databases            map[string]*gorm.DB
 	container            sync.Map
 	workers              []worker
@@ -50,12 +53,28 @@ func WithEnvPrefix(prefix string) Option {
 	return func(a *App) { a.envPrefix = prefix }
 }
 
+// WithClock injects the time source used by the App and its components. Pass
+// core.UTC in production (the default) or a *core.FixedClock in tests to make
+// time-dependent behavior deterministic.
+func WithClock(clock core.TimeProvider) Option {
+	return func(a *App) { a.Clock = clock }
+}
+
+// WithShutdownTimeout bounds how long Close waits for managed resources (HTTP
+// server, databases, messaging, services) to stop. Defaults to 15s.
+func WithShutdownTimeout(d time.Duration) Option {
+	return func(a *App) { a.shutdownTimeout = d }
+}
+
 // New constructs an App, loading configuration and the logger. Returns an
 // error instead of panicking so callers can handle config failures gracefully.
 func New(opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {
 		opt(a)
+	}
+	if a.Clock == nil {
+		a.Clock = core.UTC
 	}
 	config := &core.Config{}
 	if err := core.Load(config, a.envPrefix); err != nil {
@@ -70,7 +89,7 @@ func New(opts ...Option) (*App, error) {
 func MustNew(opts ...Option) *App {
 	a, err := New(opts...)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("host.MustNew: %w", err))
 	}
 	return a
 }
@@ -114,6 +133,31 @@ func (a *App) WithNamedDatabase(name string, db *gorm.DB) *App {
 	}
 	a.databases[name] = db
 	return a
+}
+
+// WithDatabaseFromConfig connects to the database named by the [database]
+// config section's "driver" field, dispatching to WithPostgreSQL or
+// WithSQLite. Supported drivers: "postgres"/"postgresql" and "sqlite"/"sqlite3"
+// (case-insensitive). An empty or unknown driver defers an error to
+// Run/MustRun/Err.
+func (a *App) WithDatabaseFromConfig() *App {
+	if a.err != nil {
+		return a
+	}
+	if a.Config.Database == nil {
+		return a.fail(fmt.Errorf("database: no [database] config section"))
+	}
+	driver := strings.ToLower(strings.TrimSpace(a.Config.Database.Driver))
+	switch driver {
+	case "postgres", "postgresql":
+		return a.WithPostgreSQL()
+	case "sqlite", "sqlite3":
+		return a.WithSQLite()
+	case "":
+		return a.fail(fmt.Errorf("database: no driver configured (set database.driver)"))
+	default:
+		return a.fail(fmt.Errorf("database: unsupported driver %q", a.Config.Database.Driver))
+	}
 }
 
 // Setup runs a setup handler as part of the fluent chain (e.g. migrations or
@@ -207,6 +251,13 @@ func (a *App) Close() {
 func (a *App) close() {
 	a.Logger.Info("Shutting down...")
 
+	timeout := a.shutdownTimeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	var wg sync.WaitGroup
 
 	if a.Messaging != nil {
@@ -223,8 +274,6 @@ func (a *App) close() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
 			if err := a.HTTPServer.Stop(ctx); err != nil {
 				a.Logger.Error("Failed to stop http server", "error", err)
 			}
@@ -252,6 +301,18 @@ func (a *App) close() {
 		a.closeServices()
 	}()
 
-	wg.Wait()
+	// Bound the overall shutdown: a misbehaving service must not block exit
+	// forever. Branches whose APIs don't take a context (Disconnect, db.Close)
+	// are still covered by this deadline.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		a.Logger.Error("shutdown timed out; exiting anyway", "timeout", timeout)
+	}
 	a.Logger.Info("Goodbye!")
 }

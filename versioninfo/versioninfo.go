@@ -6,15 +6,21 @@
 //	    -X github.com/hatami57/microjet/versioninfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 package versioninfo
 
-import "fmt"
+import (
+	"fmt"
+	"runtime"
+)
 
 var (
 	Version    = "dev"
 	CommitHash = "unknown"
 	BuildTime  = "unknown"
-	GoVersion  = "unknown"
 )
 
+// GoVersion reports the Go toolchain that built the binary. It is authoritative
+// at runtime, so unlike Version/CommitHash/BuildTime it is not set via ldflags.
+func GoVersion() string { return runtime.Version() }
+
 func String() string {
-	return fmt.Sprintf("%s (%s) built %s with %s", Version, CommitHash, BuildTime, GoVersion)
+	return fmt.Sprintf("%s (%s) built %s with %s", Version, CommitHash, BuildTime, GoVersion())
 }

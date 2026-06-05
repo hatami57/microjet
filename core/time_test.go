@@ -35,3 +35,48 @@ func TestSystemClockIsUTC(t *testing.T) {
 		t.Errorf("Now location = %v, want UTC", loc)
 	}
 }
+
+func TestUTCAndClockSatisfyTimeProvider(t *testing.T) {
+	// Both the package default and value/pointer forms implement TimeProvider.
+	var _ TimeProvider = UTC
+	var _ TimeProvider = SystemClock{}
+	var _ TimeProvider = &SystemClock{}
+	if UTC.Now().Location() != time.UTC {
+		t.Errorf("UTC.Now not in UTC")
+	}
+}
+
+func TestFixedClock(t *testing.T) {
+	base := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	c := NewFixedClock(base)
+
+	var _ TimeProvider = c // implements the interface
+
+	if !c.Now().Equal(base) {
+		t.Errorf("Now = %v, want %v", c.Now(), base)
+	}
+	if c.NowTS() != base.Unix() {
+		t.Errorf("NowTS = %d, want %d", c.NowTS(), base.Unix())
+	}
+	if got, want := c.NowSortable(), TimeToSortable(base); got != want {
+		t.Errorf("NowSortable = %q, want %q", got, want)
+	}
+
+	c.Advance(90 * time.Second)
+	if !c.Now().Equal(base.Add(90 * time.Second)) {
+		t.Errorf("after Advance Now = %v, want %v", c.Now(), base.Add(90*time.Second))
+	}
+
+	c.Set(base)
+	if !c.Now().Equal(base) {
+		t.Errorf("after Set Now = %v, want %v", c.Now(), base)
+	}
+}
+
+func TestFixedClockNormalizesToUTC(t *testing.T) {
+	loc := time.FixedZone("X", 3600)
+	c := NewFixedClock(time.Date(2026, 6, 5, 12, 0, 0, 0, loc))
+	if c.Now().Location() != time.UTC {
+		t.Errorf("FixedClock location = %v, want UTC", c.Now().Location())
+	}
+}

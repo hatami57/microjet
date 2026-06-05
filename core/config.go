@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -140,8 +140,8 @@ func Load(dest any, envPrefix string) error {
 	if err != nil {
 		return err
 	}
-	exeDir := path.Dir(exePath)
-	dirs := []string{cwd, path.Join(cwd, "config"), exeDir, path.Join(exeDir, "config")}
+	exeDir := filepath.Dir(exePath)
+	dirs := []string{cwd, filepath.Join(cwd, "config"), exeDir, filepath.Join(exeDir, "config")}
 	for _, dir := range dirs {
 		v.AddConfigPath(dir)
 	}
@@ -151,7 +151,10 @@ func Load(dest any, envPrefix string) error {
 	v.SetDefault("app.environment", "development")
 	v.SetDefault("app.name", "App")
 	v.SetDefault("app.version", "0.1.0")
-	v.SetDefault("app.debug", true)
+	// Default to non-debug: debug mode enables gin's verbose mode, Swagger, and
+	// inner-error exposure in HTTP responses — none of which are safe defaults
+	// for a library that may be embedded in production. Opt in via app.debug=true.
+	v.SetDefault("app.debug", false)
 	v.SetDefault("server.host", "localhost")
 	v.SetDefault("server.port", 8080)
 

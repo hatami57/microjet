@@ -2,17 +2,17 @@ package utils
 
 import jsoniter "github.com/json-iterator/go"
 
-func ToMap[T any](t T) (map[string]interface{}, error) {
+func ToMap[T any](t T) (map[string]any, error) {
 	data, err := jsoniter.Marshal(t)
 	if err != nil {
 		return nil, err
 	}
-	decoded := make(map[string]interface{})
+	decoded := make(map[string]any)
 	err = jsoniter.Unmarshal(data, &decoded)
 	return decoded, err
 }
 
-func MapTo[T any](m map[string]interface{}) (T, error) {
+func MapTo[T any](m map[string]any) (T, error) {
 	var result T
 	data, err := jsoniter.Marshal(m)
 	if err != nil {
@@ -24,17 +24,17 @@ func MapTo[T any](m map[string]interface{}) (T, error) {
 	return result, nil
 }
 
-func ToMapArray[T any](t []T) ([]map[string]interface{}, error) {
+func ToMapArray[T any](t []T) ([]map[string]any, error) {
 	data, err := jsoniter.Marshal(t)
 	if err != nil {
 		return nil, err
 	}
-	var decoded []map[string]interface{}
+	var decoded []map[string]any
 	err = jsoniter.Unmarshal(data, &decoded)
 	return decoded, err
 }
 
-func MapToArray[T any](m []map[string]interface{}) ([]T, error) {
+func MapToArray[T any](m []map[string]any) ([]T, error) {
 	var result []T
 	data, err := jsoniter.Marshal(m)
 	if err != nil {

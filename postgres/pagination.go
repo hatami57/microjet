@@ -140,9 +140,9 @@ func (r *ListRequestByID[TEntity]) CreateNextPageToken(items []TEntity) (*string
 	return types.EncodePageToken(&pageDataByID{LastID: lastID})
 }
 
-func (r *ListRequestByID[TEntity]) Where() []any      { return r.where }
-func (r *ListRequestByID[TEntity]) PageSize() int      { return int(r.PagedResultRequest.PageSize) }
-func (r *ListRequestByID[TEntity]) OrderBy() string    { return "id ASC" }
+func (r *ListRequestByID[TEntity]) Where() []any    { return r.where }
+func (r *ListRequestByID[TEntity]) PageSize() int   { return int(r.PagedResultRequest.PageSize) }
+func (r *ListRequestByID[TEntity]) OrderBy() string { return "id ASC" }
 
 // --- CreatedAt-based pagination ---
 
@@ -186,9 +186,9 @@ func (r *ListRequestByCreatedAt[TEntity]) CreateNextPageToken(items []TEntity) (
 	return types.EncodePageToken(&pageDataByCreatedAt{LastCreatedAt: lastCreatedAt})
 }
 
-func (r *ListRequestByCreatedAt[TEntity]) Where() []any      { return r.where }
-func (r *ListRequestByCreatedAt[TEntity]) PageSize() int      { return int(r.PagedResultRequest.PageSize) }
-func (r *ListRequestByCreatedAt[TEntity]) OrderBy() string    { return "created_at ASC" }
+func (r *ListRequestByCreatedAt[TEntity]) Where() []any    { return r.where }
+func (r *ListRequestByCreatedAt[TEntity]) PageSize() int   { return int(r.PagedResultRequest.PageSize) }
+func (r *ListRequestByCreatedAt[TEntity]) OrderBy() string { return "created_at ASC" }
 
 // --- helpers ---
 
@@ -202,5 +202,10 @@ func getFieldValue[TValue any](fieldName string, obj any) (TValue, error) {
 		var zero TValue
 		return zero, fmt.Errorf("'%s' field not found", fieldName)
 	}
-	return field.Interface().(TValue), nil
+	value, ok := field.Interface().(TValue)
+	if !ok {
+		var zero TValue
+		return zero, fmt.Errorf("field '%s' is %s, not %T", fieldName, field.Type(), zero)
+	}
+	return value, nil
 }
