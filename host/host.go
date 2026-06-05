@@ -65,9 +65,16 @@ func WithShutdownTimeout(d time.Duration) Option {
 	return func(a *App) { a.shutdownTimeout = d }
 }
 
-// New constructs an App, loading configuration and the logger. Returns an
-// error instead of panicking so callers can handle config failures gracefully.
-func New(opts ...Option) (*App, error) {
+// NewWithExtraConfig loads configuration (including a typed [extra] section) and returns
+// a new App. Use this when your service has service-specific config beyond the standard fields.
+// T is typically a struct matching your [extra] TOML section.
+//
+// Example:
+//
+//	type MyConfig struct { WorkerCount int `mapstructure:"workerCount"` }
+//	app := host.NewWithExtraConfig[MyConfig]()
+//	cfg := common.MustGetConfigExtra[MyConfig](app.Config)
+func NewWithExtraConfig[T any](opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {
 		opt(a)
@@ -75,13 +82,29 @@ func New(opts ...Option) (*App, error) {
 	if a.Clock == nil {
 		a.Clock = core.UTC
 	}
-	config := &core.Config{}
-	if err := core.Load(config, a.envPrefix); err != nil {
+	config, err := core.LoadConfigWithExtra[T](a.envPrefix)
+	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}
 	a.Config = config
 	a.Logger = core.NewLogger(config.Log)
 	return a, nil
+}
+
+// New constructs an App, loading configuration and the logger. Returns an
+// error instead of panicking so callers can handle config failures gracefully.
+// Use NewWithExtraConfig[T] if your service defines a typed [extra] config section.
+func New(opts ...Option) (*App, error) {
+	return NewWithExtraConfig[map[string]any](opts...)
+}
+
+// MustNewWithExtraConfig is like NewWithExtraConfig but panics on error. Convenient for main().
+func MustNewWithExtraConfig[T any](opts ...Option) *App {
+	a, err := NewWithExtraConfig[T](opts...)
+	if err != nil {
+		panic(fmt.Errorf("host.MustNew: %w", err))
+	}
+	return a
 }
 
 // MustNew is like New but panics on error. Convenient for main().
