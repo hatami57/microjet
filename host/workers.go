@@ -3,6 +3,8 @@ package host
 import (
 	"context"
 	"reflect"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -61,23 +63,37 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 		}()
 	}
 
+	// Explicitly registered workers first, in registration order.
 	for _, w := range a.workers {
 		launch(w.name, w.interval, w.fn)
 	}
 
-	// Also start any DI-registered services that implement AsyncWorker or PeriodicWorker.
+	// Then DI-registered services implementing AsyncWorker/PeriodicWorker.
+	// sync.Map iteration order is non-deterministic, so collect them and sort by
+	// type name for a stable, reproducible start order. Dedupe by type so a
+	// service that satisfies both interfaces (or is seen twice) starts only once;
+	// PeriodicWorker takes precedence over AsyncWorker.
+	var diWorkers []worker
+	seen := make(map[string]bool)
 	a.container.Range(func(_, item any) bool {
 		name := reflect.TypeOf(item).String()
-		if pw, ok := item.(PeriodicWorker); ok {
-			interval := pw.GoInterval()
-			fn := pw.Go
-			launch(name, interval, fn)
-		} else if aw, ok := item.(AsyncWorker); ok {
-			fn := aw.Go
-			launch(name, 0, fn)
+		if seen[name] {
+			return true
+		}
+		switch w := item.(type) {
+		case PeriodicWorker:
+			seen[name] = true
+			diWorkers = append(diWorkers, worker{name: name, fn: w.Go, interval: w.GoInterval()})
+		case AsyncWorker:
+			seen[name] = true
+			diWorkers = append(diWorkers, worker{name: name, fn: w.Go})
 		}
 		return true
 	})
+	slices.SortFunc(diWorkers, func(x, y worker) int { return strings.Compare(x.name, y.name) })
+	for _, w := range diWorkers {
+		launch(w.name, w.interval, w.fn)
+	}
 
 	return &wg
 }

@@ -96,6 +96,8 @@ func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error 
 	}
 	defer file.Close()
 
+	// TODO: migrate to feature/s3/transfermanager once it stabilizes.
+	//lint:ignore SA1019 manager.Uploader is the current stable multipart uploader; its successor lives in a separate module.
 	uploader := manager.NewUploader(a.S3Client)
 
 	var tagging *string
@@ -108,6 +110,7 @@ func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error 
 	}
 
 	a.Logger.Debug("uploading to s3", slog.String("path", req.LocalFilePath))
+	//lint:ignore SA1019 see note above; using the stable manager.Uploader API.
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      &req.BucketName,
 		Key:         &req.ObjectKey,

@@ -64,6 +64,13 @@ func extractValidTenant(c *gin.Context, tenantStore TenantStore) (*TenantBase, e
 	return tenantRecord, nil
 }
 
+// extractTenantID resolves the tenant id, preferring a "tenantId" query
+// parameter and falling back to the X-Tenant-ID header.
+//
+// The query lookup is intentionally case-insensitive (tenantId, tenantid and
+// TenantID all match). Query keys are technically case-sensitive per RFC 3986,
+// but accepting common casings is friendlier for clients. This is an O(n) scan
+// over the request's query keys, which is negligible for typical query sizes.
 func extractTenantID(c *gin.Context) string {
 	for name, values := range c.Request.URL.Query() {
 		if strings.ToLower(name) == TenantIDQueryParamLower && len(values) > 0 {

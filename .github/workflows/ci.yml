@@ -19,7 +19,7 @@ jobs:
           - aws
           - messaging
           - postgres
-          - http
+          - httpx
           - host
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +37,13 @@ jobs:
       - name: Vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
+
+      - name: Staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Run staticcheck
+        working-directory: ${{ matrix.module }}
+        run: staticcheck ./...
 
       - name: Test
         working-directory: ${{ matrix.module }}

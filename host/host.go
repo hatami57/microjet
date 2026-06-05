@@ -188,8 +188,7 @@ func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	workerWg := a.startWorkers(ctx)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	quit := notifySignals()
 
 	var httpErrCh <-chan error
 	if a.HTTPServer != nil {
@@ -197,9 +196,10 @@ func (a *App) Run() error {
 		httpErrCh = ch
 		go func() {
 			a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
-			if err := a.HTTPServer.Start(); err != nil {
-				ch <- err
-			}
+			// Always report the outcome: Start returns nil on a clean shutdown
+			// (http.ErrServerClosed) and an error otherwise. Either way the server
+			// is no longer serving, which is a reason to wind the app down.
+			ch <- a.HTTPServer.Start()
 		}()
 	}
 
@@ -208,8 +208,12 @@ func (a *App) Run() error {
 	case sig := <-quit:
 		a.Logger.Info("received shutdown signal", "signal", sig.String())
 	case err := <-httpErrCh:
-		a.Logger.Error("HTTP server failed", "error", err)
-		runErr = err
+		if err != nil {
+			a.Logger.Error("HTTP server failed", "error", err)
+			runErr = err
+		} else {
+			a.Logger.Warn("HTTP server stopped unexpectedly")
+		}
 	}
 
 	cancel()
@@ -238,9 +242,15 @@ func (a *App) StartHTTP() error {
 
 // WaitForExitSignal blocks until the process receives SIGINT or SIGTERM.
 func WaitForExitSignal() {
+	<-notifySignals()
+}
+
+// notifySignals returns a channel that receives SIGINT/SIGTERM. The buffer of 1
+// ensures a signal arriving before the receiver is ready is not dropped.
+func notifySignals() chan os.Signal {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	return quit
 }
 
 // Close gracefully shuts down all managed resources. Safe to call more than once.

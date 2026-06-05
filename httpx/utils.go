@@ -112,6 +112,10 @@ func Body[T any](c *gin.Context) (T, error) {
 	return body, nil
 }
 
+// PagedRequest builds a pagination request from the query string. The pageSize
+// query param defaults to 10 when absent, and a malformed pageSize also falls
+// back to 10 rather than erroring — listing endpoints favor a sensible default
+// over rejecting the request.
 func PagedRequest(c *gin.Context) *types.PagedResultRequest {
 	pageSize, err := strconv.ParseInt(c.DefaultQuery("pageSize", "10"), 10, 32)
 	if err != nil {

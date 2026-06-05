@@ -1,6 +1,6 @@
-MODULES := core types utils aws messaging postgres http host
+MODULES := core types utils aws messaging postgres httpx host versioninfo
 
-.PHONY: build vet test fmt tidy lint $(MODULES)
+.PHONY: build vet test fmt tidy lint staticcheck $(MODULES)
 
 build:
 	@for m in $(MODULES); do echo "==> build $$m"; (cd $$m && go build ./...) || exit 1; done
@@ -20,3 +20,7 @@ tidy:
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed"; exit 1; }
 	@for m in $(MODULES); do echo "==> lint $$m"; (cd $$m && golangci-lint run ./...) || exit 1; done
+
+staticcheck:
+	@command -v staticcheck >/dev/null 2>&1 || { echo "staticcheck not installed: go install honnef.co/go/tools/cmd/staticcheck@latest"; exit 1; }
+	@for m in $(MODULES); do echo "==> staticcheck $$m"; (cd $$m && staticcheck ./...) || exit 1; done
