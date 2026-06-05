@@ -18,7 +18,6 @@ type Config struct {
 	Server    *ServerConfig    `mapstructure:"server"`
 	Database  *DatabaseConfig  `mapstructure:"database"`
 	Messaging *MessagingConfig `mapstructure:"messaging"`
-	AWS       *AWSConfig       `mapstructure:"aws"`
 	Log       *LogConfig       `mapstructure:"log"`
 	Extra     map[string]any   `mapstructure:"extra"`
 }
@@ -56,16 +55,6 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
 	SSLMode  string `mapstructure:"sslMode"`
-}
-
-type AWSConfig struct {
-	AccessKey           string  `mapstructure:"accessKey"`
-	SecretKey           string  `mapstructure:"secretKey"`
-	Region              string  `mapstructure:"region"`
-	EndpointURL         *string `mapstructure:"endpointURL"`
-	S3BucketName        *string `mapstructure:"s3BucketName"`
-	SQSQueueURL         *string `mapstructure:"sqsQueueURL"`
-	DynamoDBEndpointURL *string `mapstructure:"dynamoDBEndpointURL"`
 }
 
 // LogConfig configures the logger. Console output is always enabled unless
@@ -130,15 +119,20 @@ func (a *AppConfig) IsTest() bool {
 	return strings.ToLower(a.Environment) == "test"
 }
 
-func Load(dest any, envPrefix string) error {
+// ConfigViper builds the viper instance microjet uses to load configuration:
+// it searches the standard config paths, reads config.toml plus an optional
+// config.local.toml overlay, and binds APP_* environment overrides. It is
+// exported so provider-specific modules (e.g. aws) can load their own typed
+// config sections via Get/UnmarshalKey without core having to depend on them.
+func ConfigViper(envPrefix string) (*viper.Viper, error) {
 	v := viper.New()
 	cwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	exePath, err := os.Executable()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	exeDir := filepath.Dir(exePath)
 	dirs := []string{cwd, filepath.Join(cwd, "config"), exeDir, filepath.Join(exeDir, "config")}
@@ -171,12 +165,21 @@ func Load(dest any, envPrefix string) error {
 		// boot. Any other read error (malformed TOML, permissions) is fatal.
 		var notFound viper.ConfigFileNotFoundError
 		if !errors.As(err, &notFound) {
-			return fmt.Errorf("reading config file: %w", err)
+			return nil, fmt.Errorf("reading config file: %w", err)
 		}
 	}
 
 	v.SetConfigName("config.local")
 	_ = v.MergeInConfig() // optional overlay; absence is fine
+
+	return v, nil
+}
+
+func Load(dest any, envPrefix string) error {
+	v, err := ConfigViper(envPrefix)
+	if err != nil {
+		return err
+	}
 
 	if err := v.Unmarshal(dest); err != nil {
 		return fmt.Errorf("error unmarshaling config: %w", err)
