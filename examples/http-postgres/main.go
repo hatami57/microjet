@@ -13,9 +13,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/httpx"
-	"github.com/hatami57/microjet/gormx"
 )
 
 type User struct {
