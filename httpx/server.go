@@ -85,7 +85,10 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 		},
 	}
 
+	metrics := middleware.NewMetrics()
+
 	router.Use(middleware.RequestID())
+	router.Use(metrics.Middleware())
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.Error(cfg.Debug))
 	router.Use(gin.Recovery())
@@ -94,6 +97,9 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Prometheus metrics in text exposition format.
+	router.GET("/metrics", gin.WrapH(metrics.Handler()))
 
 	router.GET("/readyz", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
