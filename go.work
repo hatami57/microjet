@@ -9,7 +9,7 @@ use (
 	./host
 	./httpx
 	./messaging
-	./postgres
+	./gormx
 	./types
 	./utils
 	./versioninfo

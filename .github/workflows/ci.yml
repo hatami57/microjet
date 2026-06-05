@@ -18,7 +18,7 @@ jobs:
           - utils
           - aws
           - messaging
-          - postgres
+          - gormx
           - httpx
           - host
     steps:

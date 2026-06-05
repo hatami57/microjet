@@ -108,7 +108,7 @@ replace (
 	github.com/hatami57/microjet/host => ../../host
 	github.com/hatami57/microjet/httpx => ../../httpx
 	github.com/hatami57/microjet/messaging => ../../messaging
-	github.com/hatami57/microjet/postgres => ../../postgres
+	github.com/hatami57/microjet/gormx => ../../gormx
 	github.com/hatami57/microjet/types => ../../types
 	github.com/hatami57/microjet/utils => ../../utils
 )

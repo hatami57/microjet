@@ -1,5 +1,5 @@
 // Command http-postgres is a small CRUD service backed by PostgreSQL, showing
-// the fluent host builder, the generic postgres.Table, cursor pagination, and
+// the fluent host builder, the generic gormx.Table, cursor pagination, and
 // structured error handling.
 //
 // Point it at a database via config.toml (see the file in this directory) or
@@ -15,7 +15,7 @@ import (
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/httpx"
-	"github.com/hatami57/microjet/postgres"
+	"github.com/hatami57/microjet/gormx"
 )
 
 type User struct {
@@ -32,18 +32,18 @@ func main() {
 			return a.DB().AutoMigrate(&User{})
 		}).
 		WithHTTPServer(func(a *host.App) error {
-			registerRoutes(a, postgres.NewTable[User](a.DB()))
+			registerRoutes(a, gormx.NewTable[User](a.DB()))
 			return nil
 		}).
 		MustRun()
 }
 
-func registerRoutes(a *host.App, users *postgres.Table[User]) {
+func registerRoutes(a *host.App, users *gormx.Table[User]) {
 	r := a.HTTPServer.Router
 
 	// List with cursor pagination: GET /users?pageSize=20&nextPageToken=...
 	r.GET("/users", func(c *gin.Context) {
-		req := postgres.NewListRequestByID[User](httpx.PagedRequest(c))
+		req := gormx.NewListRequestByID[User](httpx.PagedRequest(c))
 		page, err := users.List(c.Request.Context(), req)
 		if err != nil {
 			c.Error(err)

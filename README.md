@@ -32,7 +32,7 @@ import "github.com/hatami57/microjet/host"
 | `host` | `github.com/hatami57/microjet/host` | Application orchestrator, DI container, lifecycle |
 | `core` | `github.com/hatami57/microjet/core` | Errors, config loading, logging, time |
 | `httpx` | `github.com/hatami57/microjet/httpx` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
-| `postgres` | `github.com/hatami57/microjet/postgres` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
+| `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
 | `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
@@ -96,7 +96,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/host"
-	"github.com/hatami57/microjet/postgres"
+	"github.com/hatami57/microjet/gormx"
 )
 
 type User struct {
@@ -113,10 +113,10 @@ func main() {
 			return a.DB.AutoMigrate(&User{})
 		}).
 		WithHTTPServer(func(a *host.App) error {
-			userTable := postgres.NewTable[User](a.DB)
+			userTable := gormx.NewTable[User](a.DB)
 			a.HTTPServer.Router.GET("/users", func(c *gin.Context) {
 				items, _ := userTable.ListAll(c.Request.Context(),
-					postgres.NewListRequestByID[User](httpx.PagedRequest(c)))
+					gormx.NewListRequestByID[User](httpx.PagedRequest(c)))
 				c.JSON(200, items)
 			})
 			return nil
@@ -257,11 +257,11 @@ pagedReq := httpx.PagedRequest(c)
 ```go
 import (
     "github.com/hatami57/microjet/httpx"
-    "github.com/hatami57/microjet/postgres"
+    "github.com/hatami57/microjet/gormx"
 )
 
 // Cursor-based pagination by ID
-req := postgres.NewListRequestByID[User](httpx.PagedRequest(c)).
+req := gormx.NewListRequestByID[User](httpx.PagedRequest(c)).
     SetWhere("name ILIKE ?", "%john%")
 
 result, _ := userTable.List(ctx, req)
@@ -319,7 +319,7 @@ Runnable example services live in [`examples/`](examples/):
 utils  (JSON, converters, env)
   |
   +-- types  (Message, PagedResult, money)
-  |     +-- postgres  (Table[T], pagination)
+  |     +-- gormx    (Table[T], pagination)
   |
   +-- aws  (S3, SQS, DynamoDB)
   |
@@ -329,7 +329,7 @@ core  (errors, config, logging, time)
   +-- http  (Gin server, middleware, helpers)
         |
         +-- host  (orchestrator, DI, lifecycle)
-              imports: aws, core, http, messaging, postgres, types, utils
+              imports: aws, core, httpx, messaging, gormx, types, utils
 ```
 
 ## License

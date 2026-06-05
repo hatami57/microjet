@@ -1,4 +1,4 @@
-module github.com/hatami57/microjet/postgres
+module github.com/hatami57/microjet/gormx
 
 go 1.26.2
 

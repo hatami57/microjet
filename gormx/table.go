@@ -1,5 +1,5 @@
 // Package postgres provides GORM-based table helpers with pagination support.
-package postgres
+package gormx
 
 import (
 	"context"
