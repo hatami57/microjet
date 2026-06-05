@@ -6,7 +6,15 @@ commit (Conventional Commits format, e.g. `feat:`, `refactor:`; no AI attributio
 
 ---
 
-## Phase 1 — Do now (high value, low controversy)
+## Phase 1 — DONE ✅
+
+All three implemented and committed (see `feat(httpx)`, `fix(host)`,
+`refactor(core,aws)`):
+- ✅ Request/correlation ID middleware + per-request logger + client propagation.
+- ✅ Worker panic recovery (`safeRun`).
+- ✅ AWS config moved out of `core` (`core.ConfigViper` + `aws.LoadConfig`).
+
+<details><summary>Original Phase 1 spec</summary>
 
 ### 1. Request/correlation ID middleware + per-request logger  `feat`
 - New `httpx/middleware` RequestID middleware: read `X-Request-ID` (configurable
@@ -37,6 +45,8 @@ commit (Conventional Commits format, e.g. `feat:`, `refactor:`; no AI attributio
   their own config section from the `Extra` map (or a typed sub-load), and have
   `host.WithAWS` read it there. Preserve existing TOML keys for users.
 - Update `host/aws.go` accordingly; keep behavior identical from the user's POV.
+
+</details>
 
 ---
 
