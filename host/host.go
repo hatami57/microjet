@@ -23,7 +23,7 @@ const DefaultDatabase = "default"
 // App is the central runtime object for a service. Build it with the fluent
 // New().With*() chain at service startup.
 type App struct {
-	Config     *core.Config
+	Config     *Config
 	Logger     *slog.Logger
 	Clock      core.TimeProvider
 	Messaging  messaging.Client
@@ -73,7 +73,7 @@ func WithShutdownTimeout(d time.Duration) Option {
 //
 //	type MyConfig struct { WorkerCount int `mapstructure:"workerCount"` }
 //	app := host.NewWithExtraConfig[MyConfig]()
-//	cfg := core.MustGetExtraConfig[MyConfig](app.Config)
+//	cfg := host.MustGetExtraConfig[MyConfig](app.Config)
 func NewWithExtraConfig[T any](opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {
@@ -82,7 +82,7 @@ func NewWithExtraConfig[T any](opts ...Option) (*App, error) {
 	if a.Clock == nil {
 		a.Clock = core.UTC
 	}
-	config, err := core.LoadConfigWithExtra[T](a.envPrefix)
+	config, err := LoadConfigWithExtra[T](a.envPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}

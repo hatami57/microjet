@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/gormx"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -30,7 +30,7 @@ func (a *App) WithPostgreSQL() *App {
 	return a.WithDatabase(db)
 }
 
-func newPostgreSQL(a *App, dbCfg *core.DatabaseConfig) (*gorm.DB, error) {
+func newPostgreSQL(a *App, dbCfg *gormx.Config) (*gorm.DB, error) {
 	a.Logger.Debug("connecting to postgresql",
 		"host", dbCfg.Host,
 		"port", dbCfg.Port,

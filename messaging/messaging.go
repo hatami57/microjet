@@ -9,6 +9,19 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+// Config is the messaging broker configuration, read from the [messaging]
+// section of the application config (with APP_MESSAGING_* env overrides).
+type Config struct {
+	URL     string `mapstructure:"url"`
+	Source  string `mapstructure:"source"`
+	Version int    `mapstructure:"version"`
+}
+
+// LoadConfig loads the [messaging] config section using the shared viper setup.
+func LoadConfig(envPrefix string) (*Config, error) {
+	return core.LoadSection[Config]("messaging", envPrefix)
+}
+
 // Message is a published or received message. Headers carry metadata such as a
 // correlation id (e.g. "X-Request-ID") so it can be propagated across services.
 type Message struct {
@@ -46,7 +59,7 @@ type natsClient struct {
 	conn *nats.Conn
 }
 
-func New(cfg *core.MessagingConfig, logger *slog.Logger) (Client, error) {
+func New(cfg *Config, logger *slog.Logger) (Client, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("messaging config is required")
 	}

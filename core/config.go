@@ -10,25 +10,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Config struct {
-	App      *AppConfig      `mapstructure:"app"`
-	Server   *ServerConfig   `mapstructure:"server"`
-	Database *DatabaseConfig `mapstructure:"database"`
-	// Databases holds additional named connections from the [databases.<name>]
-	// config tables, registered via host.WithDatabasesFromConfig. The single
-	// [database] section above remains the default connection.
-	Databases map[string]*DatabaseConfig `mapstructure:"databases"`
-	Messaging *MessagingConfig           `mapstructure:"messaging"`
-	Log       *LogConfig                 `mapstructure:"log"`
-	Extra     any                        `mapstructure:"extra"`
-}
-
-type MessagingConfig struct {
-	URL     string `mapstructure:"url"`
-	Source  string `mapstructure:"source"`
-	Version int    `mapstructure:"version"`
-}
-
 const (
 	EnvTest        = "test"
 	EnvDevelopment = "development"
@@ -46,16 +27,6 @@ type AppConfig struct {
 type ServerConfig struct {
 	Host string `mapstructure:"host"`
 	Port int    `mapstructure:"port"`
-}
-
-type DatabaseConfig struct {
-	Driver   string `mapstructure:"driver"`
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	Name     string `mapstructure:"name"`
-	SSLMode  string `mapstructure:"sslMode"`
 }
 
 // LogConfig configures the logger. Console output is always enabled unless
@@ -84,42 +55,6 @@ var postLoadHooks []LoaderOption
 
 func RegisterPostLoadHook(hook LoaderOption) {
 	postLoadHooks = append(postLoadHooks, hook)
-}
-
-// LoadConfig loads application configuration from a TOML file.
-// Searches cwd, cwd/config, executable dir, and executable_dir/config.
-// A config.local.toml in the same directories is merged on top if present.
-// Environment variables prefixed with APP_ override any file value (dots → underscores).
-func LoadConfig(envPrefix string) (*Config, error) {
-	return LoadConfigWithExtra[map[string]any](envPrefix)
-}
-
-// LoadConfigWithExtra is like LoadConfig but unmarshals the [extra] TOML section into T.
-// Use host.NewWithExtraConfig[T] at service startup instead of calling this directly.
-func LoadConfigWithExtra[T any](envPrefix string) (*Config, error) {
-	type raw struct {
-		App       *AppConfig                 `mapstructure:"app"`
-		Server    *ServerConfig              `mapstructure:"server"`
-		Database  *DatabaseConfig            `mapstructure:"database"`
-		Databases map[string]*DatabaseConfig `mapstructure:"databases"`
-		Messaging *MessagingConfig           `mapstructure:"messaging"`
-		Log       *LogConfig                 `mapstructure:"log"`
-		Extra     T                          `mapstructure:"extra"`
-	}
-	r := &raw{}
-	if err := Load(r, envPrefix); err != nil {
-		return nil, err
-	}
-
-	return &Config{
-		App:       r.App,
-		Server:    r.Server,
-		Database:  r.Database,
-		Databases: r.Databases,
-		Messaging: r.Messaging,
-		Log:       r.Log,
-		Extra:     r.Extra,
-	}, nil
 }
 
 func (a *AppConfig) GetEnvironment() string {
@@ -151,12 +86,13 @@ func (a *AppConfig) IsTest() bool {
 	return strings.ToLower(a.Environment) == "test"
 }
 
-// ConfigViper builds the viper instance microjet uses to load configuration:
+// NewViper builds the viper instance microjet uses to load configuration:
 // it searches the standard config paths, reads config.toml plus an optional
 // config.local.toml overlay, and binds APP_* environment overrides. It is
 // exported so provider-specific modules (e.g. aws) can load their own typed
 // config sections via Get/UnmarshalKey without core having to depend on them.
-func ConfigViper(envPrefix string) (*viper.Viper, error) {
+// It does not set any app-level defaults; call Load to get those.
+func NewViper(envPrefix string) (*viper.Viper, error) {
 	v := viper.New()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -173,17 +109,6 @@ func ConfigViper(envPrefix string) (*viper.Viper, error) {
 	}
 	v.SetConfigType("toml")
 
-	v.SetDefault("app.namespace", "App")
-	v.SetDefault("app.environment", "development")
-	v.SetDefault("app.name", "App")
-	v.SetDefault("app.version", "0.1.0")
-	// Default to non-debug: debug mode enables gin's verbose mode, Swagger, and
-	// inner-error exposure in HTTP responses — none of which are safe defaults
-	// for a library that may be embedded in production. Opt in via app.debug=true.
-	v.SetDefault("app.debug", false)
-	v.SetDefault("server.host", "localhost")
-	v.SetDefault("server.port", 8080)
-
 	if envPrefix == "" {
 		envPrefix = "APP"
 	}
@@ -195,8 +120,7 @@ func ConfigViper(envPrefix string) (*viper.Viper, error) {
 	if err := v.ReadInConfig(); err != nil {
 		// A missing config file is not fatal: defaults + env vars are enough to
 		// boot. Any other read error (malformed TOML, permissions) is fatal.
-		var notFound viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFound) {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
 			return nil, fmt.Errorf("reading config file: %w", err)
 		}
 	}
@@ -207,11 +131,31 @@ func ConfigViper(envPrefix string) (*viper.Viper, error) {
 	return v, nil
 }
 
+// setAppDefaults sets the core app/server defaults on v. Kept separate from
+// NewViper so provider modules (aws, etc.) that call NewViper directly
+// don't pick up defaults that are irrelevant to their config sections.
+func setAppDefaults(v *viper.Viper) {
+	v.SetDefault("app.namespace", "App")
+	v.SetDefault("app.environment", "development")
+	v.SetDefault("app.name", "App")
+	v.SetDefault("app.version", "0.1.0")
+	// Default to non-debug: debug mode enables gin's verbose mode, Swagger, and
+	// inner-error exposure in HTTP responses — none of which are safe defaults
+	// for a library that may be embedded in production. Opt in via app.debug=true.
+	v.SetDefault("app.debug", false)
+	v.SetDefault("server.host", "localhost")
+	v.SetDefault("server.port", 8080)
+}
+
+// Load unmarshals the full config file into dest, applying app-level defaults.
+// Most callers should use host.LoadConfig instead; this is the low-level entry
+// point for custom unmarshaling or test setups.
 func Load(dest any, envPrefix string) error {
-	v, err := ConfigViper(envPrefix)
+	v, err := NewViper(envPrefix)
 	if err != nil {
 		return err
 	}
+	setAppDefaults(v)
 
 	if err := v.Unmarshal(dest); err != nil {
 		return fmt.Errorf("error unmarshaling config: %w", err)
@@ -226,20 +170,17 @@ func Load(dest any, envPrefix string) error {
 	return nil
 }
 
-// Extra config helpers
-
-// GetExtraConfig casts Config.Extra to T, returning false if the cast fails.
-func GetExtraConfig[T any](c *Config) (T, bool) {
-	typed, ok := c.Extra.(T)
-	return typed, ok
-}
-
-// MustGetExtraConfig casts Config.Extra to T, panicking if the cast fails.
-func MustGetExtraConfig[T any](c *Config) T {
-	typed, ok := c.Extra.(T)
-	if !ok {
-		panic("config extra type mismatch")
+// LoadSection loads a single named config section (e.g. "aws", "database") using
+// the shared viper setup. It is the generic counterpart to Load for provider
+// modules that own only one section of the config file.
+func LoadSection[T any](section, envPrefix string) (*T, error) {
+	v, err := NewViper(envPrefix)
+	if err != nil {
+		return nil, err
 	}
-
-	return typed
+	var cfg T
+	if err := v.UnmarshalKey(section, &cfg); err != nil {
+		return nil, fmt.Errorf("unmarshaling [%s]: %w", section, err)
+	}
+	return &cfg, nil
 }

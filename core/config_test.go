@@ -5,8 +5,11 @@ import "testing"
 func TestLoadUsesDefaultsWhenNoFile(t *testing.T) {
 	// Running from the package dir, there is no config.toml — Load must fall
 	// back to defaults instead of returning an error.
-	cfg := &Config{}
-	if err := Load(cfg, ""); err != nil {
+	var cfg struct {
+		App    *AppConfig    `mapstructure:"app"`
+		Server *ServerConfig `mapstructure:"server"`
+	}
+	if err := Load(&cfg, ""); err != nil {
 		t.Fatalf("Load returned error with no config file: %v", err)
 	}
 	if cfg.App == nil {
@@ -43,34 +46,4 @@ func TestEnvironmentHelpers(t *testing.T) {
 			t.Errorf("%q: GetEnvironment = %q, want %q", c.env, a.GetEnvironment(), c.environment)
 		}
 	}
-}
-
-func TestGetExtraConfig(t *testing.T) {
-	type myExtra struct {
-		Workers int
-		Queue   string
-	}
-
-	want := myExtra{Workers: 4, Queue: "jobs"}
-	cfg := &Config{Extra: want}
-
-	got, ok := GetExtraConfig[myExtra](cfg)
-	if !ok || got != want {
-		t.Errorf("GetExtraConfig = %v, %v; want %v, true", got, ok, want)
-	}
-
-	_, ok = GetExtraConfig[string](cfg)
-	if ok {
-		t.Error("GetExtraConfig[string] should return false for wrong type")
-	}
-}
-
-func TestMustGetExtraConfigPanicsOnWrongType(t *testing.T) {
-	cfg := &Config{Extra: 42}
-	defer func() {
-		if recover() == nil {
-			t.Error("expected panic for wrong extra type")
-		}
-	}()
-	MustGetExtraConfig[string](cfg)
 }

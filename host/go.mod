@@ -8,6 +8,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/hatami57/microjet/aws v0.2.0
 	github.com/hatami57/microjet/core v0.2.0
+	github.com/hatami57/microjet/gormx v0.3.0
 	github.com/hatami57/microjet/httpx v0.2.0
 	github.com/hatami57/microjet/messaging v0.2.0
 	gorm.io/driver/postgres v1.6.0

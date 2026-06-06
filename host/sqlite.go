@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/glebarez/sqlite"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/gormx"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +29,7 @@ func (a *App) WithSQLite() *App {
 	return a.WithDatabase(db)
 }
 
-func newSQLite(a *App, dbCfg *core.DatabaseConfig) (*gorm.DB, error) {
+func newSQLite(a *App, dbCfg *gormx.Config) (*gorm.DB, error) {
 	path := dbCfg.Name
 	a.Logger.Debug("connecting to sqlite", "path", path)
 

@@ -5,14 +5,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/gormx"
 	"gorm.io/gorm"
 )
 
 // connectDatabase opens a GORM connection for a single database config,
 // dispatching on its driver. Shared by the single- and multi-database helpers.
 // Supported drivers: "postgres"/"postgresql" and "sqlite"/"sqlite3".
-func (a *App) connectDatabase(dbCfg *core.DatabaseConfig) (*gorm.DB, error) {
+func (a *App) connectDatabase(dbCfg *gormx.Config) (*gorm.DB, error) {
 	if dbCfg == nil {
 		return nil, fmt.Errorf("nil database config")
 	}

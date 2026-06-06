@@ -3,7 +3,7 @@ package host
 import (
 	"testing"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/gormx"
 )
 
 func TestWithDatabasesFromConfigRegistersNamed(t *testing.T) {
@@ -11,7 +11,7 @@ func TestWithDatabasesFromConfigRegistersNamed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	app.Config.Databases = map[string]*core.DatabaseConfig{
+	app.Config.Databases = map[string]*gormx.Config{
 		"primary":   {Driver: "sqlite", Name: ":memory:"},
 		"analytics": {Driver: "sqlite", Name: ":memory:"},
 	}
@@ -36,7 +36,7 @@ func TestWithDatabasesFromConfigReportsUnsupportedDriver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	app.Config.Databases = map[string]*core.DatabaseConfig{
+	app.Config.Databases = map[string]*gormx.Config{
 		"bad": {Driver: "oracle"},
 	}
 	app.WithDatabasesFromConfig()

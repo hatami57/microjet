@@ -3,7 +3,7 @@ package host
 import (
 	"testing"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/gormx"
 )
 
 func newTestApp(t *testing.T) *App {
@@ -12,7 +12,7 @@ func newTestApp(t *testing.T) *App {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	app.Config.Database = &core.DatabaseConfig{}
+	app.Config.Database = &gormx.Config{}
 	return app
 }
 
