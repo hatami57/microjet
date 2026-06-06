@@ -49,13 +49,35 @@ type LogOutputConfig struct {
 	Path    string `mapstructure:"path"`   // file output only; parent dirs are created automatically
 }
 
-type LoaderOption func(any) error
-
-var postLoadHooks []LoaderOption
-
-func RegisterPostLoadHook(hook LoaderOption) {
-	postLoadHooks = append(postLoadHooks, hook)
+// ConfigLoader wraps a viper instance and exposes config-loading operations to
+// Configurable implementations without leaking the viper dependency.
+type ConfigLoader struct {
+	v *viper.Viper
 }
+
+// UnmarshalKey unmarshals the named config section into dest.
+func (l *ConfigLoader) UnmarshalKey(section string, dest any) error {
+	return l.v.UnmarshalKey(section, dest)
+}
+
+// Configurable is implemented by any type that can populate itself from a
+// ConfigLoader. LoadAll calls LoadConfig on each registered value in order,
+// passing the same parsed viper instance to all of them.
+type Configurable interface {
+	LoadConfig(*ConfigLoader) error
+}
+
+// PostConfigLoader is an optional extension of Configurable. If a Configurable
+// also implements PostConfigLoader, LoadAll calls PostLoadConfig immediately
+// after LoadConfig succeeds, allowing validation or derived-field initialization.
+type PostConfigLoader interface {
+	PostLoadConfig() error
+}
+
+// ConfigurableFunc is a function adapter for Configurable, analogous to http.HandlerFunc.
+type ConfigurableFunc func(*ConfigLoader) error
+
+func (f ConfigurableFunc) LoadConfig(l *ConfigLoader) error { return f(l) }
 
 func (a *AppConfig) GetEnvironment() string {
 	switch {
@@ -90,8 +112,8 @@ func (a *AppConfig) IsTest() bool {
 // it searches the standard config paths, reads config.toml plus an optional
 // config.local.toml overlay, and binds APP_* environment overrides. It is
 // exported so provider-specific modules (e.g. aws) can load their own typed
-// config sections via Get/UnmarshalKey without core having to depend on them.
-// It does not set any app-level defaults; call Load to get those.
+// config sections without core having to depend on them.
+// It does not set any app-level defaults; call SetAppDefaults or LoadAll to get those.
 func NewViper(envPrefix string) (*viper.Viper, error) {
 	v := viper.New()
 	cwd, err := os.Getwd()
@@ -131,15 +153,14 @@ func NewViper(envPrefix string) (*viper.Viper, error) {
 	return v, nil
 }
 
-// setAppDefaults sets the core app/server defaults on v. Kept separate from
-// NewViper so provider modules (aws, etc.) that call NewViper directly
-// don't pick up defaults that are irrelevant to their config sections.
-func setAppDefaults(v *viper.Viper) {
+// SetAppDefaults sets the core app/server defaults on v. Called by LoadAll and
+// Load so that app/server fields are never zero when no config file is present.
+func SetAppDefaults(v *viper.Viper) {
 	v.SetDefault("app.namespace", "App")
 	v.SetDefault("app.environment", "development")
 	v.SetDefault("app.name", "App")
 	v.SetDefault("app.version", "0.1.0")
-	// Default to non-debug: debug mode enables gin's verbose mode, Swagger, and
+	// Default to non-debug: debug mode enables verbose logging, Swagger, and
 	// inner-error exposure in HTTP responses — none of which are safe defaults
 	// for a library that may be embedded in production. Opt in via app.debug=true.
 	v.SetDefault("app.debug", false)
@@ -147,32 +168,46 @@ func setAppDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 8080)
 }
 
+// LoadAll creates a single viper instance and calls LoadConfig on each
+// Configurable in order, sharing the one parsed config across all of them.
+// If a Configurable also implements PostConfigLoader, PostLoadConfig is called
+// immediately after its LoadConfig succeeds.
+func LoadAll(envPrefix string, cfgs ...Configurable) error {
+	v, err := NewViper(envPrefix)
+	if err != nil {
+		return err
+	}
+	SetAppDefaults(v)
+	l := &ConfigLoader{v: v}
+	for _, cfg := range cfgs {
+		if err := cfg.LoadConfig(l); err != nil {
+			return err
+		}
+		if pl, ok := cfg.(PostConfigLoader); ok {
+			if err := pl.PostLoadConfig(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Load unmarshals the full config file into dest, applying app-level defaults.
-// Most callers should use host.LoadConfig instead; this is the low-level entry
-// point for custom unmarshaling or test setups.
+// For loading multiple typed sections with a single viper parse, use LoadAll.
 func Load(dest any, envPrefix string) error {
 	v, err := NewViper(envPrefix)
 	if err != nil {
 		return err
 	}
-	setAppDefaults(v)
-
+	SetAppDefaults(v)
 	if err := v.Unmarshal(dest); err != nil {
 		return fmt.Errorf("error unmarshaling config: %w", err)
 	}
-
-	for _, hook := range postLoadHooks {
-		if err := hook(dest); err != nil {
-			return fmt.Errorf("error running post-load hook: %w", err)
-		}
-	}
-
 	return nil
 }
 
-// LoadSection loads a single named config section (e.g. "aws", "database") using
-// the shared viper setup. It is the generic counterpart to Load for provider
-// modules that own only one section of the config file.
+// LoadSection loads a single named config section using the shared viper setup.
+// For loading multiple sections with a single viper parse, use LoadAll.
 func LoadSection[T any](section, envPrefix string) (*T, error) {
 	v, err := NewViper(envPrefix)
 	if err != nil {

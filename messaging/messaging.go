@@ -17,7 +17,12 @@ type Config struct {
 	Version int    `mapstructure:"version"`
 }
 
-// LoadConfig loads the [messaging] config section using the shared viper setup.
+// LoadConfig implements core.Configurable, loading the [messaging] section.
+func (c *Config) LoadConfig(l *core.ConfigLoader) error {
+	return l.UnmarshalKey("messaging", c)
+}
+
+// LoadConfig loads the [messaging] config section as a standalone call.
 func LoadConfig(envPrefix string) (*Config, error) {
 	return core.LoadSection[Config]("messaging", envPrefix)
 }

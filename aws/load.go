@@ -15,9 +15,12 @@ type Config struct {
 	DynamoDBEndpointURL *string `mapstructure:"dynamoDBEndpointURL"`
 }
 
-// LoadConfig loads the [aws] config section using core's shared viper setup, so
-// the same config files and APP_AWS_* env overrides apply as for the rest of the
-// app. Optional fields are left nil when neither config nor env provides them.
+// LoadConfig implements core.Configurable, loading the [aws] section.
+func (c *Config) LoadConfig(l *core.ConfigLoader) error {
+	return l.UnmarshalKey("aws", c)
+}
+
+// LoadConfig loads the [aws] config section as a standalone call.
 func LoadConfig(envPrefix string) (*Config, error) {
 	return core.LoadSection[Config]("aws", envPrefix)
 }

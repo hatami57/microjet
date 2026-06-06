@@ -14,7 +14,12 @@ type Config struct {
 	SSLMode  string `mapstructure:"sslMode"`
 }
 
-// LoadConfig loads the [database] config section using the shared viper setup.
+// LoadConfig implements core.Configurable, loading the [database] section.
+func (c *Config) LoadConfig(l *core.ConfigLoader) error {
+	return l.UnmarshalKey("database", c)
+}
+
+// LoadConfig loads the [database] config section as a standalone call.
 func LoadConfig(envPrefix string) (*Config, error) {
 	return core.LoadSection[Config]("database", envPrefix)
 }
