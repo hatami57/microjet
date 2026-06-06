@@ -14,7 +14,6 @@ import (
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/messaging"
-	"gorm.io/gorm"
 )
 
 // DefaultDatabase is the key used for the primary database registered via WithDatabase or WithPostgreSQL.
@@ -33,7 +32,6 @@ type App struct {
 	envPrefix            string
 	configLoader         *core.ConfigLoader
 	shutdownTimeout      time.Duration
-	databases            map[string]*gorm.DB
 	container            sync.Map
 	workers              []worker
 	isServiceInitialized bool
@@ -124,54 +122,6 @@ func (a *App) fail(err error) *App {
 		a.err = err
 	}
 	return a
-}
-
-// DB returns the default database connection, or nil if none has been registered.
-func (a *App) DB() *gorm.DB {
-	return a.NamedDB(DefaultDatabase)
-}
-
-// NamedDB returns a named database connection, or nil if not found.
-func (a *App) NamedDB(name string) *gorm.DB {
-	if a.databases == nil {
-		return nil
-	}
-	return a.databases[name]
-}
-
-// WithDatabase registers db as the default database.
-// Called internally by WithPostgreSQL.
-func (a *App) WithDatabase(db *gorm.DB) *App {
-	return a.WithNamedDatabase(DefaultDatabase, db)
-}
-
-// WithNamedDatabase registers a named database for multi-database setups.
-// Retrieve it later with NamedDB(name).
-func (a *App) WithNamedDatabase(name string, db *gorm.DB) *App {
-	if a.databases == nil {
-		a.databases = make(map[string]*gorm.DB)
-	}
-	a.databases[name] = db
-	return a
-}
-
-// WithDatabaseFromConfig connects the default database from the [database]
-// config section, dispatching on its "driver" field. Supported drivers:
-// "postgres"/"postgresql" and "sqlite"/"sqlite3" (case-insensitive). An empty or
-// unknown driver defers an error to Run/MustRun/Err. For additional connections
-// see WithDatabasesFromConfig.
-func (a *App) WithDatabaseFromConfig() *App {
-	if a.err != nil {
-		return a
-	}
-	if a.Config.Database == nil {
-		return a.fail(fmt.Errorf("database: no [database] config section"))
-	}
-	db, err := a.connectDatabase(a.Config.Database)
-	if err != nil {
-		return a.fail(fmt.Errorf("database: %w", err))
-	}
-	return a.WithDatabase(db)
 }
 
 // Setup runs a setup handler as part of the fluent chain (e.g. migrations or
@@ -277,21 +227,6 @@ func (a *App) close() {
 	defer cancel()
 
 	var wg sync.WaitGroup
-
-	for name, db := range a.databases {
-		wg.Add(1)
-		go func(name string, db *gorm.DB) {
-			defer wg.Done()
-			sqlDB, err := db.DB()
-			if err != nil {
-				a.Logger.Error("Failed to get db instance", "db", name, "error", err)
-				return
-			}
-			if err := sqlDB.Close(); err != nil {
-				a.Logger.Error("Failed to close db connection", "db", name, "error", err)
-			}
-		}(name, db)
-	}
 
 	wg.Add(1)
 	go func() {

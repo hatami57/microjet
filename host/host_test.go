@@ -16,9 +16,6 @@ func TestNewUsesDefaults(t *testing.T) {
 	if app.Config == nil || app.Logger == nil {
 		t.Fatal("expected Config and Logger to be initialized")
 	}
-	if app.Config.Server.Port != 8080 {
-		t.Errorf("default port = %d, want 8080", app.Config.Server.Port)
-	}
 	if app.Clock == nil {
 		t.Error("expected a default Clock to be set")
 	}

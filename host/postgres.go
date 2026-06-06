@@ -7,42 +7,37 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatami57/microjet/gormx"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
 
-// WithPostgreSQL connects to PostgreSQL using the [database] config section and
-// registers the connection as the default database. Errors are deferred to
-// Run/MustRun/Err.
-func (a *App) WithPostgreSQL() *App {
+// WithPostgreSQL registers a database service that forces the PostgreSQL driver.
+// Config is loaded from [database] (default) or [database.<name>] at Init time.
+// Pass a name to register a named database; no args registers the default.
+func (a *App) WithPostgreSQL(name ...string) *App {
 	if a.err != nil {
 		return a
 	}
-	if a.Config.Database == nil {
-		return a.fail(fmt.Errorf("postgres: no [database] config section"))
-	}
-	db, err := newPostgreSQL(a, a.Config.Database)
-	if err != nil {
-		return a.fail(fmt.Errorf("postgres: %w", err))
-	}
-	return a.WithDatabase(db)
+	n := firstOrEmpty(name)
+	a.container.Store(dbKey(n), &databaseService{name: n, driver: "postgres", logger: a.Logger})
+	return a
 }
 
-func newPostgreSQL(a *App, dbCfg *gormx.Config) (*gorm.DB, error) {
-	a.Logger.Debug("connecting to postgresql",
-		"host", dbCfg.Host,
-		"port", dbCfg.Port,
-		"db", dbCfg.Name,
-		"sslmode", dbCfg.SSLMode,
+func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
+	cfg := &d.config
+	d.logger.Debug("connecting to postgresql",
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"db", cfg.Name,
+		"sslmode", cfg.SSLMode,
 	)
 
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		dbCfg.Host, dbCfg.Port, dbCfg.User, dbCfg.Password, dbCfg.Name, dbCfg.SSLMode)
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger:               newGormLogger(a.Logger),
+		Logger:               newGormLogger(d.logger),
 		FullSaveAssociations: false,
 	})
 	if err != nil {
@@ -60,10 +55,10 @@ func newPostgreSQL(a *App, dbCfg *gormx.Config) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	a.Logger.Info("connected to postgresql",
-		"host", dbCfg.Host,
-		"port", dbCfg.Port,
-		"db", dbCfg.Name,
+	d.logger.Info("connected to postgresql",
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"db", cfg.Name,
 	)
 	return db, nil
 }

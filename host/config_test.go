@@ -13,9 +13,6 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 	if app.Config.App.Namespace != "App" {
 		t.Errorf("App.Namespace = %q, want %q", app.Config.App.Namespace, "App")
 	}
-	if app.Config.Server == nil || app.Config.Server.Port != 8080 {
-		t.Errorf("Server.Port = %v, want 8080", app.Config.Server)
-	}
 }
 
 func TestEnvironmentHelpers(t *testing.T) {

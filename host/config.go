@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/gormx"
 )
 
 const (
@@ -50,18 +49,10 @@ func (a *AppConfig) IsTest() bool {
 	return strings.ToLower(a.Environment) == "test"
 }
 
-type ServerConfig struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-}
-
 // Config is the full application configuration loaded at startup.
 type Config struct {
-	App       *AppConfig               `mapstructure:"app"`
-	Server    *ServerConfig            `mapstructure:"server"`
-	Database  *gormx.Config            `mapstructure:"database"`
-	Databases map[string]*gormx.Config `mapstructure:"databases"`
-	Log       *core.LogConfig          `mapstructure:"log"`
+	App *AppConfig      `mapstructure:"app"`
+	Log *core.LogConfig `mapstructure:"log"`
 }
 
 // LoadConfig implements core.Configurable, loading all standard host sections.
@@ -76,22 +67,11 @@ func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 	// inner-error exposure in HTTP responses — none of which are safe defaults
 	// for a library that may be embedded in production. Opt in via app.debug=true.
 	l.SetDefault("app.debug", false)
-	l.SetDefault("server.host", "localhost")
-	l.SetDefault("server.port", 8080)
 
 	if err := l.UnmarshalKey("app", &c.App); err != nil {
 		return err
 	}
-	if err := l.UnmarshalKey("server", &c.Server); err != nil {
-		return err
-	}
-	if err := l.UnmarshalKey("log", &c.Log); err != nil {
-		return err
-	}
-	if err := l.UnmarshalKey("database", &c.Database); err != nil {
-		return err
-	}
-	return l.UnmarshalKey("databases", &c.Databases)
+	return l.UnmarshalKey("log", &c.Log)
 }
 
 // LoadConfig loads the standard host configuration sections as a standalone call.

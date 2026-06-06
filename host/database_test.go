@@ -2,8 +2,6 @@ package host
 
 import (
 	"testing"
-
-	"github.com/hatami57/microjet/gormx"
 )
 
 func TestWithDatabasesFromConfigRegistersNamed(t *testing.T) {
@@ -11,12 +9,12 @@ func TestWithDatabasesFromConfigRegistersNamed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	app.Config.Databases = map[string]*gormx.Config{
-		"primary":   {Driver: "sqlite", Name: ":memory:"},
-		"analytics": {Driver: "sqlite", Name: ":memory:"},
-	}
+	app.configLoader.SetDefault("database.primary.driver", "sqlite")
+	app.configLoader.SetDefault("database.primary.name", ":memory:")
+	app.configLoader.SetDefault("database.analytics.driver", "sqlite")
+	app.configLoader.SetDefault("database.analytics.name", ":memory:")
 
-	app.WithDatabasesFromConfig()
+	app.WithDatabasesFromConfig().InitServices()
 	if err := app.Err(); err != nil {
 		t.Fatalf("WithDatabasesFromConfig: %v", err)
 	}
@@ -29,6 +27,7 @@ func TestWithDatabasesFromConfigRegistersNamed(t *testing.T) {
 	if app.NamedDB("missing") != nil {
 		t.Error("unexpected database for unknown name")
 	}
+	t.Cleanup(app.Close)
 }
 
 func TestWithDatabasesFromConfigReportsUnsupportedDriver(t *testing.T) {
@@ -36,10 +35,9 @@ func TestWithDatabasesFromConfigReportsUnsupportedDriver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	app.Config.Databases = map[string]*gormx.Config{
-		"bad": {Driver: "oracle"},
-	}
-	app.WithDatabasesFromConfig()
+	app.configLoader.SetDefault("database.bad.driver", "oracle")
+	app.configLoader.SetDefault("database.bad.name", "test")
+	app.WithDatabasesFromConfig().InitServices()
 	if app.Err() == nil {
 		t.Fatal("expected an error for an unsupported driver")
 	}

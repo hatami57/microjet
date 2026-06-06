@@ -16,11 +16,7 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 	if a.err != nil {
 		return a
 	}
-	a.HTTPServer = httpx.NewServer(httpx.ServerConfig{
-		Host:  a.Config.Server.Host,
-		Port:  a.Config.Server.Port,
-		Debug: a.Config.App.Debug,
-	}, a.Logger)
+	a.HTTPServer = httpx.NewServer(httpx.ServerConfig{Debug: a.Config.App.Debug}, a.Logger)
 
 	a.registerDefaultReadinessChecks()
 
@@ -42,16 +38,24 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 // WithHTTPServer are both covered.
 func (a *App) registerDefaultReadinessChecks() {
 	a.HTTPServer.AddReadinessCheck("database", func(ctx context.Context) error {
-		for name, db := range a.databases {
-			sqlDB, err := db.DB()
+		var checkErr error
+		a.container.Range(func(_, v any) bool {
+			svc, ok := v.(*databaseService)
+			if !ok || svc.db == nil {
+				return true
+			}
+			sqlDB, err := svc.db.DB()
 			if err != nil {
-				return fmt.Errorf("db %q: %w", name, err)
+				checkErr = fmt.Errorf("db %q: %w", svc.name, err)
+				return false
 			}
 			if err := sqlDB.PingContext(ctx); err != nil {
-				return fmt.Errorf("db %q: %w", name, err)
+				checkErr = fmt.Errorf("db %q: %w", svc.name, err)
+				return false
 			}
-		}
-		return nil
+			return true
+		})
+		return checkErr
 	})
 
 	a.HTTPServer.AddReadinessCheck("messaging", func(ctx context.Context) error {

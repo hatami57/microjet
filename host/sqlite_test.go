@@ -2,8 +2,6 @@ package host
 
 import (
 	"testing"
-
-	"github.com/hatami57/microjet/gormx"
 )
 
 func newTestApp(t *testing.T) *App {
@@ -12,16 +10,13 @@ func newTestApp(t *testing.T) *App {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	app.Config.Database = &gormx.Config{}
 	return app
 }
 
 func TestWithSQLiteInMemory(t *testing.T) {
 	app := newTestApp(t)
-	app.Config.Database.Name = ":memory:"
-
-	app.WithSQLite()
-
+	app.configLoader.SetDefault("database.name", ":memory:")
+	app.WithSQLite().InitServices()
 	if err := app.Err(); err != nil {
 		t.Fatalf("WithSQLite: %v", err)
 	}
@@ -33,11 +28,9 @@ func TestWithSQLiteInMemory(t *testing.T) {
 
 func TestWithDatabaseFromConfigDispatchesSQLite(t *testing.T) {
 	app := newTestApp(t)
-	app.Config.Database.Driver = "sqlite"
-	app.Config.Database.Name = ":memory:"
-
-	app.WithDatabaseFromConfig()
-
+	app.configLoader.SetDefault("database.driver", "sqlite")
+	app.configLoader.SetDefault("database.name", ":memory:")
+	app.WithDatabaseFromConfig().InitServices()
 	if err := app.Err(); err != nil {
 		t.Fatalf("WithDatabaseFromConfig: %v", err)
 	}
@@ -49,10 +42,8 @@ func TestWithDatabaseFromConfigDispatchesSQLite(t *testing.T) {
 
 func TestWithDatabaseFromConfigRejectsUnknownDriver(t *testing.T) {
 	app := newTestApp(t)
-	app.Config.Database.Driver = "mongodb"
-
-	app.WithDatabaseFromConfig()
-
+	app.configLoader.SetDefault("database.driver", "mongodb")
+	app.WithDatabaseFromConfig().InitServices()
 	if app.Err() == nil {
 		t.Fatal("expected an error for unsupported driver")
 	}
@@ -60,10 +51,8 @@ func TestWithDatabaseFromConfigRejectsUnknownDriver(t *testing.T) {
 
 func TestWithDatabaseFromConfigRequiresDriver(t *testing.T) {
 	app := newTestApp(t)
-	app.Config.Database.Driver = ""
-
-	app.WithDatabaseFromConfig()
-
+	// no driver default → empty string → error from connectDatabase
+	app.WithDatabaseFromConfig().InitServices()
 	if app.Err() == nil {
 		t.Fatal("expected an error when no driver is configured")
 	}

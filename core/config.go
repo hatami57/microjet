@@ -41,6 +41,12 @@ func (l *ConfigLoader) UnmarshalKey(section string, dest any) error {
 	return l.v.UnmarshalKey(section, dest)
 }
 
+// GetStringMap returns all keys and their values under a config section.
+// Sub-tables appear as map[string]any values, scalars as their native types.
+func (l *ConfigLoader) GetStringMap(key string) map[string]any {
+	return l.v.GetStringMap(key)
+}
+
 // SetDefault registers a default value for a config key. Configurables call
 // this before UnmarshalKey so their defaults apply when no config file is present.
 func (l *ConfigLoader) SetDefault(key string, value any) {
