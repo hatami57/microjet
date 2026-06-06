@@ -10,25 +10,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	EnvTest        = "test"
-	EnvDevelopment = "development"
-	EnvProduction  = "production"
-)
-
-type AppConfig struct {
-	Namespace   string `mapstructure:"namespace"`
-	Environment string `mapstructure:"environment"`
-	Name        string `mapstructure:"name"`
-	Version     string `mapstructure:"version"`
-	Debug       bool   `mapstructure:"debug"`
-}
-
-type ServerConfig struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-}
-
 // LogConfig configures the logger. Console output is always enabled unless
 // explicitly disabled via Console.Enabled=false. A file output is added when
 // File.Enabled=true and File.Path is set. Each output can independently
@@ -60,6 +41,12 @@ func (l *ConfigLoader) UnmarshalKey(section string, dest any) error {
 	return l.v.UnmarshalKey(section, dest)
 }
 
+// SetDefault registers a default value for a config key. Configurables call
+// this before UnmarshalKey so their defaults apply when no config file is present.
+func (l *ConfigLoader) SetDefault(key string, value any) {
+	l.v.SetDefault(key, value)
+}
+
 // Configurable is implemented by any type that can populate itself from a
 // ConfigLoader. LoadAll calls LoadConfig on each registered value in order,
 // passing the same parsed viper instance to all of them.
@@ -79,41 +66,11 @@ type ConfigurableFunc func(*ConfigLoader) error
 
 func (f ConfigurableFunc) LoadConfig(l *ConfigLoader) error { return f(l) }
 
-func (a *AppConfig) GetEnvironment() string {
-	switch {
-	case a.IsTest():
-		return EnvTest
-	case a.IsDevelopment():
-		return EnvDevelopment
-	default:
-		return EnvProduction
-	}
-}
-
-func (a *AppConfig) GetName() string    { return a.Name }
-func (a *AppConfig) GetVersion() string { return a.Version }
-func (a *AppConfig) GetDebug() bool     { return a.Debug }
-
-func (a *AppConfig) IsProduction() bool {
-	env := strings.ToLower(a.Environment)
-	return env == "production" || env == "prod"
-}
-
-func (a *AppConfig) IsDevelopment() bool {
-	env := strings.ToLower(a.Environment)
-	return env == "development" || env == "dev"
-}
-
-func (a *AppConfig) IsTest() bool {
-	return strings.ToLower(a.Environment) == "test"
-}
-
 // NewViper builds the viper instance microjet uses to load configuration:
 // it searches the standard config paths, reads config.toml plus an optional
 // config.local.toml overlay, and binds APP_* environment overrides. It is
-// exported so provider-specific modules (e.g. aws) can load their own typed
-// config sections without core having to depend on them.
-// It does not set any app-level defaults; call SetAppDefaults or LoadAll to get those.
+// exported so provider-specific modules (e.g. aws) can build their own config
+// loading without core having to depend on them.
 func NewViper(envPrefix string) (*viper.Viper, error) {
 	v := viper.New()
 	cwd, err := os.Getwd()
@@ -153,21 +110,6 @@ func NewViper(envPrefix string) (*viper.Viper, error) {
 	return v, nil
 }
 
-// SetAppDefaults sets the core app/server defaults on v. Called by LoadAll and
-// Load so that app/server fields are never zero when no config file is present.
-func SetAppDefaults(v *viper.Viper) {
-	v.SetDefault("app.namespace", "App")
-	v.SetDefault("app.environment", "development")
-	v.SetDefault("app.name", "App")
-	v.SetDefault("app.version", "0.1.0")
-	// Default to non-debug: debug mode enables verbose logging, Swagger, and
-	// inner-error exposure in HTTP responses — none of which are safe defaults
-	// for a library that may be embedded in production. Opt in via app.debug=true.
-	v.SetDefault("app.debug", false)
-	v.SetDefault("server.host", "localhost")
-	v.SetDefault("server.port", 8080)
-}
-
 // LoadAll creates a single viper instance and calls LoadConfig on each
 // Configurable in order, sharing the one parsed config across all of them.
 // If a Configurable also implements PostConfigLoader, PostLoadConfig is called
@@ -177,7 +119,6 @@ func LoadAll(envPrefix string, cfgs ...Configurable) error {
 	if err != nil {
 		return err
 	}
-	SetAppDefaults(v)
 	l := &ConfigLoader{v: v}
 	for _, cfg := range cfgs {
 		if err := cfg.LoadConfig(l); err != nil {
@@ -192,14 +133,13 @@ func LoadAll(envPrefix string, cfgs ...Configurable) error {
 	return nil
 }
 
-// Load unmarshals the full config file into dest, applying app-level defaults.
+// Load unmarshals the full config file into dest.
 // For loading multiple typed sections with a single viper parse, use LoadAll.
 func Load(dest any, envPrefix string) error {
 	v, err := NewViper(envPrefix)
 	if err != nil {
 		return err
 	}
-	SetAppDefaults(v)
 	if err := v.Unmarshal(dest); err != nil {
 		return fmt.Errorf("error unmarshaling config: %w", err)
 	}
