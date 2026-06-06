@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/gormx"
-	"github.com/hatami57/microjet/messaging"
 )
 
 const (
@@ -60,9 +59,8 @@ type ServerConfig struct {
 type Config struct {
 	App       *AppConfig               `mapstructure:"app"`
 	Server    *ServerConfig            `mapstructure:"server"`
-	Database  *gormx.Config           `mapstructure:"database"`
+	Database  *gormx.Config            `mapstructure:"database"`
 	Databases map[string]*gormx.Config `mapstructure:"databases"`
-	Messaging *messaging.Config        `mapstructure:"messaging"`
 	Log       *core.LogConfig          `mapstructure:"log"`
 	Extra     any                      `mapstructure:"extra"`
 }
@@ -94,10 +92,7 @@ func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 	if err := l.UnmarshalKey("database", &c.Database); err != nil {
 		return err
 	}
-	if err := l.UnmarshalKey("databases", &c.Databases); err != nil {
-		return err
-	}
-	return l.UnmarshalKey("messaging", &c.Messaging)
+	return l.UnmarshalKey("databases", &c.Databases)
 }
 
 // LoadConfig loads the full application configuration.

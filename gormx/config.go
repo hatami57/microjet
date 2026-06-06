@@ -19,16 +19,13 @@ func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 	return l.UnmarshalKey("database", c)
 }
 
-// LoadConfig loads the [database] config section as a standalone call.
-func LoadConfig(envPrefix string) (*Config, error) {
-	return core.LoadSection[Config]("database", envPrefix)
-}
-
 // LoadConfigs loads all named database configs from the [databases] section.
 func LoadConfigs(envPrefix string) (map[string]*Config, error) {
-	m, err := core.LoadSection[map[string]*Config]("databases", envPrefix)
-	if err != nil {
+	var cfgs map[string]*Config
+	if err := core.LoadAll(envPrefix, core.ConfigurableFunc(func(l *core.ConfigLoader) error {
+		return l.UnmarshalKey("databases", &cfgs)
+	})); err != nil {
 		return nil, err
 	}
-	return *m, nil
+	return cfgs, nil
 }

@@ -61,6 +61,21 @@ type PostConfigLoader interface {
 	PostLoadConfig() error
 }
 
+// Initer is implemented by services that need to perform initialization after
+// their config is loaded but do not require host-level DI. The host calls Init
+// on each registered service that implements this
+// interface (host.ServiceIniter, which carries *App, takes precedence).
+type Initer interface {
+	Init() error
+}
+
+// Closer is implemented by services that need to release resources on shutdown.
+// The host calls Close on each registered service that implements
+// this interface (host.ServiceCloser takes precedence when present).
+type Closer interface {
+	Close() error
+}
+
 // ConfigurableFunc is a function adapter for Configurable, analogous to http.HandlerFunc.
 type ConfigurableFunc func(*ConfigLoader) error
 
@@ -131,31 +146,4 @@ func LoadAll(envPrefix string, cfgs ...Configurable) error {
 		}
 	}
 	return nil
-}
-
-// Load unmarshals the full config file into dest.
-// For loading multiple typed sections with a single viper parse, use LoadAll.
-func Load(dest any, envPrefix string) error {
-	v, err := NewViper(envPrefix)
-	if err != nil {
-		return err
-	}
-	if err := v.Unmarshal(dest); err != nil {
-		return fmt.Errorf("error unmarshaling config: %w", err)
-	}
-	return nil
-}
-
-// LoadSection loads a single named config section using the shared viper setup.
-// For loading multiple sections with a single viper parse, use LoadAll.
-func LoadSection[T any](section, envPrefix string) (*T, error) {
-	v, err := NewViper(envPrefix)
-	if err != nil {
-		return nil, err
-	}
-	var cfg T
-	if err := v.UnmarshalKey(section, &cfg); err != nil {
-		return nil, fmt.Errorf("unmarshaling [%s]: %w", section, err)
-	}
-	return &cfg, nil
 }

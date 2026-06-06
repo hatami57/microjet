@@ -19,8 +19,3 @@ type Config struct {
 func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 	return l.UnmarshalKey("aws", c)
 }
-
-// LoadConfig loads the [aws] config section as a standalone call.
-func LoadConfig(envPrefix string) (*Config, error) {
-	return core.LoadSection[Config]("aws", envPrefix)
-}

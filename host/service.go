@@ -121,14 +121,40 @@ func (a *App) initServices() error {
 	}
 	a.Logger.Debug("initializing services")
 	var initErr error
+
+	// Load config for services that manage their own configuration.
 	a.container.Range(func(_, item any) bool {
-		svc, ok := item.(ServiceIniter)
+		cfg, ok := item.(core.Configurable)
 		if !ok {
 			return true
 		}
 		name := reflect.TypeOf(item).String()
+		a.Logger.Debug("loading config for service", "type", name)
+		if err := core.LoadAll(a.envPrefix, cfg); err != nil {
+			a.Logger.Error("failed to load config for service", "type", name, "error", err)
+			initErr = err
+			return false
+		}
+		return true
+	})
+	if initErr != nil {
+		return initErr
+	}
+
+	// Initialize services. host.ServiceIniter (receives *App) takes precedence
+	// over core.Initer for services that need host-level DI.
+	a.container.Range(func(_, item any) bool {
+		name := reflect.TypeOf(item).String()
 		a.Logger.Debug("initializing service", "type", name)
-		if err := svc.Init(a); err != nil {
+		var err error
+		if svc, ok := item.(ServiceIniter); ok {
+			err = svc.Init(a)
+		} else if svc, ok := item.(core.Initer); ok {
+			err = svc.Init()
+		} else {
+			return true
+		}
+		if err != nil {
 			a.Logger.Error("failed to initialize service", "type", name, "error", err)
 			initErr = err
 			return false
@@ -148,13 +174,17 @@ func (a *App) closeServices() error {
 	var errs error
 	a.Logger.Debug("closing services")
 	a.container.Range(func(_, item any) bool {
-		svc, ok := item.(ServiceCloser)
-		if !ok {
-			return true
-		}
 		name := reflect.TypeOf(item).String()
 		a.Logger.Debug("closing service", "type", name)
-		if err := svc.Close(a); err != nil {
+		var err error
+		if svc, ok := item.(ServiceCloser); ok {
+			err = svc.Close(a)
+		} else if svc, ok := item.(core.Closer); ok {
+			err = svc.Close()
+		} else {
+			return true
+		}
+		if err != nil {
 			a.Logger.Error("failed to close service", "type", name, "error", err)
 			errs = errors.Join(errs, err)
 		}

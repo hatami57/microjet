@@ -286,16 +286,6 @@ func (a *App) close() {
 
 	var wg sync.WaitGroup
 
-	if a.Messaging != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := a.Messaging.Disconnect(); err != nil {
-				a.Logger.Error("Failed to disconnect messaging", "error", err)
-			}
-		}()
-	}
-
 	if a.HTTPServer != nil {
 		wg.Add(1)
 		go func() {

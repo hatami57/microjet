@@ -17,16 +17,6 @@ type Config struct {
 	Version int    `mapstructure:"version"`
 }
 
-// LoadConfig implements core.Configurable, loading the [messaging] section.
-func (c *Config) LoadConfig(l *core.ConfigLoader) error {
-	return l.UnmarshalKey("messaging", c)
-}
-
-// LoadConfig loads the [messaging] config section as a standalone call.
-func LoadConfig(envPrefix string) (*Config, error) {
-	return core.LoadSection[Config]("messaging", envPrefix)
-}
-
 // Message is a published or received message. Headers carry metadata such as a
 // correlation id (e.g. "X-Request-ID") so it can be propagated across services.
 type Message struct {
@@ -59,24 +49,44 @@ type HealthChecker interface {
 	Healthy() error
 }
 
-// natsClient is the NATS-backed implementation of Client.
-type natsClient struct {
-	conn *nats.Conn
+// NATSClient is the NATS-backed implementation of Client. It implements
+// core.Configurable so it can participate in a core.LoadAll call — LoadConfig
+// reads the [messaging] section. Call Connect after LoadAll to dial the broker.
+type NATSClient struct {
+	Config Config
+	logger *slog.Logger
+	conn   *nats.Conn
 }
 
-func New(cfg *Config, logger *slog.Logger) (Client, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("messaging config is required")
-	}
-	conn, err := nats.Connect(cfg.URL)
+// NewNATSClient returns a NATSClient ready to be passed to core.LoadAll.
+func NewNATSClient(logger *slog.Logger) *NATSClient {
+	return &NATSClient{logger: logger}
+}
+
+// LoadConfig implements core.Configurable, reading the [messaging] section.
+func (c *NATSClient) LoadConfig(l *core.ConfigLoader) error {
+	return l.UnmarshalKey("messaging", &c.Config)
+}
+
+// Connect dials the NATS broker using the loaded config. Call this after
+// core.LoadAll has populated Config.
+func (c *NATSClient) Connect() error {
+	conn, err := nats.Connect(c.Config.URL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS at %s: %w", cfg.URL, err)
+		return fmt.Errorf("failed to connect to NATS at %s: %w", c.Config.URL, err)
 	}
-	logger.Info("connected to NATS", "url", cfg.URL)
-	return &natsClient{conn: conn}, nil
+	c.logger.Info("connected to NATS", "url", c.Config.URL)
+	c.conn = conn
+	return nil
 }
 
-func (c *natsClient) Publish(ctx context.Context, msg Message) error {
+// Init implements core.Initer, connecting to the NATS broker after config is loaded.
+func (c *NATSClient) Init() error { return c.Connect() }
+
+// Close implements core.Closer, draining and closing the NATS connection.
+func (c *NATSClient) Close() error { return c.Disconnect() }
+
+func (c *NATSClient) Publish(ctx context.Context, msg Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -90,7 +100,7 @@ func (c *natsClient) Publish(ctx context.Context, msg Message) error {
 	return c.conn.PublishMsg(m)
 }
 
-func (c *natsClient) Subscribe(ctx context.Context, subject string, handler Handler) (Subscription, error) {
+func (c *NATSClient) Subscribe(ctx context.Context, subject string, handler Handler) (Subscription, error) {
 	sub, err := c.conn.Subscribe(subject, func(m *nats.Msg) {
 		var headers map[string]string
 		if len(m.Header) > 0 {
@@ -108,14 +118,14 @@ func (c *natsClient) Subscribe(ctx context.Context, subject string, handler Hand
 }
 
 // Healthy reports an error when the NATS connection is not currently connected.
-func (c *natsClient) Healthy() error {
+func (c *NATSClient) Healthy() error {
 	if !c.conn.IsConnected() {
 		return fmt.Errorf("nats: not connected (status %s)", c.conn.Status())
 	}
 	return nil
 }
 
-func (c *natsClient) Disconnect() error {
+func (c *NATSClient) Disconnect() error {
 	// Drain flushes pending messages and unsubscribes before closing; surface
 	// its error rather than silently dropping in-flight work.
 	if err := c.conn.Drain(); err != nil {
