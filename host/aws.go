@@ -7,7 +7,6 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/hatami57/microjet/aws"
-	"github.com/hatami57/microjet/core"
 )
 
 // WithAWS loads AWS configuration and initializes the requested service clients
@@ -19,7 +18,7 @@ func (a *App) WithAWS(services ...aws.AWSService) *App {
 	a.AWS = &aws.AWS{Logger: a.Logger}
 
 	awsCfg := &aws.Config{}
-	if err := core.LoadAll(a.envPrefix, awsCfg); err != nil {
+	if err := a.configLoader.Configure(awsCfg); err != nil {
 		return a.fail(fmt.Errorf("aws: load config: %w", err))
 	}
 

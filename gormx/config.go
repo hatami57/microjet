@@ -22,7 +22,7 @@ func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 // LoadConfigs loads all named database configs from the [databases] section.
 func LoadConfigs(envPrefix string) (map[string]*Config, error) {
 	var cfgs map[string]*Config
-	if err := core.LoadAll(envPrefix, core.ConfigurableFunc(func(l *core.ConfigLoader) error {
+	if err := core.Configure(envPrefix, core.ConfigurableFunc(func(l *core.ConfigLoader) error {
 		return l.UnmarshalKey("databases", &cfgs)
 	})); err != nil {
 		return nil, err

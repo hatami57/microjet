@@ -125,16 +125,21 @@ func NewViper(envPrefix string) (*viper.Viper, error) {
 	return v, nil
 }
 
-// LoadAll creates a single viper instance and calls LoadConfig on each
-// Configurable in order, sharing the one parsed config across all of them.
-// If a Configurable also implements PostConfigLoader, PostLoadConfig is called
-// immediately after its LoadConfig succeeds.
-func LoadAll(envPrefix string, cfgs ...Configurable) error {
+// NewConfigLoader creates a ConfigLoader backed by a freshly parsed viper
+// instance. Use this to hold a single loader across multiple Configure calls
+// (e.g. in App.configLoader) so the config file is only read once.
+func NewConfigLoader(envPrefix string) (*ConfigLoader, error) {
 	v, err := NewViper(envPrefix)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	l := &ConfigLoader{v: v}
+	return &ConfigLoader{v: v}, nil
+}
+
+// Configure calls LoadConfig on each Configurable in order using the shared
+// viper instance. If a Configurable also implements PostConfigLoader,
+// PostLoadConfig is called immediately after its LoadConfig succeeds.
+func (l *ConfigLoader) Configure(cfgs ...Configurable) error {
 	for _, cfg := range cfgs {
 		if err := cfg.LoadConfig(l); err != nil {
 			return err
@@ -146,4 +151,15 @@ func LoadAll(envPrefix string, cfgs ...Configurable) error {
 		}
 	}
 	return nil
+}
+
+// Configure creates a single ConfigLoader and calls LoadConfig on each
+// Configurable in order. Use NewConfigLoader when you need to reuse the
+// same parsed config across multiple calls.
+func Configure(envPrefix string, cfgs ...Configurable) error {
+	l, err := NewConfigLoader(envPrefix)
+	if err != nil {
+		return err
+	}
+	return l.Configure(cfgs...)
 }

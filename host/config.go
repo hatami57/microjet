@@ -102,9 +102,19 @@ func LoadConfig(envPrefix string) (*Config, error) {
 
 // LoadConfigWithExtra is like LoadConfig but unmarshals the [extra] TOML section into T.
 func LoadConfigWithExtra[T any](envPrefix string) (*Config, error) {
+	loader, err := core.NewConfigLoader(envPrefix)
+	if err != nil {
+		return nil, err
+	}
+	return loadConfigWithExtra[T](loader)
+}
+
+// loadConfigWithExtra configures host.Config from an existing loader, used by
+// NewWithExtraConfig so the App shares the single parsed viper instance.
+func loadConfigWithExtra[T any](loader *core.ConfigLoader) (*Config, error) {
 	cfg := &Config{}
 	var extra T
-	if err := core.LoadAll(envPrefix, cfg, core.ConfigurableFunc(func(l *core.ConfigLoader) error {
+	if err := loader.Configure(cfg, core.ConfigurableFunc(func(l *core.ConfigLoader) error {
 		return l.UnmarshalKey("extra", &extra)
 	})); err != nil {
 		return nil, err

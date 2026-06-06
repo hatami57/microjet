@@ -31,6 +31,7 @@ type App struct {
 	HTTPServer *httpx.Server
 
 	envPrefix            string
+	configLoader         *core.ConfigLoader
 	shutdownTimeout      time.Duration
 	databases            map[string]*gorm.DB
 	container            sync.Map
@@ -82,7 +83,12 @@ func NewWithExtraConfig[T any](opts ...Option) (*App, error) {
 	if a.Clock == nil {
 		a.Clock = core.UTC
 	}
-	config, err := LoadConfigWithExtra[T](a.envPrefix)
+	loader, err := core.NewConfigLoader(a.envPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("creating config loader: %w", err)
+	}
+	a.configLoader = loader
+	config, err := loadConfigWithExtra[T](loader)
 	if err != nil {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}

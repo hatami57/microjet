@@ -130,7 +130,7 @@ func (a *App) initServices() error {
 		}
 		name := reflect.TypeOf(item).String()
 		a.Logger.Debug("loading config for service", "type", name)
-		if err := core.LoadAll(a.envPrefix, cfg); err != nil {
+		if err := a.configLoader.Configure(cfg); err != nil {
 			a.Logger.Error("failed to load config for service", "type", name, "error", err)
 			initErr = err
 			return false
