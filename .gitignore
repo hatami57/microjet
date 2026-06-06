@@ -28,11 +28,15 @@ go.work.sum
 
 .idea/
 
-# Compiled example binaries (same name as their directory, no extension)
+# Compiled example binaries — in their own directory or built into the repo root
 examples/http-postgres/http-postgres
 examples/minimal/minimal
 examples/sqlite/sqlite
 examples/features/features
+/http-postgres
+/minimal
+/sqlite
+/features
 
 # SQLite database files created by examples at runtime
 *.db
