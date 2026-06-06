@@ -28,21 +28,24 @@ import (
 )
 
 func main() {
-	// An in-memory cache for the demo; swap cache.NewRedis(...) in production to
-	// share entries across replicas.
-	memCache := cache.NewMemoryCache()
-
+	// WithCache registers the cache as a managed service: it loads the [cache]
+	// section, connects at startup, and is closed on shutdown. Defaults to an
+	// in-memory cache; set [cache] driver = "redis" to share entries across
+	// replicas — no code change.
 	app := host.MustNew(host.WithClock(core.UTC)).
+		WithCache().
 		WithHTTPServer(func(a *host.App) error {
-			registerRoutes(a, memCache)
+			registerRoutes(a)
 			return nil
 		})
 
 	app.MustRun()
 }
 
-func registerRoutes(a *host.App, c cache.Cache) {
+func registerRoutes(a *host.App) {
 	r := a.HTTPServer.Router
+	// Setup handlers run after services are initialized, so the cache is ready.
+	c := a.Cache()
 
 	// Cross-origin + per-client rate limiting applied to every app route.
 	// (RequestID, metrics, logging and error handling are installed by NewServer.)

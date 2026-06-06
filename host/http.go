@@ -2,10 +2,10 @@ package host
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
+	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/httpx"
-	"github.com/hatami57/microjet/messaging"
 )
 
 // WithHTTPServer creates the HTTP server and runs the optional setup handlers
@@ -30,38 +30,21 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 	return a
 }
 
-// registerDefaultReadinessChecks wires /readyz probes that read App state at
-// request time, so databases or messaging registered before or after
-// WithHTTPServer are both covered.
+// registerDefaultReadinessChecks wires a /readyz probe that, at request time,
+// asks every container service implementing healthChecker whether it is ready.
+// Ranging at request time means services registered before or after
+// WithHTTPServer are both covered; each service returns a self-describing error.
 func (a *App) registerDefaultReadinessChecks() {
-	a.HTTPServer.AddReadinessCheck("database", func(ctx context.Context) error {
-		var checkErr error
+	a.HTTPServer.AddReadinessCheck("services", func(ctx context.Context) error {
+		var errs error
 		a.container.Range(func(_, v any) bool {
-			svc, ok := v.(*databaseService)
-			if !ok || svc.db == nil {
-				return true
-			}
-			sqlDB, err := svc.db.DB()
-			if err != nil {
-				checkErr = fmt.Errorf("db %q: %w", svc.name, err)
-				return false
-			}
-			if err := sqlDB.PingContext(ctx); err != nil {
-				checkErr = fmt.Errorf("db %q: %w", svc.name, err)
-				return false
+			if hc, ok := v.(core.HealthChecker); ok {
+				if err := hc.Healthy(ctx); err != nil {
+					errs = errors.Join(errs, err)
+				}
 			}
 			return true
 		})
-		return checkErr
-	})
-
-	a.HTTPServer.AddReadinessCheck("messaging", func(ctx context.Context) error {
-		if a.Messaging == nil {
-			return nil
-		}
-		if hc, ok := a.Messaging.(messaging.HealthChecker); ok {
-			return hc.Healthy()
-		}
-		return nil
+		return errs
 	})
 }

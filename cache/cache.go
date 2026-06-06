@@ -7,6 +7,8 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -17,6 +19,34 @@ type Cache interface {
 	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	Close() error
+}
+
+// Config selects and configures a Cache. Driver "memory" (the default) needs no
+// other fields; "redis" uses Addr/Password/DB. Prefix is prepended to every key.
+type Config struct {
+	Driver   string `mapstructure:"driver"`
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+	Prefix   string `mapstructure:"prefix"`
+}
+
+// New builds a Cache from cfg. An empty or "memory" driver returns an in-process
+// MemoryCache; "redis" connects to Redis (verifying the connection with a PING).
+func New(ctx context.Context, cfg Config) (Cache, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.Driver)) {
+	case "", "memory":
+		return NewMemoryCache(), nil
+	case "redis":
+		return NewRedis(ctx, RedisOptions{
+			Addr:     cfg.Addr,
+			Password: cfg.Password,
+			DB:       cfg.DB,
+			Prefix:   cfg.Prefix,
+		})
+	default:
+		return nil, fmt.Errorf("cache: unsupported driver %q", cfg.Driver)
+	}
 }
 
 // GetJSON fetches key and JSON-decodes it into T. found is false (with a zero T

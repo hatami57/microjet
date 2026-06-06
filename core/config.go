@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -90,6 +91,15 @@ type Starter interface {
 // this interface (host.ServiceCloser takes precedence when present).
 type Closer interface {
 	Close() error
+}
+
+// HealthChecker is implemented by services that can report whether they are
+// ready to serve traffic. The host's /readyz probe consults every registered
+// service implementing it, so databases, cache, messaging, and any user service
+// that implements this interface are covered without per-type wiring. Healthy
+// returns nil when ready and a self-describing error otherwise.
+type HealthChecker interface {
+	Healthy(ctx context.Context) error
 }
 
 // ConfigurableFunc is a function adapter for Configurable, analogous to http.HandlerFunc.

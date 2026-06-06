@@ -1,6 +1,7 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -62,6 +63,27 @@ func (d *databaseService) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// Healthy implements core.HealthChecker, pinging the underlying connection so the
+// host's /readyz can report the database. A self-describing error names the
+// database for multi-database setups.
+func (d *databaseService) Healthy(ctx context.Context) error {
+	if d.db == nil {
+		return nil
+	}
+	name := d.name
+	if name == "" {
+		name = DefaultDatabase
+	}
+	sqlDB, err := d.db.DB()
+	if err != nil {
+		return fmt.Errorf("db %q: %w", name, err)
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("db %q: %w", name, err)
+	}
+	return nil
 }
 
 // dbKey returns the sync.Map key for a named database.

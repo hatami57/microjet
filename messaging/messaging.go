@@ -43,12 +43,6 @@ type Subscription interface {
 	Unsubscribe() error
 }
 
-// HealthChecker is an optional interface a Client may implement to report
-// whether its connection is currently usable (consulted by the host's /readyz).
-type HealthChecker interface {
-	Healthy() error
-}
-
 // NATSClient is the NATS-backed implementation of Client. It implements
 // core.Configurable so it can participate in a core.LoadAll call — LoadConfig
 // reads the [messaging] section. Call Connect after LoadAll to dial the broker.
@@ -117,10 +111,12 @@ func (c *NATSClient) Subscribe(ctx context.Context, subject string, handler Hand
 	return sub, nil
 }
 
-// Healthy reports an error when the NATS connection is not currently connected.
-func (c *NATSClient) Healthy() error {
-	if !c.conn.IsConnected() {
-		return fmt.Errorf("nats: not connected (status %s)", c.conn.Status())
+// Healthy implements core.HealthChecker, reporting an error when the NATS
+// connection is not currently connected. The context is accepted for interface
+// uniformity; the check is local and fast.
+func (c *NATSClient) Healthy(_ context.Context) error {
+	if c.conn == nil || !c.conn.IsConnected() {
+		return fmt.Errorf("nats: not connected")
 	}
 	return nil
 }

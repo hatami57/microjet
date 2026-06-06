@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/hatami57/microjet/aws v0.2.0
+	github.com/hatami57/microjet/cache v0.3.0
 	github.com/hatami57/microjet/core v0.2.0
 	github.com/hatami57/microjet/gormx v0.3.0
 	github.com/hatami57/microjet/httpx v0.2.0
@@ -84,6 +85,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/redis/go-redis/v9 v9.20.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
@@ -97,6 +99,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.22.0 // indirect
