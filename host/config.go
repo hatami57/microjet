@@ -62,7 +62,6 @@ type Config struct {
 	Database  *gormx.Config            `mapstructure:"database"`
 	Databases map[string]*gormx.Config `mapstructure:"databases"`
 	Log       *core.LogConfig          `mapstructure:"log"`
-	Extra     any                      `mapstructure:"extra"`
 }
 
 // LoadConfig implements core.Configurable, loading all standard host sections.
@@ -95,45 +94,15 @@ func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 	return l.UnmarshalKey("databases", &c.Databases)
 }
 
-// LoadConfig loads the full application configuration.
+// LoadConfig loads the standard host configuration sections as a standalone call.
 func LoadConfig(envPrefix string) (*Config, error) {
-	return LoadConfigWithExtra[map[string]any](envPrefix)
-}
-
-// LoadConfigWithExtra is like LoadConfig but unmarshals the [extra] TOML section into T.
-func LoadConfigWithExtra[T any](envPrefix string) (*Config, error) {
 	loader, err := core.NewConfigLoader(envPrefix)
 	if err != nil {
 		return nil, err
 	}
-	return loadConfigWithExtra[T](loader)
-}
-
-// loadConfigWithExtra configures host.Config from an existing loader, used by
-// NewWithExtraConfig so the App shares the single parsed viper instance.
-func loadConfigWithExtra[T any](loader *core.ConfigLoader) (*Config, error) {
 	cfg := &Config{}
-	var extra T
-	if err := loader.Configure(cfg, core.ConfigurableFunc(func(l *core.ConfigLoader) error {
-		return l.UnmarshalKey("extra", &extra)
-	})); err != nil {
+	if err := loader.Configure(cfg); err != nil {
 		return nil, err
 	}
-	cfg.Extra = extra
 	return cfg, nil
-}
-
-// GetExtraConfig casts Config.Extra to T, returning false if the cast fails.
-func GetExtraConfig[T any](c *Config) (T, bool) {
-	typed, ok := c.Extra.(T)
-	return typed, ok
-}
-
-// MustGetExtraConfig casts Config.Extra to T, panicking if the cast fails.
-func MustGetExtraConfig[T any](c *Config) T {
-	typed, ok := c.Extra.(T)
-	if !ok {
-		panic("config extra type mismatch")
-	}
-	return typed
 }
