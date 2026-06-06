@@ -9,9 +9,9 @@ import (
 )
 
 // WithHTTPServer creates the HTTP server and runs the optional setup handlers
-// (typically route registration). It also registers default readiness probes
-// (GET /readyz) for any registered databases and the messaging client. Errors
-// are deferred to Run/MustRun/Err.
+// (typically route registration). It registers default readiness probes and
+// adds the server to the service container so the host's lifecycle (Init/Close)
+// is managed automatically. Errors are deferred to Run/MustRun/Err.
 func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 	if a.err != nil {
 		return a
@@ -32,6 +32,8 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 			return a.fail(err)
 		}
 	}
+
+	ProvideService(a, a.HTTPServer)
 	return a
 }
 

@@ -10,15 +10,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/httpx/middleware"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type ServerConfig struct {
-	Host  string
-	Port  int
-	Debug bool
+	Host  string `mapstructure:"host"`
+	Port  int    `mapstructure:"port"`
+	Debug bool   `mapstructure:"debug"`
 }
 
 // ReadinessFunc reports whether a dependency is ready to serve traffic. It
@@ -32,15 +33,19 @@ type namedReadinessCheck struct {
 
 type Server struct {
 	Router     *gin.Engine
+	config     ServerConfig
+	logger     *slog.Logger
+	metrics    *middleware.Metrics
 	httpServer *http.Server
 
 	readinessMu     sync.RWMutex
 	readinessChecks []namedReadinessCheck
+
+	errCh chan error
 }
 
 // AddReadinessCheck registers a named dependency probe consulted by GET /readyz.
-// Checks are evaluated on each request, so registration order and timing do not
-// matter. Safe for concurrent use.
+// Safe for concurrent use.
 func (s *Server) AddReadinessCheck(name string, fn ReadinessFunc) {
 	s.readinessMu.Lock()
 	defer s.readinessMu.Unlock()
@@ -66,6 +71,9 @@ func (s *Server) runReadinessChecks(ctx context.Context) (bool, map[string]strin
 	return ready, results
 }
 
+// NewServer creates the router with its middleware stack and standard routes
+// (/health, /metrics, /readyz, and /swagger if debug). The server does not
+// start listening until Init is called.
 func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	if cfg.Debug {
 		gin.SetMode(gin.DebugMode)
@@ -74,18 +82,15 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	}
 
 	router := gin.New()
-	server := &Server{
-		Router: router,
-		httpServer: &http.Server{
-			Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-			Handler:      router,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  60 * time.Second,
-		},
-	}
-
 	metrics := middleware.NewMetrics()
+
+	s := &Server{
+		Router:  router,
+		config:  cfg,
+		logger:  logger,
+		metrics: metrics,
+		errCh:   make(chan error, 1),
+	}
 
 	router.Use(middleware.RequestID())
 	router.Use(metrics.Middleware())
@@ -93,18 +98,14 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	router.Use(middleware.Error(cfg.Debug))
 	router.Use(gin.Recovery())
 
-	// Liveness: the process is up. Readiness: dependencies are usable.
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
-
-	// Prometheus metrics in text exposition format.
 	router.GET("/metrics", gin.WrapH(metrics.Handler()))
-
 	router.GET("/readyz", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 		defer cancel()
-		ready, results := server.runReadinessChecks(ctx)
+		ready, results := s.runReadinessChecks(ctx)
 		status := http.StatusOK
 		statusText := "ok"
 		if !ready {
@@ -118,10 +119,52 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	return server
+	return s
 }
 
-func (s *Server) Start() error {
+// LoadConfig implements core.Configurable, reading the [server] section so the
+// server owns its configuration independently of host.Config.
+func (s *Server) LoadConfig(l *core.ConfigLoader) error {
+	l.SetDefault("server.host", "localhost")
+	l.SetDefault("server.port", 8080)
+	return l.UnmarshalKey("server", &s.config)
+}
+
+// Init implements core.Initer. It creates the net listener and starts serving
+// in a background goroutine. The outcome is available via ErrCh once the server
+// stops (nil on clean shutdown, error otherwise).
+func (s *Server) Init() error {
+	s.httpServer = &http.Server{
+		Addr:         fmt.Sprintf("%s:%d", s.config.Host, s.config.Port),
+		Handler:      s.Router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	s.logger.Info("starting HTTP server", "addr", s.Addr())
+	go func() {
+		s.errCh <- s.start()
+	}()
+	return nil
+}
+
+// Close implements core.Closer, gracefully draining and stopping the server.
+func (s *Server) Close() error {
+	if s.httpServer == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return s.Stop(ctx)
+}
+
+// ErrCh returns the channel that receives the server's exit error (or nil on
+// clean shutdown via Stop). The host reads this to react to unexpected failures.
+func (s *Server) ErrCh() <-chan error {
+	return s.errCh
+}
+
+func (s *Server) start() error {
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -132,6 +175,11 @@ func (s *Server) Stop(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
+// Addr returns the listener address. Before Init it is derived from the config;
+// after Init it reflects the bound address.
 func (s *Server) Addr() string {
-	return s.httpServer.Addr
+	if s.httpServer != nil {
+		return s.httpServer.Addr
+	}
+	return fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 }

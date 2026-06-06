@@ -204,17 +204,11 @@ func (a *App) Run() error {
 
 	quit := notifySignals()
 
+	// Init() (called by initServices above) already started the listener goroutine.
+	// ErrCh receives its outcome so Run can react to unexpected server failures.
 	var httpErrCh <-chan error
 	if a.HTTPServer != nil {
-		ch := make(chan error, 1)
-		httpErrCh = ch
-		go func() {
-			a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
-			// Always report the outcome: Start returns nil on a clean shutdown
-			// (http.ErrServerClosed) and an error otherwise. Either way the server
-			// is no longer serving, which is a reason to wind the app down.
-			ch <- a.HTTPServer.Start()
-		}()
+		httpErrCh = a.HTTPServer.ErrCh()
 	}
 
 	var runErr error
@@ -244,14 +238,14 @@ func (a *App) MustRun() {
 	}
 }
 
-// StartHTTP starts the HTTP server and blocks until it stops. Kept for
-// callers that manage the lifecycle manually instead of via Run.
+// StartHTTP blocks until the HTTP server stops and returns its exit error.
+// The server must already be initialized (i.e. InitServices or Run must have
+// been called). Kept for callers that manage the lifecycle manually.
 func (a *App) StartHTTP() error {
 	if a.HTTPServer == nil {
 		return fmt.Errorf("http server not configured; call WithHTTPServer first")
 	}
-	a.Logger.Info("Starting HTTP server...", "addr", a.HTTPServer.Addr())
-	return a.HTTPServer.Start()
+	return <-a.HTTPServer.ErrCh()
 }
 
 // WaitForExitSignal blocks until the process receives SIGINT or SIGTERM.
@@ -283,16 +277,6 @@ func (a *App) close() {
 	defer cancel()
 
 	var wg sync.WaitGroup
-
-	if a.HTTPServer != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := a.HTTPServer.Stop(ctx); err != nil {
-				a.Logger.Error("Failed to stop http server", "error", err)
-			}
-		}()
-	}
 
 	for name, db := range a.databases {
 		wg.Add(1)
