@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Typed extra config** — `host.NewWithExtraConfig[T]` / `host.MustNewWithExtraConfig[T]`
+  load the `[extra]` TOML section directly into a caller-supplied type `T`.
+  `core.GetExtraConfig[T]` and `core.MustGetExtraConfig[T]` retrieve the typed
+  value from `Config.Extra` via a type assertion.
+- `core.LoadConfigWithExtra[T]` exposes the same loading logic for callers that
+  construct their own `App` rather than using the `host` package.
+
+### Changed
+
+- **BREAKING:** `Config.Extra` is now `any` (was `map[string]any`). Use
+  `host.MustNewWithExtraConfig[T]` at startup so the field holds the concrete type,
+  then retrieve it with `core.MustGetExtraConfig[T]` / `core.GetExtraConfig[T]`.
+- **BREAKING:** Removed `core.GetExtra[T](c, key)`, `core.MustGetExtraConfig[T](c, key)`,
+  and all per-type helpers (`MustGetExtraString`, `MustGetExtraInt32`, etc.).
+  The new API does a single type-assertion on `Config.Extra` instead of a
+  per-key map lookup with reflect-based conversion.
+- **BREAKING:** `core.LoadConfig` now requires an `envPrefix string` argument
+  (pass `""` to keep the default `APP` prefix). `host.New` / `host.MustNew` are
+  unchanged — they pass the prefix internally.
+
 ## [0.2.0] - 2026-06-05
 
 First tagged multi-module release. Each module is tagged independently

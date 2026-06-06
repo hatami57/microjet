@@ -73,7 +73,7 @@ func WithShutdownTimeout(d time.Duration) Option {
 //
 //	type MyConfig struct { WorkerCount int `mapstructure:"workerCount"` }
 //	app := host.NewWithExtraConfig[MyConfig]()
-//	cfg := common.MustGetConfigExtra[MyConfig](app.Config)
+//	cfg := core.MustGetExtraConfig[MyConfig](app.Config)
 func NewWithExtraConfig[T any](opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {

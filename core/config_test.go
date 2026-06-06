@@ -45,26 +45,32 @@ func TestEnvironmentHelpers(t *testing.T) {
 	}
 }
 
-func TestGetExtraTypedConversion(t *testing.T) {
-	cfg := &Config{Extra: map[string]any{
-		"workers": "8",
-		"ratio":   "1.5",
-		"enabled": "true",
-	}}
+func TestGetExtraConfig(t *testing.T) {
+	type myExtra struct {
+		Workers int
+		Queue   string
+	}
 
-	workers, err := GetExtra[int](cfg, "workers")
-	if err != nil || workers != 8 {
-		t.Errorf("GetExtra[int] = %d, %v; want 8, nil", workers, err)
+	want := myExtra{Workers: 4, Queue: "jobs"}
+	cfg := &Config{Extra: want}
+
+	got, ok := GetExtraConfig[myExtra](cfg)
+	if !ok || got != want {
+		t.Errorf("GetExtraConfig = %v, %v; want %v, true", got, ok, want)
 	}
-	ratio, err := GetExtra[float64](cfg, "ratio")
-	if err != nil || ratio != 1.5 {
-		t.Errorf("GetExtra[float64] = %v, %v; want 1.5, nil", ratio, err)
+
+	_, ok = GetExtraConfig[string](cfg)
+	if ok {
+		t.Error("GetExtraConfig[string] should return false for wrong type")
 	}
-	enabled, err := GetExtra[bool](cfg, "enabled")
-	if err != nil || !enabled {
-		t.Errorf("GetExtra[bool] = %v, %v; want true, nil", enabled, err)
-	}
-	if _, err := GetExtra[int](cfg, "missing"); err == nil {
-		t.Error("expected error for missing key")
-	}
+}
+
+func TestMustGetExtraConfigPanicsOnWrongType(t *testing.T) {
+	cfg := &Config{Extra: 42}
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic for wrong extra type")
+		}
+	}()
+	MustGetExtraConfig[string](cfg)
 }

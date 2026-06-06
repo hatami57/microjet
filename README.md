@@ -76,13 +76,10 @@ type MyConfig struct {
 }
 
 func main() {
- app := host.MustNew(host.WithEnvPrefix("MYAPP"))
+ app := host.MustNewWithExtraConfig[MyConfig](host.WithEnvPrefix("MYAPP"))
  defer app.Close()
 
- cfg, err := core.GetExtra[MyConfig](app.Config, "myapp")
- if err != nil {
-  panic(err)
- }
+ cfg := core.MustGetExtraConfig[MyConfig](app.Config)
  app.Logger.Info("started", "service", cfg.ServiceName)
  host.WaitForExitSignal()
 }
@@ -208,8 +205,22 @@ Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_SERVER_PORT=443` (pref
 
 ### Extra Config
 
+Place service-specific config in an `[extra]` TOML section and load it with a typed parameter:
+
 ```go
-cfg, err := core.GetExtra[CustomExtra](app.Config, "mySection")
+type MyExtra struct {
+ WorkerCount int    `mapstructure:"workerCount"`
+ QueueName   string `mapstructure:"queueName"`
+}
+
+// At startup — T is inferred from the type argument:
+app := host.MustNewWithExtraConfig[MyExtra]()
+
+// Retrieve the typed value anywhere you have access to app.Config:
+extra := core.MustGetExtraConfig[MyExtra](app.Config)
+
+// Or the non-panicking form:
+extra, ok := core.GetExtraConfig[MyExtra](app.Config)
 ```
 
 ## Error Handling

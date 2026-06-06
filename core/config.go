@@ -228,14 +228,14 @@ func Load(dest any, envPrefix string) error {
 
 // Extra config helpers
 
-// GetConfigExtra casts Config.Extra to T, returning false if the cast fails.
-func GetConfigExtra[T any](c *Config) (T, bool) {
+// GetExtraConfig casts Config.Extra to T, returning false if the cast fails.
+func GetExtraConfig[T any](c *Config) (T, bool) {
 	typed, ok := c.Extra.(T)
 	return typed, ok
 }
 
-// MustGetConfigExtra casts Config.Extra to T, panicking if the cast fails.
-func MustGetConfigExtra[T any](c *Config) T {
+// MustGetExtraConfig casts Config.Extra to T, panicking if the cast fails.
+func MustGetExtraConfig[T any](c *Config) T {
 	typed, ok := c.Extra.(T)
 	if !ok {
 		panic("config extra type mismatch")
