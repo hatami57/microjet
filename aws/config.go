@@ -7,6 +7,9 @@ import (
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/hatami57/microjet/core"
 )
 
@@ -49,5 +52,17 @@ func (a *AWS) Init() error {
 		return fmt.Errorf("aws: load default config: %w", err)
 	}
 	a.DefaultConfig = awssdk.Config(cfg)
-	return a.InitServices(a.services...)
+	for _, service := range a.services {
+		switch service {
+		case S3:
+			a.S3Client = s3.NewFromConfig(a.DefaultConfig)
+		case SQS:
+			a.SQSClient = sqs.NewFromConfig(a.DefaultConfig)
+		case DynamoDB:
+			a.DynamoDBClient = dynamodb.NewFromConfig(a.DefaultConfig)
+		default:
+			return fmt.Errorf("undefined aws service: %s", service)
+		}
+	}
+	return nil
 }
