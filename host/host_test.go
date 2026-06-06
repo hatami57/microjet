@@ -47,11 +47,13 @@ func TestSetupCapturesFirstErrorAndShortCircuits(t *testing.T) {
 	app.Setup(func(a *App) error { return first }).
 		Setup(func(a *App) error { secondCalled = true; return nil })
 
-	if !errors.Is(app.Err(), first) {
-		t.Errorf("Err() = %v, want %v", app.Err(), first)
+	// Setups are deferred until services start; runSetups drives that phase and
+	// must stop at the first failing handler.
+	if err := app.runSetups(); !errors.Is(err, first) {
+		t.Errorf("runSetups() = %v, want %v", err, first)
 	}
 	if secondCalled {
-		t.Error("second Setup ran after the first failed; chain did not short-circuit")
+		t.Error("second Setup ran after the first failed; runSetups did not short-circuit")
 	}
 }
 

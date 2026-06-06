@@ -20,13 +20,10 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 
 	a.registerDefaultReadinessChecks()
 
+	// Route-registration handlers are queued, not run now: they run after services
+	// are initialized (so a.DB() is connected) but before the server starts serving.
 	for _, s := range setup {
-		if s == nil {
-			continue
-		}
-		if err := s(a); err != nil {
-			return a.fail(err)
-		}
+		a.Setup(s)
 	}
 
 	ProvideService(a, a.HTTPServer)

@@ -34,7 +34,9 @@ type App struct {
 	shutdownTimeout      time.Duration
 	container            sync.Map
 	workers              []worker
+	setups               []HandlerFunc
 	isServiceInitialized bool
+	isServiceStarted     bool
 	err                  error
 	closeOnce            sync.Once
 }
@@ -124,16 +126,37 @@ func (a *App) fail(err error) *App {
 	return a
 }
 
-// Setup runs a setup handler as part of the fluent chain (e.g. migrations or
-// route registration). Errors are deferred and surfaced by Run/MustRun/Err.
+// Setup queues a setup handler (e.g. migrations or route registration). Handlers
+// run after services are initialized — so a.DB() and other connected resources
+// are available — but before the HTTP server starts serving. Within the chain
+// they run in registration order. If services are already initialized (the
+// manual InitServices path) the handler runs immediately. Errors are deferred
+// and surfaced by Run/MustRun/Err.
 func (a *App) Setup(handler HandlerFunc) *App {
 	if a.err != nil || handler == nil {
 		return a
 	}
-	if err := handler(a); err != nil {
-		return a.fail(err)
+	a.setups = append(a.setups, handler)
+	if a.isServiceInitialized {
+		if err := a.runSetups(); err != nil {
+			return a.fail(err)
+		}
 	}
 	return a
+}
+
+// runSetups drains and runs queued setup handlers in order. Draining (rather than
+// ranging) lets a setup handler enqueue further setups. Safe to call repeatedly;
+// a no-op when the queue is empty.
+func (a *App) runSetups() error {
+	for len(a.setups) > 0 {
+		handler := a.setups[0]
+		a.setups = a.setups[1:]
+		if err := handler(a); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Run initializes services, starts workers and the HTTP server (if configured),
@@ -148,14 +171,24 @@ func (a *App) Run() error {
 		a.Close()
 		return fmt.Errorf("initializing services: %w", err)
 	}
+	// Resources are connected; run setup (migrations, route registration) before
+	// anything begins serving.
+	if err := a.runSetups(); err != nil {
+		a.Close()
+		return fmt.Errorf("running setup: %w", err)
+	}
+	if err := a.startServices(); err != nil {
+		a.Close()
+		return fmt.Errorf("starting services: %w", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	workerWg := a.startWorkers(ctx)
 
 	quit := notifySignals()
 
-	// Init() (called by initServices above) already started the listener goroutine.
-	// ErrCh receives its outcome so Run can react to unexpected server failures.
+	// startServices started the listener goroutine; ErrCh receives its outcome so
+	// Run can react to unexpected server failures.
 	var httpErrCh <-chan error
 	if a.HTTPServer != nil {
 		httpErrCh = a.HTTPServer.ErrCh()
@@ -188,12 +221,21 @@ func (a *App) MustRun() {
 	}
 }
 
-// StartHTTP blocks until the HTTP server stops and returns its exit error.
-// The server must already be initialized (i.e. InitServices or Run must have
-// been called). Kept for callers that manage the lifecycle manually.
+// StartHTTP runs the init → setup → start sequence (each idempotent) and then
+// blocks until the HTTP server stops, returning its exit error. Kept for callers
+// that manage the lifecycle manually instead of calling Run.
 func (a *App) StartHTTP() error {
 	if a.HTTPServer == nil {
 		return fmt.Errorf("http server not configured; call WithHTTPServer first")
+	}
+	if err := a.initServices(); err != nil {
+		return fmt.Errorf("initializing services: %w", err)
+	}
+	if err := a.runSetups(); err != nil {
+		return fmt.Errorf("running setup: %w", err)
+	}
+	if err := a.startServices(); err != nil {
+		return fmt.Errorf("starting services: %w", err)
 	}
 	return <-a.HTTPServer.ErrCh()
 }

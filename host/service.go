@@ -16,6 +16,10 @@ type ServiceIniter interface {
 	Init(app *App) error
 }
 
+type ServiceStarter interface {
+	Start(app *App) error
+}
+
 type ServiceCloser interface {
 	Close(app *App) error
 }
@@ -167,6 +171,40 @@ func (a *App) initServices() error {
 	}
 	a.isServiceInitialized = true
 	a.Logger.Info("all services initialized")
+	return nil
+}
+
+// startServices runs the Start phase: every service that implements
+// ServiceStarter (receives *App) or core.Starter begins active work (e.g. the
+// HTTP server starts listening). It runs after initServices and after setup
+// handlers, so resources are connected and routes registered before serving.
+func (a *App) startServices() error {
+	if a.isServiceStarted {
+		return nil
+	}
+	a.Logger.Debug("starting services")
+	var startErr error
+	a.container.Range(func(_, item any) bool {
+		var err error
+		if svc, ok := item.(ServiceStarter); ok {
+			err = svc.Start(a)
+		} else if svc, ok := item.(core.Starter); ok {
+			err = svc.Start()
+		} else {
+			return true
+		}
+		if err != nil {
+			name := reflect.TypeOf(item).String()
+			a.Logger.Error("failed to start service", "type", name, "error", err)
+			startErr = err
+			return false
+		}
+		return true
+	})
+	if startErr != nil {
+		return startErr
+	}
+	a.isServiceStarted = true
 	return nil
 }
 

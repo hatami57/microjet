@@ -75,6 +75,16 @@ type Initer interface {
 	Init() error
 }
 
+// Starter is implemented by services that begin active work (serving, listening)
+// only after every service has finished Init. Splitting Start from Init gives the
+// host a window between "resources acquired" and "serving" in which setup work
+// (migrations, route registration) can run. The host calls Start on each
+// registered service implementing this interface (host.ServiceStarter, which
+// carries *App, takes precedence).
+type Starter interface {
+	Start() error
+}
+
 // Closer is implemented by services that need to release resources on shutdown.
 // The host calls Close on each registered service that implements
 // this interface (host.ServiceCloser takes precedence when present).

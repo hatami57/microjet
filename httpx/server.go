@@ -130,9 +130,9 @@ func (s *Server) LoadConfig(l *core.ConfigLoader) error {
 	return l.UnmarshalKey("server", &s.config)
 }
 
-// Init implements core.Initer. It creates the net listener and starts serving
-// in a background goroutine. The outcome is available via ErrCh once the server
-// stops (nil on clean shutdown, error otherwise).
+// Init implements core.Initer. It builds the underlying http.Server but does not
+// begin listening, leaving a window for setup work (route registration) before
+// the server serves. Call Start (the host does this in its start phase) to serve.
 func (s *Server) Init() error {
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", s.config.Host, s.config.Port),
@@ -141,9 +141,19 @@ func (s *Server) Init() error {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+	return nil
+}
+
+// Start implements core.Starter. It begins serving in a background goroutine; the
+// outcome is available via ErrCh once the server stops (nil on clean shutdown,
+// error otherwise). Init must have run first.
+func (s *Server) Start() error {
+	if s.httpServer == nil {
+		return fmt.Errorf("http server not initialized; call Init before Start")
+	}
 	s.logger.Info("starting HTTP server", "addr", s.Addr())
 	go func() {
-		s.errCh <- s.start()
+		s.errCh <- s.serve()
 	}()
 	return nil
 }
@@ -164,7 +174,7 @@ func (s *Server) ErrCh() <-chan error {
 	return s.errCh
 }
 
-func (s *Server) start() error {
+func (s *Server) serve() error {
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
