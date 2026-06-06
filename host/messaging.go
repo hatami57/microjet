@@ -13,7 +13,7 @@ func (a *App) WithMessaging() *App {
 	}
 	client := messaging.NewNATSClient(a.Logger)
 	a.Messaging = client
-	ProvideService(a, client)
+	ProvideService[messaging.Client](a, client)
 	return a
 }
 
@@ -25,5 +25,6 @@ func (a *App) WithMessagingClient(client messaging.Client) *App {
 		return a
 	}
 	a.Messaging = client
+	ProvideService(a, client)
 	return a
 }
