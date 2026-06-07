@@ -54,10 +54,10 @@ github.com/go-viper/mapstructure/v2 v2.5.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlnd
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
-github.com/hatami57/microjet/core v0.2.0 h1:7JThHeNM3DN5Q2ED/T1VIKqcbLGySvIfVz4Go5kTs0I=
-github.com/hatami57/microjet/core v0.2.0/go.mod h1:LCiOJOmtF5aLvtKWAB5ZUlnQe5AiJk1fx1plVcCu/w8=
-github.com/hatami57/microjet/utils v0.2.0 h1:HXn0ZUazGt1QtAsSmuBinsxxfu+83UoYngYBQmAFyTU=
-github.com/hatami57/microjet/utils v0.2.0/go.mod h1:M7PET90Jm0lX5F/+LUDVXQ7CLekwEwfz6UBVF/Eyui8=
+github.com/hatami57/microjet/core v0.5.0 h1:33fpby4XomTI0oDQUBq3KDxHXR7ISB+EuWclZDY8I9c=
+github.com/hatami57/microjet/core v0.5.0/go.mod h1:LCiOJOmtF5aLvtKWAB5ZUlnQe5AiJk1fx1plVcCu/w8=
+github.com/hatami57/microjet/utils v0.5.0 h1:02N20EJ8QqC7A8aU9QdexruKMpVWnOT81MxUGKHo5/0=
+github.com/hatami57/microjet/utils v0.5.0/go.mod h1:M7PET90Jm0lX5F/+LUDVXQ7CLekwEwfz6UBVF/Eyui8=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=

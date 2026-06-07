@@ -10,8 +10,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.26
-	github.com/hatami57/microjet/core v0.2.0
-	github.com/hatami57/microjet/utils v0.2.0
+	github.com/hatami57/microjet/core v0.5.0
+	github.com/hatami57/microjet/utils v0.5.0
 	golang.org/x/sync v0.20.0
 )
 

@@ -19,7 +19,7 @@ require (
 )
 
 require (
-	github.com/hatami57/microjet/core v0.2.0
+	github.com/hatami57/microjet/core v0.5.0
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
