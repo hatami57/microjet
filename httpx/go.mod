@@ -6,7 +6,8 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.2.0
+	github.com/hatami57/microjet/core v0.4.0
+	github.com/hatami57/microjet/tenant v0.5.0
 	github.com/hatami57/microjet/types v0.2.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/swaggo/files v1.0.1
