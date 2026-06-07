@@ -46,7 +46,7 @@ func TestDIAsyncWorkerStartsExactlyOnce(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	w := &countingWorker{}
-	ProvideService[*countingWorker](app, w)
+	ProvideService(app, w)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := app.startWorkers(ctx)
