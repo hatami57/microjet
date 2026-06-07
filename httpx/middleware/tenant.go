@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,47 +17,41 @@ const (
 	TenantIDContextKey      = "tenantID"
 )
 
-func Tenant(store tenant.Store) gin.HandlerFunc {
+func CachedTenant(tenantStore tenant.Store, ttl time.Duration) (gin.HandlerFunc, *tenant.CachedStore) {
+	cached := tenant.NewCachedStore(tenantStore, ttl)
+	return Tenant(cached), cached
+}
+
+func Tenant(tenantStore tenant.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tenantRecord, err := extractValidTenant(c, store)
+		tenantID, err := uuid.Parse(extractTenantID(c))
 		if err != nil {
-			c.Error(err)
+			_ = c.Error(core.ErrUnauthorized)
 			c.Abort()
 			return
 		}
-		c.Set(TenantContextKey, tenantRecord)
-		c.Set(TenantIDContextKey, tenantRecord.ID)
+
+		t, err := tenantStore.FindTenant(c, tenantID)
+		if err != nil {
+			_ = c.Error(err)
+			c.Abort()
+			return
+		} else if t == nil {
+			_ = c.Error(core.ErrUnauthorized.WithParams("tenantId", tenantID))
+			c.Abort()
+			return
+		} else if !t.AsBase().IsActive {
+			_ = c.Error(core.ErrForbidden.WithParams("tenantId", tenantID))
+			c.Abort()
+			return
+		}
+
+		c.Set(TenantContextKey, t)
+		c.Set(TenantIDContextKey, t.AsBase().ID)
 		c.Next()
 	}
 }
 
-func extractValidTenant(c *gin.Context, store tenant.Store) (*tenant.Base, error) {
-	tenantID, err := uuid.Parse(extractTenantID(c))
-	if err != nil {
-		return nil, core.ErrUnauthorized
-	}
-
-	t, err := store.FindTenant(c, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	if t == nil {
-		return nil, core.ErrUnauthorized
-	}
-	base := t.AsBase()
-	if !base.IsActive {
-		return nil, core.ErrForbidden
-	}
-	return base, nil
-}
-
-// extractTenantID resolves the tenant id, preferring a "tenantId" query
-// parameter and falling back to the X-Tenant-ID header.
-//
-// The query lookup is intentionally case-insensitive (tenantId, tenantid and
-// TenantID all match). Query keys are technically case-sensitive per RFC 3986,
-// but accepting common casings is friendlier for clients. This is an O(n) scan
-// over the request's query keys, which is negligible for typical query sizes.
 func extractTenantID(c *gin.Context) string {
 	for name, values := range c.Request.URL.Query() {
 		if strings.ToLower(name) == TenantIDQueryParamLower && len(values) > 0 {
@@ -66,12 +61,25 @@ func extractTenantID(c *gin.Context) string {
 	return c.GetHeader(TenantIDHeaderKey)
 }
 
-func FindTenant(c *gin.Context) *tenant.Base {
-	tenantRecord, exists := c.Get(TenantContextKey)
+func FindTenantBase(c *gin.Context) *tenant.Base {
+	v, exists := c.Get(TenantContextKey)
 	if !exists {
 		return nil
 	}
-	return tenantRecord.(*tenant.Base)
+	t, _ := v.(tenant.Tenant)
+	if t == nil {
+		return nil
+	}
+	return t.AsBase()
+}
+
+func FindTenant[T any](c *gin.Context) *T {
+	v, exists := c.Get(TenantContextKey)
+	if !exists {
+		return nil
+	}
+	t, _ := v.(*T)
+	return t
 }
 
 func FindTenantID(c *gin.Context) (uuid.UUID, error) {
@@ -79,5 +87,9 @@ func FindTenantID(c *gin.Context) (uuid.UUID, error) {
 	if !exists {
 		return uuid.Nil, core.ErrNotFound
 	}
-	return value.(uuid.UUID), nil
+	id, ok := value.(uuid.UUID)
+	if !ok {
+		return uuid.Nil, core.ErrInternal.WithMessage("tenant ID in context has unexpected type")
+	}
+	return id, nil
 }
