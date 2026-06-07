@@ -1,5 +1,6 @@
-// Command sqlite is a small CRUD service backed by SQLite, showing WithSQLite
-// (the pure-Go, no-cgo driver), AutoMigrate, and structured error handling.
+// Command sqlite is a small CRUD service backed by SQLite, showing
+// WithDatabase(host.SQLite()) (the pure-Go, no-cgo driver), AutoMigrate, and
+// structured error handling.
 //
 // Unlike the http-postgres example it needs no external database server: the
 // config points at a local file (or ":memory:"). Just run:
@@ -24,10 +25,10 @@ type Note struct {
 func main() {
 	app := host.MustNew()
 
-	// WithSQLite reads the file path from [database].name. To pick the driver
+	// host.SQLite() reads the file path from [database].name. To pick the driver
 	// from config instead (e.g. swap to postgres without code changes), use
 	// app.WithDatabaseFromConfig().
-	app.WithSQLite().
+	app.WithDatabase(host.SQLite()).
 		Setup(func(a *host.App) error {
 			return a.DB().AutoMigrate(&Note{})
 		}).

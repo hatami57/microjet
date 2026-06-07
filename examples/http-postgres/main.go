@@ -27,7 +27,7 @@ type User struct {
 func main() {
 	app := host.MustNew()
 
-	app.WithPostgreSQL().
+	app.WithDatabase(host.Postgres()).
 		Setup(func(a *host.App) error {
 			return a.DB().AutoMigrate(&User{})
 		}).

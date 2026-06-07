@@ -15,9 +15,9 @@ import (
 // (it loads the [database] / [database.<name>] section into cfg) and lifecycle
 // (Close, health checks); a Driver is responsible only for dialing.
 //
-// The built-in Postgres and SQLite return Driver values; AutoDriver selects one
-// of them from cfg.Driver at Open time, and ExistingDB wraps an already-built
-// connection for tests.
+// The built-in Postgres and SQLite return Driver values, and AutoDriver selects
+// one of them from cfg.Driver at Open time. To use an already-built connection
+// (e.g. in tests) call InjectDatabase instead of implementing a Driver.
 type Driver interface {
 	Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error)
 }
@@ -33,23 +33,6 @@ type DBOption func(*databaseService)
 // config section differ, e.g. WithNamedDatabase("bot", SQLite(), Section("legacy")).
 func Section(name string) DBOption {
 	return func(d *databaseService) { d.section = name }
-}
-
-// existingDB is a Driver that returns a pre-built connection, ignoring config.
-type existingDB struct{ db *gorm.DB }
-
-// ExistingDB adapts an already-open *gorm.DB to the Driver interface. Use it to
-// inject a connection the caller built directly — typically a shared in-memory
-// database in tests:
-//
-//	app.WithDatabase(host.ExistingDB(db))
-func ExistingDB(db *gorm.DB) Driver { return existingDB{db: db} }
-
-func (e existingDB) Open(gormx.Config, *slog.Logger) (*gorm.DB, error) {
-	if e.db == nil {
-		return nil, fmt.Errorf("ExistingDB: nil *gorm.DB")
-	}
-	return e.db, nil
 }
 
 // autoDriver selects the concrete built-in driver from cfg.Driver at Open time.

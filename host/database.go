@@ -13,9 +13,9 @@ import (
 
 // databaseService implements core.Configurable, core.Initer, core.Closer, and
 // core.HealthChecker. It resolves its config section, hands the result to its
-// Driver to open a connection, and manages that connection's lifecycle. A driver
-// of type existingDB (via ExistingDB) returns a pre-built *gorm.DB and ignores
-// the resolved config.
+// Driver to open a connection, and manages that connection's lifecycle. When a
+// connection is injected up front (InjectDatabase), db is set and driver is nil:
+// config loading and Init become no-ops, but Close and health checks still run.
 type databaseService struct {
 	name    string
 	section string // config section override; empty means derive from name
@@ -26,6 +26,9 @@ type databaseService struct {
 }
 
 func (d *databaseService) LoadConfig(l *core.ConfigLoader) error {
+	if d.db != nil {
+		return nil // injected connection; nothing to configure
+	}
 	return l.UnmarshalKey(d.configKey(), &d.config)
 }
 
@@ -115,9 +118,9 @@ func (a *App) NamedDB(name string) *gorm.DB {
 }
 
 // WithDatabase registers driver as the default database. The connection is
-// opened during the host's init phase from the [database] config section.
-// Pass a built-in driver (Postgres(), SQLite(), AutoDriver()), ExistingDB to
-// inject a pre-built connection, or any custom Driver implementation.
+// opened during the host's init phase from the [database] config section. Pass a
+// built-in driver (Postgres(), SQLite(), AutoDriver()) or any custom Driver. To
+// supply an already-open *gorm.DB instead, use InjectDatabase.
 func (a *App) WithDatabase(driver Driver, opts ...DBOption) *App {
 	return a.WithNamedDatabase(DefaultDatabase, driver, opts...)
 }
@@ -137,6 +140,27 @@ func (a *App) WithNamedDatabase(name string, driver Driver, opts ...DBOption) *A
 		opt(svc)
 	}
 	a.container.Store(dbKey(name), svc)
+	return a
+}
+
+// InjectDatabase registers an already-open *gorm.DB as the default database,
+// bypassing config loading and Init. Use it to supply a connection the caller
+// built directly — typically a shared in-memory database in tests. The host
+// still closes it and includes it in health checks.
+func (a *App) InjectDatabase(db *gorm.DB) *App {
+	return a.InjectNamedDatabase(DefaultDatabase, db)
+}
+
+// InjectNamedDatabase registers an already-open *gorm.DB under name, bypassing
+// config loading and Init.
+func (a *App) InjectNamedDatabase(name string, db *gorm.DB) *App {
+	if a.err != nil {
+		return a
+	}
+	if db == nil {
+		return a.fail(fmt.Errorf("database %q: nil *gorm.DB", name))
+	}
+	a.container.Store(dbKey(name), &databaseService{name: name, db: db, logger: a.Logger})
 	return a
 }
 

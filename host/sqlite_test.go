@@ -13,12 +13,12 @@ func newTestApp(t *testing.T) *App {
 	return app
 }
 
-func TestWithSQLiteInMemory(t *testing.T) {
+func TestWithDatabaseSQLiteInMemory(t *testing.T) {
 	app := newTestApp(t)
 	app.configLoader.SetDefault("database.name", ":memory:")
-	app.WithSQLite().InitServices()
+	app.WithDatabase(SQLite()).InitServices()
 	if err := app.Err(); err != nil {
-		t.Fatalf("WithSQLite: %v", err)
+		t.Fatalf("WithDatabase(SQLite()): %v", err)
 	}
 	if app.DB() == nil {
 		t.Fatal("expected default DB to be registered")

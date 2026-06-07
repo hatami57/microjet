@@ -16,7 +16,7 @@ import (
 	"github.com/hatami57/microjet/messaging"
 )
 
-// DefaultDatabase is the key used for the primary database registered via WithDatabase or WithPostgreSQL.
+// DefaultDatabase is the key used for the primary database registered via WithDatabase or InjectDatabase.
 const DefaultDatabase = "default"
 
 // App is the central runtime object for a service. Build it with the fluent

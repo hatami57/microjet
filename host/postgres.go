@@ -23,14 +23,6 @@ type postgresDriver struct{}
 //	app.WithNamedDatabase("bot", host.Postgres())
 func Postgres() Driver { return postgresDriver{} }
 
-// WithPostgreSQL registers a default-or-named database forced to PostgreSQL.
-//
-// Deprecated: use WithDatabase(host.Postgres()) or
-// WithNamedDatabase(name, host.Postgres()) instead.
-func (a *App) WithPostgreSQL(name ...string) *App {
-	return a.WithNamedDatabase(firstOrEmpty(name), Postgres())
-}
-
 func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
 	log.Debug("connecting to postgresql",
 		"host", cfg.Host,

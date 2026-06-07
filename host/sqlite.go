@@ -20,14 +20,6 @@ type sqliteDriver struct{}
 //	app.WithNamedDatabase("bot", host.SQLite())
 func SQLite() Driver { return sqliteDriver{} }
 
-// WithSQLite registers a default-or-named database forced to SQLite.
-//
-// Deprecated: use WithDatabase(host.SQLite()) or
-// WithNamedDatabase(name, host.SQLite()) instead.
-func (a *App) WithSQLite(name ...string) *App {
-	return a.WithNamedDatabase(firstOrEmpty(name), SQLite())
-}
-
 func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
 	path := cfg.Name
 	log.Debug("connecting to sqlite", "path", path)

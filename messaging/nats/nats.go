@@ -31,7 +31,7 @@ type NATSClient struct {
 	opts   []nats.Option
 }
 
-// New returns a NATSClient ready to be handed to host.WithMessaging, which wires
+// New returns a NATSClient ready to be handed to host.InjectMessaging, which wires
 // the host logger via SetLogger and drives the lifecycle. Sane production defaults
 // (connect timeout, infinite reconnect, error logging) are applied first; any
 // opts are appended afterwards and therefore override them.
@@ -43,7 +43,7 @@ func New(opts ...nats.Option) *NATSClient {
 
 // NewNATSClient is like New but takes the logger explicitly.
 //
-// Deprecated: prefer New together with host.WithMessaging, which injects the
+// Deprecated: prefer New together with host.InjectMessaging, which injects the
 // host logger automatically. Retained for callers that wire the client manually.
 func NewNATSClient(logger *slog.Logger, opts ...nats.Option) *NATSClient {
 	c := New(opts...)
@@ -52,7 +52,7 @@ func NewNATSClient(logger *slog.Logger, opts ...nats.Option) *NATSClient {
 }
 
 // SetLogger sets the logger used for connection events and async errors. The
-// host calls it during WithMessaging; a nil logger is ignored so the default
+// host calls it during InjectMessaging; a nil logger is ignored so the default
 // set in New is kept.
 func (c *NATSClient) SetLogger(logger *slog.Logger) {
 	if logger != nil {
