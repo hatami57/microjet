@@ -2,6 +2,7 @@ package host
 
 import (
 	"github.com/hatami57/microjet/messaging"
+	"github.com/hatami57/microjet/messaging/nats"
 )
 
 // WithMessaging registers the NATS messaging client as a service. The host's
@@ -11,7 +12,7 @@ func (a *App) WithMessaging() *App {
 	if a.err != nil {
 		return a
 	}
-	client := messaging.NewNATSClient(a.Logger)
+	client := nats.NewNATSClient(a.Logger)
 	a.Messaging = client
 	ProvideService[messaging.Client](a, client)
 	return a

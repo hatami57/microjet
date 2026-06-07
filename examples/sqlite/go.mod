@@ -4,9 +4,9 @@ go 1.26.2
 
 require (
 	github.com/gin-gonic/gin v1.12.0
-	github.com/hatami57/microjet/core v0.5.0
-	github.com/hatami57/microjet/host v0.5.0-00010101000000-000000000000
-	github.com/hatami57/microjet/httpx v0.5.0
+	github.com/hatami57/microjet/core v0.7.0
+	github.com/hatami57/microjet/host v0.7.0-00010101000000-000000000000
+	github.com/hatami57/microjet/httpx v0.7.0
 )
 
 require (
@@ -59,13 +59,13 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hatami57/microjet/aws v0.6.0 // indirect
-	github.com/hatami57/microjet/cache v0.5.0 // indirect
-	github.com/hatami57/microjet/gormx v0.5.0 // indirect
-	github.com/hatami57/microjet/messaging v0.5.0 // indirect
-	github.com/hatami57/microjet/tenant v0.5.0 // indirect
-	github.com/hatami57/microjet/types v0.5.0 // indirect
-	github.com/hatami57/microjet/utils v0.5.0 // indirect
+	github.com/hatami57/microjet/aws v0.7.0 // indirect
+	github.com/hatami57/microjet/cache v0.7.0 // indirect
+	github.com/hatami57/microjet/gormx v0.7.0 // indirect
+	github.com/hatami57/microjet/messaging v0.7.0 // indirect
+	github.com/hatami57/microjet/tenant v0.7.0 // indirect
+	github.com/hatami57/microjet/types v0.7.0 // indirect
+	github.com/hatami57/microjet/utils v0.7.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.7.6 // indirect

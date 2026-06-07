@@ -6,10 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/hatami57/microjet/core"
 )
 
-// DefaultRequestIDHeader is the header read and echoed by RequestID.
-const DefaultRequestIDHeader = "X-Request-ID"
+// DefaultRequestIDHeader is the header read and echoed by RequestID. It is the
+// canonical correlation-id header shared across microjet layers.
+const DefaultRequestIDHeader = core.CorrelationIDHeader
 
 // GinRequestIDKey is the gin context key under which the request id is stored.
 const GinRequestIDKey = "requestID"
@@ -17,8 +19,7 @@ const GinRequestIDKey = "requestID"
 type ctxKey int
 
 const (
-	requestIDKey ctxKey = iota
-	loggerKey
+	loggerKey ctxKey = iota
 )
 
 // RequestIDOption configures the RequestID middleware.
@@ -59,15 +60,15 @@ func RequestID(opts ...RequestIDOption) gin.HandlerFunc {
 	}
 }
 
-// ContextWithRequestID returns a copy of ctx carrying the request id.
+// ContextWithRequestID returns a copy of ctx carrying the request id. It
+// delegates to core so the id shares one context key across http and messaging.
 func ContextWithRequestID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, requestIDKey, id)
+	return core.ContextWithCorrelationID(ctx, id)
 }
 
 // RequestIDFromContext returns the request id stored in ctx, or "" if none.
 func RequestIDFromContext(ctx context.Context) string {
-	id, _ := ctx.Value(requestIDKey).(string)
-	return id
+	return core.CorrelationIDFromContext(ctx)
 }
 
 // ContextWithLogger returns a copy of ctx carrying a request-scoped logger.
