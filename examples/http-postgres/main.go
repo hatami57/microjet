@@ -43,7 +43,7 @@ func registerRoutes(a *host.App, users *gormx.Table[User]) {
 
 	// List with cursor pagination: GET /users?pageSize=20&nextPageToken=...
 	r.GET("/users", func(c *gin.Context) {
-		req := gormx.NewListRequestByID[User](httpx.PagedRequest(c))
+		req := gormx.NewPageRequest[User, uint](httpx.PagedRequest(c), "id", func(u User) uint { return u.ID })
 		page, err := users.List(c.Request.Context(), req)
 		if err != nil {
 			c.Error(err)

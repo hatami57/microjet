@@ -7,35 +7,34 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/tenant"
 )
 
-// countingStore records how many times Find reaches the underlying store and
-// can be told to return a "not found" (nil) result.
 type countingStore struct {
 	calls    int
 	notFound bool
 }
 
-func (s *countingStore) Find(_ context.Context, id uuid.UUID) (*TenantBase, error) {
+func (s *countingStore) FindTenant(_ context.Context, id uuid.UUID) (tenant.Tenant, error) {
 	s.calls++
 	if s.notFound {
 		return nil, nil
 	}
-	return &TenantBase{ID: id, IsActive: true}, nil
+	return &tenant.Base{ID: id, IsActive: true}, nil
 }
 
 func TestCachedTenantStoreServesFromCache(t *testing.T) {
 	store := &countingStore{}
-	cached := NewCachedTenantStore(store, time.Minute)
+	cached := tenant.NewCachedStore(store, time.Minute)
 	id := uuid.New()
 
 	for i := 0; i < 3; i++ {
-		got, err := cached.Find(context.Background(), id)
+		got, err := cached.FindTenant(context.Background(), id)
 		if err != nil {
-			t.Fatalf("Find: %v", err)
+			t.Fatalf("FindTenant: %v", err)
 		}
-		if got == nil || got.ID != id {
-			t.Fatalf("Find returned %+v, want tenant %s", got, id)
+		if got == nil || got.AsBase().ID != id {
+			t.Fatalf("FindTenant returned %+v, want tenant %s", got, id)
 		}
 	}
 
@@ -46,16 +45,16 @@ func TestCachedTenantStoreServesFromCache(t *testing.T) {
 
 func TestCachedTenantStoreCachesNegativeResult(t *testing.T) {
 	store := &countingStore{notFound: true}
-	cached := NewCachedTenantStore(store, time.Minute)
+	cached := tenant.NewCachedStore(store, time.Minute)
 	id := uuid.New()
 
 	for i := 0; i < 3; i++ {
-		got, err := cached.Find(context.Background(), id)
+		got, err := cached.FindTenant(context.Background(), id)
 		if err != nil {
-			t.Fatalf("Find: %v", err)
+			t.Fatalf("FindTenant: %v", err)
 		}
 		if got != nil {
-			t.Fatalf("Find returned %+v, want nil", got)
+			t.Fatalf("FindTenant returned %+v, want nil", got)
 		}
 	}
 
@@ -67,24 +66,24 @@ func TestCachedTenantStoreCachesNegativeResult(t *testing.T) {
 func TestCachedTenantStoreExpiresEntries(t *testing.T) {
 	store := &countingStore{}
 	clock := core.NewFixedClock(time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC))
-	cached := NewCachedTenantStore(store, time.Minute, WithTenantCacheClock(clock))
+	cached := tenant.NewCachedStore(store, time.Minute, tenant.WithClock(clock))
 	id := uuid.New()
 
-	if _, err := cached.Find(context.Background(), id); err != nil {
-		t.Fatalf("Find: %v", err)
+	if _, err := cached.FindTenant(context.Background(), id); err != nil {
+		t.Fatalf("FindTenant: %v", err)
 	}
 	// Still within the TTL: served from cache.
 	clock.Advance(30 * time.Second)
-	if _, err := cached.Find(context.Background(), id); err != nil {
-		t.Fatalf("Find: %v", err)
+	if _, err := cached.FindTenant(context.Background(), id); err != nil {
+		t.Fatalf("FindTenant: %v", err)
 	}
 	if store.calls != 1 {
 		t.Fatalf("underlying store calls = %d, want 1 (still cached)", store.calls)
 	}
 	// Past the TTL: entry expired, store consulted again.
 	clock.Advance(time.Minute)
-	if _, err := cached.Find(context.Background(), id); err != nil {
-		t.Fatalf("Find: %v", err)
+	if _, err := cached.FindTenant(context.Background(), id); err != nil {
+		t.Fatalf("FindTenant: %v", err)
 	}
 	if store.calls != 2 {
 		t.Errorf("underlying store calls = %d, want 2 (entry should have expired)", store.calls)
@@ -93,15 +92,15 @@ func TestCachedTenantStoreExpiresEntries(t *testing.T) {
 
 func TestCachedTenantStoreInvalidate(t *testing.T) {
 	store := &countingStore{}
-	cached := NewCachedTenantStore(store, time.Minute)
+	cached := tenant.NewCachedStore(store, time.Minute)
 	id := uuid.New()
 
-	if _, err := cached.Find(context.Background(), id); err != nil {
-		t.Fatalf("Find: %v", err)
+	if _, err := cached.FindTenant(context.Background(), id); err != nil {
+		t.Fatalf("FindTenant: %v", err)
 	}
 	cached.Invalidate(id)
-	if _, err := cached.Find(context.Background(), id); err != nil {
-		t.Fatalf("Find: %v", err)
+	if _, err := cached.FindTenant(context.Background(), id); err != nil {
+		t.Fatalf("FindTenant: %v", err)
 	}
 
 	if store.calls != 2 {

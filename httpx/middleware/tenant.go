@@ -1,13 +1,12 @@
 package middleware
 
 import (
-	"context"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/tenant"
 )
 
 const (
@@ -17,24 +16,9 @@ const (
 	TenantIDContextKey      = "tenantID"
 )
 
-// TenantBase is the minimal tenant record needed by the middleware.
-// Embed or implement this in your own tenant model.
-type TenantBase struct {
-	ID        uuid.UUID `json:"id"`
-	Code      string    `json:"code"`
-	IsActive  bool      `json:"isActive"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-}
-
-// TenantStore is the interface the middleware uses to look up tenants.
-type TenantStore interface {
-	Find(ctx context.Context, id uuid.UUID) (*TenantBase, error)
-}
-
-func Tenant(tenantStore TenantStore) gin.HandlerFunc {
+func Tenant(store tenant.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tenantRecord, err := extractValidTenant(c, tenantStore)
+		tenantRecord, err := extractValidTenant(c, store)
 		if err != nil {
 			c.Error(err)
 			c.Abort()
@@ -46,22 +30,24 @@ func Tenant(tenantStore TenantStore) gin.HandlerFunc {
 	}
 }
 
-func extractValidTenant(c *gin.Context, tenantStore TenantStore) (*TenantBase, error) {
+func extractValidTenant(c *gin.Context, store tenant.Store) (*tenant.Base, error) {
 	tenantID, err := uuid.Parse(extractTenantID(c))
 	if err != nil {
 		return nil, core.ErrUnauthorized
 	}
 
-	tenantRecord, err := tenantStore.Find(c, tenantID)
+	t, err := store.FindTenant(c, tenantID)
 	if err != nil {
 		return nil, err
-	} else if tenantRecord == nil {
+	}
+	if t == nil {
 		return nil, core.ErrUnauthorized
-	} else if !tenantRecord.IsActive {
+	}
+	base := t.AsBase()
+	if !base.IsActive {
 		return nil, core.ErrForbidden
 	}
-
-	return tenantRecord, nil
+	return base, nil
 }
 
 // extractTenantID resolves the tenant id, preferring a "tenantId" query
@@ -80,12 +66,12 @@ func extractTenantID(c *gin.Context) string {
 	return c.GetHeader(TenantIDHeaderKey)
 }
 
-func FindTenant(c *gin.Context) *TenantBase {
+func FindTenant(c *gin.Context) *tenant.Base {
 	tenantRecord, exists := c.Get(TenantContextKey)
 	if !exists {
 		return nil
 	}
-	return tenantRecord.(*TenantBase)
+	return tenantRecord.(*tenant.Base)
 }
 
 func FindTenantID(c *gin.Context) (uuid.UUID, error) {

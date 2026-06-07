@@ -12,6 +12,7 @@ use (
 	./host
 	./httpx
 	./messaging
+	./tenant
 	./types
 	./utils
 	./versioninfo
