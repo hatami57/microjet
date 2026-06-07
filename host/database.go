@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/gormx"
@@ -119,16 +118,16 @@ func (a *App) NamedDB(name string) *gorm.DB {
 
 // WithDatabase registers driver as the default database. The connection is
 // opened during the host's init phase from the [database] config section. Pass a
-// built-in driver (gormx.Postgres(), gormx.SQLite(), gormx.AutoDriver()) or any
-// custom gormx.Driver. To supply an already-open *gorm.DB instead, use InjectDatabase.
-func (a *App) WithDatabase(driver gormx.Driver, opts ...DBOption) *App {
-	return a.WithNamedDatabase(DefaultDatabase, driver, opts...)
+// built-in driver (gormx.Postgres(), gormx.SQLite()) or any custom gormx.Driver.
+// To supply an already-open *gorm.DB instead, use InjectDatabase.
+func (a *App) WithDatabase(driver gormx.Driver) *App {
+	return a.WithNamedDatabase(DefaultDatabase, driver)
 }
 
 // WithNamedDatabase registers driver under name. Config is loaded from
 // [database.<name>] unless overridden with Section. Use this to run several
 // databases side by side, each retrievable via NamedDB(name).
-func (a *App) WithNamedDatabase(name string, driver gormx.Driver, opts ...DBOption) *App {
+func (a *App) WithNamedDatabase(name string, driver gormx.Driver) *App {
 	if a.err != nil {
 		return a
 	}
@@ -136,9 +135,6 @@ func (a *App) WithNamedDatabase(name string, driver gormx.Driver, opts ...DBOpti
 		return a.fail(fmt.Errorf("database %q: nil driver", name))
 	}
 	svc := &databaseService{name: name, driver: driver, logger: a.Logger}
-	for _, opt := range opts {
-		opt(svc)
-	}
 	a.container.Store(dbKey(name), svc)
 	return a
 }
@@ -162,42 +158,4 @@ func (a *App) InjectNamedDatabase(name string, db *gorm.DB) *App {
 	}
 	a.container.Store(dbKey(name), &databaseService{name: name, db: db, logger: a.Logger})
 	return a
-}
-
-// WithDatabaseFromConfig registers a database whose engine is selected by the
-// "driver" field of [database] (default) or [database.<name>] (named) at init
-// time. Equivalent to WithDatabase(gormx.AutoDriver()).
-func (a *App) WithDatabaseFromConfig(name ...string) *App {
-	return a.WithNamedDatabase(firstOrEmpty(name), gormx.AutoDriver())
-}
-
-// WithDatabasesFromConfig discovers all named databases defined as sub-tables
-// under [database] (e.g. [database.analytics]) and registers each with
-// gormx.AutoDriver. Connections are established in sorted name order at init time.
-func (a *App) WithDatabasesFromConfig() *App {
-	if a.err != nil {
-		return a
-	}
-	dbMap := a.configLoader.GetStringMap("database")
-	names := make([]string, 0, len(dbMap))
-	for name, val := range dbMap {
-		if _, ok := val.(map[string]any); ok {
-			names = append(names, name)
-		}
-	}
-	if len(names) == 0 {
-		return a.fail(fmt.Errorf("database: no named databases found under [database.*]"))
-	}
-	slices.Sort(names)
-	for _, n := range names {
-		a.WithNamedDatabase(n, gormx.AutoDriver())
-	}
-	return a
-}
-
-func firstOrEmpty(s []string) string {
-	if len(s) > 0 {
-		return s[0]
-	}
-	return ""
 }

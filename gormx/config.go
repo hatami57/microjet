@@ -3,7 +3,6 @@ package gormx
 // Config is the database connection configuration. Individual [database] and
 // [database.<name>] sections are loaded by the host's databaseService, not here.
 type Config struct {
-	Driver   string `mapstructure:"driver"`
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
 	User     string `mapstructure:"user"`

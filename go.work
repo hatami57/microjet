@@ -9,9 +9,12 @@ use (
 	./examples/minimal
 	./examples/sqlite
 	./gormx
+	./gormx/postgres
+	./gormx/sqlite
 	./host
 	./httpx
 	./messaging
+	./messaging/nats
 	./tenant
 	./types
 	./utils

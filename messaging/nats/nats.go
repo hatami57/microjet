@@ -12,59 +12,47 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Compile-time assertion that NATSClient satisfies the messaging.Client
-// abstraction (and the core lifecycle hooks used by core.LoadAll).
 var (
-	_ messaging.Client  = (*NATSClient)(nil)
-	_ core.Configurable = (*NATSClient)(nil)
-	_ core.Initer       = (*NATSClient)(nil)
-	_ core.Closer       = (*NATSClient)(nil)
+	_ messaging.Client  = (*Client)(nil)
+	_ core.Configurable = (*Client)(nil)
+	_ core.Initer       = (*Client)(nil)
+	_ core.Closer       = (*Client)(nil)
 )
 
-// NATSClient is the NATS-backed implementation of messaging.Client. It implements
+// Client is the NATS-backed implementation of messaging.Client. It implements
 // core.Configurable so it can participate in a core.LoadAll call — LoadConfig
 // reads the [messaging] section. Call Connect after LoadAll to dial the broker.
-type NATSClient struct {
+type Client struct {
 	Config Config
 	logger *slog.Logger
 	conn   *nats.Conn
 	opts   []nats.Option
 }
 
-// New returns a NATSClient ready to be handed to host.WithMessaging, which wires
+// New returns a Client ready to be handed to host.WithMessaging, which wires
 // the host logger via SetLogger and drives the lifecycle. Sane production defaults
 // (connect timeout, infinite reconnect, error logging) are applied first; any
 // opts are appended afterwards and therefore override them.
-func New(opts ...nats.Option) *NATSClient {
-	c := &NATSClient{logger: slog.Default()}
+func New(opts ...nats.Option) *Client {
+	c := &Client{logger: slog.Default()}
 	c.opts = append(c.defaultOptions(), opts...)
-	return c
-}
-
-// NewNATSClient is like New but takes the logger explicitly.
-//
-// Deprecated: prefer New together with host.WithMessaging, which injects the
-// host logger automatically. Retained for callers that wire the client manually.
-func NewNATSClient(logger *slog.Logger, opts ...nats.Option) *NATSClient {
-	c := New(opts...)
-	c.SetLogger(logger)
 	return c
 }
 
 // SetLogger sets the logger used for connection events and async errors. The
 // host calls it during WithMessaging; a nil logger is ignored so the default
 // set in New is kept.
-func (c *NATSClient) SetLogger(logger *slog.Logger) {
+func (c *Client) SetLogger(logger *slog.Logger) {
 	if logger != nil {
 		c.logger = logger
 	}
 }
 
 // defaultOptions are the baseline nats.Connect options applied to every
-// NATSClient: a bounded connect timeout, unlimited reconnects with a fixed
+// Client: a bounded connect timeout, unlimited reconnects with a fixed
 // backoff, and async errors routed to the client logger. The error handler reads
 // c.logger at call time so it honors a logger set after construction.
-func (c *NATSClient) defaultOptions() []nats.Option {
+func (c *Client) defaultOptions() []nats.Option {
 	return []nats.Option{
 		nats.Timeout(10 * time.Second),
 		nats.ReconnectWait(2 * time.Second),
@@ -76,13 +64,13 @@ func (c *NATSClient) defaultOptions() []nats.Option {
 }
 
 // LoadConfig implements core.Configurable, reading the [messaging] section.
-func (c *NATSClient) LoadConfig(l *core.ConfigLoader) error {
+func (c *Client) LoadConfig(l *core.ConfigLoader) error {
 	return l.UnmarshalKey("messaging", &c.Config)
 }
 
 // Connect dials the NATS broker using the loaded config. Call this after
 // core.LoadAll has populated Config.
-func (c *NATSClient) Connect() error {
+func (c *Client) Connect() error {
 	conn, err := nats.Connect(c.Config.URL, c.opts...)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS at %s: %w", c.Config.URL, err)
@@ -93,15 +81,15 @@ func (c *NATSClient) Connect() error {
 }
 
 // Init implements core.Initer, connecting to the NATS broker after config is loaded.
-func (c *NATSClient) Init() error { return c.Connect() }
+func (c *Client) Init() error { return c.Connect() }
 
 // Close implements core.Closer, draining and closing the NATS connection.
-func (c *NATSClient) Close() error { return c.Disconnect() }
+func (c *Client) Close() error { return c.Disconnect() }
 
 // Disconnect drains and closes the NATS connection. Drain flushes pending
 // messages and unsubscribes before closing; surface its error rather than
 // silently dropping in-flight work.
-func (c *NATSClient) Disconnect() error {
+func (c *Client) Disconnect() error {
 	if c.conn == nil {
 		return nil
 	}
@@ -113,14 +101,14 @@ func (c *NATSClient) Disconnect() error {
 }
 
 // IsConnected reports whether the client currently has a live NATS connection.
-func (c *NATSClient) IsConnected() bool {
+func (c *Client) IsConnected() bool {
 	return c.conn != nil && c.conn.IsConnected()
 }
 
 // Healthy implements core.HealthChecker, reporting an error when the NATS
 // connection is not currently connected. The context is accepted for interface
 // uniformity; the check is local and fast.
-func (c *NATSClient) Healthy(_ context.Context) error {
+func (c *Client) Healthy(_ context.Context) error {
 	if !c.IsConnected() {
 		return fmt.Errorf("nats: not connected")
 	}
@@ -128,7 +116,7 @@ func (c *NATSClient) Healthy(_ context.Context) error {
 }
 
 // Publish sends a message to the subject carried on msg.
-func (c *NATSClient) Publish(ctx context.Context, msg messaging.Message) error {
+func (c *Client) Publish(ctx context.Context, msg messaging.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -141,7 +129,7 @@ func (c *NATSClient) Publish(ctx context.Context, msg messaging.Message) error {
 
 // Subscribe registers handler for messages on subject. The handler is invoked
 // with a context derived from ctx.
-func (c *NATSClient) Subscribe(ctx context.Context, subject string, handler messaging.Handler) (messaging.Subscription, error) {
+func (c *Client) Subscribe(ctx context.Context, subject string, handler messaging.Handler) (messaging.Subscription, error) {
 	sub, err := c.conn.Subscribe(subject, c.messageCallback(ctx, handler))
 	if err != nil {
 		return nil, err
@@ -151,7 +139,7 @@ func (c *NATSClient) Subscribe(ctx context.Context, subject string, handler mess
 
 // QueueSubscribe registers handler for messages on subject within a queue group,
 // so each message is delivered to only one member of the group.
-func (c *NATSClient) QueueSubscribe(ctx context.Context, subject, queue string, handler messaging.Handler) (messaging.Subscription, error) {
+func (c *Client) QueueSubscribe(ctx context.Context, subject, queue string, handler messaging.Handler) (messaging.Subscription, error) {
 	sub, err := c.conn.QueueSubscribe(subject, queue, c.messageCallback(ctx, handler))
 	if err != nil {
 		return nil, err
@@ -161,7 +149,7 @@ func (c *NATSClient) QueueSubscribe(ctx context.Context, subject, queue string, 
 
 // Request sends req and waits for a single reply, honouring ctx for
 // cancellation and deadlines.
-func (c *NATSClient) Request(ctx context.Context, req messaging.Request) (*messaging.Response, error) {
+func (c *Client) Request(ctx context.Context, req messaging.Request) (*messaging.Response, error) {
 	reply, err := c.conn.RequestMsgWithContext(ctx, &nats.Msg{
 		Subject: req.Subject,
 		Data:    req.Data,
@@ -185,7 +173,7 @@ func (c *NATSClient) Request(ctx context.Context, req messaging.Request) (*messa
 
 // Respond registers handler for requests on command, publishing the returned
 // response to the request's reply subject.
-func (c *NATSClient) Respond(command string, handler messaging.RequestHandler) (messaging.Subscription, error) {
+func (c *Client) Respond(command string, handler messaging.RequestHandler) (messaging.Subscription, error) {
 	sub, err := c.conn.Subscribe(command, c.requestCallback(handler))
 	if err != nil {
 		return nil, err
@@ -195,7 +183,7 @@ func (c *NATSClient) Respond(command string, handler messaging.RequestHandler) (
 
 // QueueRespond registers handler for requests on command within a queue group,
 // so each request is handled by only one member of the group.
-func (c *NATSClient) QueueRespond(command, queue string, handler messaging.RequestHandler) (messaging.Subscription, error) {
+func (c *Client) QueueRespond(command, queue string, handler messaging.RequestHandler) (messaging.Subscription, error) {
 	sub, err := c.conn.QueueSubscribe(command, queue, c.requestCallback(handler))
 	if err != nil {
 		return nil, err
@@ -205,7 +193,7 @@ func (c *NATSClient) QueueRespond(command, queue string, handler messaging.Reque
 
 // messageCallback adapts a messaging.Handler to a nats.MsgHandler, propagating
 // ctx and logging handler errors (NATS has no delivery channel for them).
-func (c *NATSClient) messageCallback(ctx context.Context, handler messaging.Handler) nats.MsgHandler {
+func (c *Client) messageCallback(ctx context.Context, handler messaging.Handler) nats.MsgHandler {
 	return func(m *nats.Msg) {
 		msg := &messaging.Message{
 			Subject: m.Subject,
@@ -220,7 +208,7 @@ func (c *NATSClient) messageCallback(ctx context.Context, handler messaging.Hand
 
 // requestCallback adapts a messaging.RequestHandler to a nats.MsgHandler,
 // publishing the handler's response to the request's reply subject.
-func (c *NATSClient) requestCallback(handler messaging.RequestHandler) nats.MsgHandler {
+func (c *Client) requestCallback(handler messaging.RequestHandler) nats.MsgHandler {
 	return func(m *nats.Msg) {
 		req := &messaging.Request{
 			Subject: m.Subject,

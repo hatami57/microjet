@@ -6,6 +6,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/hatami57/microjet/core v0.7.0
 	github.com/hatami57/microjet/gormx v0.7.0
+	github.com/hatami57/microjet/gormx/postgres v0.7.0
 	github.com/hatami57/microjet/host v0.7.0-00010101000000-000000000000
 	github.com/hatami57/microjet/httpx v0.7.0
 )
@@ -131,6 +132,7 @@ replace (
 	github.com/hatami57/microjet/aws => ../../aws
 	github.com/hatami57/microjet/core => ../../core
 	github.com/hatami57/microjet/gormx => ../../gormx
+	github.com/hatami57/microjet/gormx/postgres => ../../gormx/postgres
 	github.com/hatami57/microjet/host => ../../host
 	github.com/hatami57/microjet/httpx => ../../httpx
 	github.com/hatami57/microjet/messaging => ../../messaging

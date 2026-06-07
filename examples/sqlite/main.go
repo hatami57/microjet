@@ -1,5 +1,5 @@
 // Command sqlite is a small CRUD service backed by SQLite, showing
-// WithDatabase(gormx.SQLite()) (the pure-Go, no-cgo driver), AutoMigrate, and
+// WithDatabase(sqlite.Driver()) (the pure-Go, no-cgo driver), AutoMigrate, and
 // structured error handling.
 //
 // Unlike the http-postgres example it needs no external database server: the
@@ -13,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/gormx"
+	"github.com/hatami57/microjet/gormx/sqlite"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/httpx"
 )
@@ -26,10 +26,7 @@ type Note struct {
 func main() {
 	app := host.MustNew()
 
-	// gormx.SQLite() reads the file path from [database].name. To pick the driver
-	// from config instead (e.g. swap to postgres without code changes), use
-	// app.WithDatabaseFromConfig().
-	app.WithDatabase(gormx.SQLite()).
+	app.WithDatabase(sqlite.Driver()).
 		Setup(func(a *host.App) error {
 			return a.DB().AutoMigrate(&Note{})
 		}).

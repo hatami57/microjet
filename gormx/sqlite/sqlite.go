@@ -1,4 +1,4 @@
-package gormx
+package sqlite
 
 import (
 	"context"
@@ -7,38 +7,30 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/driver/postgres"
+	"github.com/hatami57/microjet/gormx"
+	glebarez "github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
 
-type postgresDriver struct{}
+type sqliteDriver struct{}
 
-// Postgres returns the built-in PostgreSQL Driver (pgx). Connection settings are
-// read from the config section the host resolves (host, port, user, password,
-// name, sslMode):
+// Driver returns the built-in SQLite driver (pure-Go, no cgo). The database
+// file path is taken from cfg.Name; use ":memory:" for an in-memory database:
 //
-//	app.WithDatabase(gormx.Postgres())
-//	app.WithNamedDatabase("analytics", gormx.Postgres())
-func Postgres() Driver { return postgresDriver{} }
+//	app.WithDatabase(sqlite.Driver())
+//	app.WithNamedDatabase("bot", sqlite.Driver())
+func Driver() gormx.Driver { return sqliteDriver{} }
 
-func (postgresDriver) Open(cfg Config, log *slog.Logger) (*gorm.DB, error) {
-	log.Debug("connecting to postgresql",
-		"host", cfg.Host,
-		"port", cfg.Port,
-		"db", cfg.Name,
-		"sslmode", cfg.SSLMode,
-	)
+func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
+	log.Debug("connecting to sqlite", "path", cfg.Name)
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(glebarez.Open(cfg.Name), &gorm.Config{
 		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to postgresql: %w", err)
+		return nil, fmt.Errorf("failed to connect to sqlite database: %w", err)
 	}
 
 	sqlDB, err := db.DB()
@@ -48,15 +40,15 @@ func (postgresDriver) Open(cfg Config, log *slog.Logger) (*gorm.DB, error) {
 	if err = sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetMaxOpenConns(10)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	// SQLite handles a single writer at a time; a single connection avoids
+	// "database is locked" errors under concurrent access.
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetMaxOpenConns(1)
 
-	log.Info("connected to postgresql", "host", cfg.Host, "port", cfg.Port, "db", cfg.Name)
+	log.Info("connected to sqlite", "path", cfg.Name)
 	return db, nil
 }
 
-// newGormLogger routes GORM SQL logs through slog.
 func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	level := gormLogger.Info
 	ctx := context.Background()
