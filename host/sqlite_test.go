@@ -2,6 +2,8 @@ package host
 
 import (
 	"testing"
+
+	"github.com/hatami57/microjet/gormx"
 )
 
 func newTestApp(t *testing.T) *App {
@@ -16,7 +18,7 @@ func newTestApp(t *testing.T) *App {
 func TestWithDatabaseSQLiteInMemory(t *testing.T) {
 	app := newTestApp(t)
 	app.configLoader.SetDefault("database.name", ":memory:")
-	app.WithDatabase(SQLite()).InitServices()
+	app.WithDatabase(gormx.SQLite()).InitServices()
 	if err := app.Err(); err != nil {
 		t.Fatalf("WithDatabase(SQLite()): %v", err)
 	}

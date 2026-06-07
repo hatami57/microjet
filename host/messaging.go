@@ -16,17 +16,16 @@ type loggerAware interface {
 	SetLogger(*slog.Logger)
 }
 
-// InjectMessaging registers a messaging.Client as the app's broker. The host
-// owns no built-in broker, so the client is always supplied by the caller; the
-// host then drives its lifecycle: it loads the client's config (if it implements
+// WithMessaging registers a messaging.Client as the app's broker. The host
+// drives the full lifecycle: it loads the client's config (if it implements
 // core.Configurable), dials during init, and disconnects on shutdown. Pass any
-// implementation (NATS, an in-memory fake in tests, a custom broker):
+// implementation — the host has no built-in broker:
 //
-//	app.InjectMessaging(nats.New())
+//	app.WithMessaging(nats.New())
 //
 // If the client implements SetLogger, it receives the host logger here so a
 // client constructed inline in the fluent chain still logs correctly.
-func (a *App) InjectMessaging(client messaging.Client) *App {
+func (a *App) WithMessaging(client messaging.Client) *App {
 	if a.err != nil {
 		return a
 	}

@@ -1,4 +1,4 @@
-package host
+package gormx
 
 import (
 	"context"
@@ -7,23 +7,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatami57/microjet/gormx"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
 
-// postgresDriver is the built-in PostgreSQL Driver (gorm + pgx).
 type postgresDriver struct{}
 
-// Postgres returns the built-in PostgreSQL Driver. Connection settings are read
-// from the database config section (host, port, user, password, name, sslMode):
+// Postgres returns the built-in PostgreSQL Driver (pgx). Connection settings are
+// read from the config section the host resolves (host, port, user, password,
+// name, sslMode):
 //
-//	app.WithDatabase(host.Postgres())
-//	app.WithNamedDatabase("bot", host.Postgres())
+//	app.WithDatabase(gormx.Postgres())
+//	app.WithNamedDatabase("analytics", gormx.Postgres())
 func Postgres() Driver { return postgresDriver{} }
 
-func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
+func (postgresDriver) Open(cfg Config, log *slog.Logger) (*gorm.DB, error) {
 	log.Debug("connecting to postgresql",
 		"host", cfg.Host,
 		"port", cfg.Port,
@@ -53,15 +52,11 @@ func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error)
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	log.Info("connected to postgresql",
-		"host", cfg.Host,
-		"port", cfg.Port,
-		"db", cfg.Name,
-	)
+	log.Info("connected to postgresql", "host", cfg.Host, "port", cfg.Port, "db", cfg.Name)
 	return db, nil
 }
 
-// newGormLogger creates a GORM logger that routes SQL logs through the slog logger.
+// newGormLogger routes GORM SQL logs through slog.
 func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	level := gormLogger.Info
 	ctx := context.Background()
@@ -71,7 +66,6 @@ func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	case !sl.Enabled(ctx, slog.LevelWarn):
 		level = gormLogger.Error
 	}
-
 	return gormLogger.New(
 		&slogWriter{logger: sl},
 		gormLogger.Config{
@@ -83,12 +77,8 @@ func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	)
 }
 
-// slogWriter adapts slog.Logger to the io.Writer / log.Logger interface expected by GORM.
-type slogWriter struct {
-	logger *slog.Logger
-}
+type slogWriter struct{ logger *slog.Logger }
 
 func (w *slogWriter) Printf(format string, args ...any) {
-	msg := strings.TrimRight(fmt.Sprintf(format, args...), "\n")
-	w.logger.Debug(msg)
+	w.logger.Debug(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }

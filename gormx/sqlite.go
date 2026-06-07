@@ -1,30 +1,26 @@
-package host
+package gormx
 
 import (
 	"fmt"
 	"log/slog"
 
 	"github.com/glebarez/sqlite"
-	"github.com/hatami57/microjet/gormx"
 	"gorm.io/gorm"
 )
 
-// sqliteDriver is the built-in SQLite Driver, using the pure-Go glebarez/sqlite
-// driver (no cgo required).
 type sqliteDriver struct{}
 
-// SQLite returns the built-in SQLite Driver. The database file path is taken
-// from the config's "name" field; use ":memory:" for an in-memory database:
+// SQLite returns the built-in SQLite Driver (pure-Go, no cgo). The database file
+// path is taken from cfg.Name; use ":memory:" for an in-memory database:
 //
-//	app.WithDatabase(host.SQLite())
-//	app.WithNamedDatabase("bot", host.SQLite())
+//	app.WithDatabase(gormx.SQLite())
+//	app.WithNamedDatabase("bot", gormx.SQLite())
 func SQLite() Driver { return sqliteDriver{} }
 
-func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
-	path := cfg.Name
-	log.Debug("connecting to sqlite", "path", path)
+func (sqliteDriver) Open(cfg Config, log *slog.Logger) (*gorm.DB, error) {
+	log.Debug("connecting to sqlite", "path", cfg.Name)
 
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(cfg.Name), &gorm.Config{
 		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
 	})
@@ -44,6 +40,6 @@ func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(1)
 	sqlDB.SetMaxOpenConns(1)
 
-	log.Info("connected to sqlite", "path", path)
+	log.Info("connected to sqlite", "path", cfg.Name)
 	return db, nil
 }
