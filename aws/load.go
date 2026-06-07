@@ -1,16 +1,21 @@
 package aws
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/hatami57/microjet/core"
 )
 
 type AWS struct {
-	DefaultConfig       aws.Config
+	DefaultConfig       awssdk.Config
 	DefaultS3BucketName *string
 	DefaultSQSQueueURL  *string
 	Logger              *slog.Logger
@@ -20,20 +25,68 @@ type AWS struct {
 	DynamoDBClient *dynamodb.Client
 
 	config   Config
-	services []AWSService
+	services []Service
 }
 
 // NewAWS returns an AWS client ready to participate in the host service
 // lifecycle. services lists which SDK clients (S3, SQS, DynamoDB) to
 // initialize on Init.
-func NewAWS(logger *slog.Logger, services ...AWSService) *AWS {
+func NewAWS(logger *slog.Logger, services ...Service) *AWS {
 	return &AWS{Logger: logger, services: services}
 }
 
-type AWSService string
+type Service string
 
 const (
-	S3       AWSService = "aws-s3"
-	SQS      AWSService = "aws-sqs"
-	DynamoDB AWSService = "aws-dynamodb"
+	S3       Service = "aws-s3"
+	SQS      Service = "aws-sqs"
+	DynamoDB Service = "aws-dynamodb"
 )
+
+// LoadConfig implements core.Configurable, reading the [aws] section into the
+// AWS client's own config field.
+func (a *AWS) LoadConfig(l *core.ConfigLoader) error {
+	return l.UnmarshalKey("aws", &a.config)
+}
+
+// Init implements core.Initer, building the AWS SDK config from the loaded
+// credentials and region, then initializing the requested service clients.
+func (a *AWS) Init() error {
+	var options []func(*awsConfig.LoadOptions) error
+	if ak, sk := a.config.AccessKey, a.config.SecretKey; ak != "" && sk != "" {
+		options = append(options, awsConfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(ak, sk, ""),
+		))
+	}
+	if r := a.config.Region; r != "" {
+		options = append(options, awsConfig.WithRegion(r))
+	}
+	a.DefaultS3BucketName = a.config.S3BucketName
+	a.DefaultSQSQueueURL = a.config.SQSQueueURL
+
+	cfg, err := awsConfig.LoadDefaultConfig(context.Background(), options...)
+	if err != nil {
+		return fmt.Errorf("aws: load default config: %w", err)
+	}
+	a.DefaultConfig = awssdk.Config(cfg)
+	for _, service := range a.services {
+		switch service {
+		case S3:
+			a.S3Client = s3.NewFromConfig(a.DefaultConfig)
+		case SQS:
+			a.SQSClient = sqs.NewFromConfig(a.DefaultConfig)
+		case DynamoDB:
+			var dynamoOpts []func(*dynamodb.Options)
+			if a.config.DynamoDBEndpointURL != nil {
+				ep := *a.config.DynamoDBEndpointURL
+				dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
+					o.BaseEndpoint = awssdk.String(ep)
+				})
+			}
+			a.DynamoDBClient = dynamodb.NewFromConfig(a.DefaultConfig, dynamoOpts...)
+		default:
+			return fmt.Errorf("undefined aws service: %s", service)
+		}
+	}
+	return nil
+}

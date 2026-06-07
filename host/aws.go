@@ -7,7 +7,7 @@ import (
 // WithAWS registers the AWS client as a service. The host's initServices
 // loads config via AWS's Configurable implementation and then initializes
 // the requested service clients via its Init method.
-func (a *App) WithAWS(services ...aws.AWSService) *App {
+func (a *App) WithAWS(services ...aws.Service) *App {
 	if a.err != nil {
 		return a
 	}
