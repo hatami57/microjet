@@ -1,29 +1,39 @@
 package host
 
 import (
+	"fmt"
+	"log/slog"
+
 	"github.com/hatami57/microjet/messaging"
-	"github.com/hatami57/microjet/messaging/nats"
 )
 
-// WithMessaging registers the NATS messaging client as a service. The host's
-// initServices (called at the start of Run) loads config via NATSClient's
-// Configurable implementation and then dials the broker via its Init method.
-func (a *App) WithMessaging() *App {
+// loggerAware is an optional interface for injected services that were built
+// before the App (and therefore before its logger) existed. The host calls
+// SetLogger during registration so such a service logs through the configured
+// logger. Implementing it is optional; services that take a logger at
+// construction can ignore it.
+type loggerAware interface {
+	SetLogger(*slog.Logger)
+}
+
+// WithMessaging registers a messaging.Client as the app's broker. The host owns
+// the lifecycle: it loads the client's config (if it implements core.Configurable),
+// dials during init, and disconnects on shutdown. The host stays driver-agnostic
+// — pass any implementation (NATS, an in-memory fake in tests, a custom broker):
+//
+//	app.WithMessaging(nats.New())
+//
+// If the client implements SetLogger, it receives the host logger here so a
+// client constructed inline in the fluent chain still logs correctly.
+func (a *App) WithMessaging(client messaging.Client) *App {
 	if a.err != nil {
 		return a
 	}
-	client := nats.NewNATSClient(a.Logger)
-	a.Messaging = client
-	ProvideService[messaging.Client](a, client)
-	return a
-}
-
-// WithMessagingClient injects a pre-built messaging.Client (e.g. an in-memory
-// fake in tests, or a non-NATS implementation). Errors are deferred to
-// Run/MustRun/Err.
-func (a *App) WithMessagingClient(client messaging.Client) *App {
-	if a.err != nil {
-		return a
+	if client == nil {
+		return a.fail(fmt.Errorf("messaging: nil client"))
+	}
+	if la, ok := client.(loggerAware); ok {
+		la.SetLogger(a.Logger)
 	}
 	a.Messaging = client
 	ProvideService(a, client)

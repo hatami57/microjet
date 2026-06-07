@@ -31,26 +31,46 @@ type NATSClient struct {
 	opts   []nats.Option
 }
 
-// NewNATSClient returns a NATSClient ready to be passed to core.LoadAll. Sane
-// production defaults (connect timeout, infinite reconnect, error logging) are
-// applied first; any opts are appended afterwards and therefore override them.
+// New returns a NATSClient ready to be handed to host.WithMessaging, which wires
+// the host logger via SetLogger and drives the lifecycle. Sane production defaults
+// (connect timeout, infinite reconnect, error logging) are applied first; any
+// opts are appended afterwards and therefore override them.
+func New(opts ...nats.Option) *NATSClient {
+	c := &NATSClient{logger: slog.Default()}
+	c.opts = append(c.defaultOptions(), opts...)
+	return c
+}
+
+// NewNATSClient is like New but takes the logger explicitly.
+//
+// Deprecated: prefer New together with host.WithMessaging, which injects the
+// host logger automatically. Retained for callers that wire the client manually.
 func NewNATSClient(logger *slog.Logger, opts ...nats.Option) *NATSClient {
-	return &NATSClient{
-		logger: logger,
-		opts:   append(defaultOptions(logger), opts...),
+	c := New(opts...)
+	c.SetLogger(logger)
+	return c
+}
+
+// SetLogger sets the logger used for connection events and async errors. The
+// host calls it during WithMessaging; a nil logger is ignored so the default
+// set in New is kept.
+func (c *NATSClient) SetLogger(logger *slog.Logger) {
+	if logger != nil {
+		c.logger = logger
 	}
 }
 
 // defaultOptions are the baseline nats.Connect options applied to every
 // NATSClient: a bounded connect timeout, unlimited reconnects with a fixed
-// backoff, and async errors routed to the client logger.
-func defaultOptions(logger *slog.Logger) []nats.Option {
+// backoff, and async errors routed to the client logger. The error handler reads
+// c.logger at call time so it honors a logger set after construction.
+func (c *NATSClient) defaultOptions() []nats.Option {
 	return []nats.Option{
 		nats.Timeout(10 * time.Second),
 		nats.ReconnectWait(2 * time.Second),
 		nats.MaxReconnects(-1),
 		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
-			logger.Error("nats client error", "error", err)
+			c.logger.Error("nats client error", "error", err)
 		}),
 	}
 }

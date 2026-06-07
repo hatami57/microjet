@@ -2,31 +2,38 @@ package host
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/glebarez/sqlite"
+	"github.com/hatami57/microjet/gormx"
 	"gorm.io/gorm"
 )
 
-// WithSQLite registers a database service that forces the SQLite driver.
-// Config is loaded from [database] (default) or [database.<name>] at Init time.
-// The database file path is taken from the config's "name" field; use ":memory:"
-// for an in-memory database. Pass a name to register a named database; no args
-// registers the default. Uses the pure-Go glebarez/sqlite driver (no cgo needed).
+// sqliteDriver is the built-in SQLite Driver, using the pure-Go glebarez/sqlite
+// driver (no cgo required).
+type sqliteDriver struct{}
+
+// SQLite returns the built-in SQLite Driver. The database file path is taken
+// from the config's "name" field; use ":memory:" for an in-memory database:
+//
+//	app.WithDatabase(host.SQLite())
+//	app.WithNamedDatabase("bot", host.SQLite())
+func SQLite() Driver { return sqliteDriver{} }
+
+// WithSQLite registers a default-or-named database forced to SQLite.
+//
+// Deprecated: use WithDatabase(host.SQLite()) or
+// WithNamedDatabase(name, host.SQLite()) instead.
 func (a *App) WithSQLite(name ...string) *App {
-	if a.err != nil {
-		return a
-	}
-	n := firstOrEmpty(name)
-	a.container.Store(dbKey(n), &databaseService{name: n, driver: "sqlite", logger: a.Logger})
-	return a
+	return a.WithNamedDatabase(firstOrEmpty(name), SQLite())
 }
 
-func newSQLite(d *databaseService) (*gorm.DB, error) {
-	path := d.config.Name
-	d.logger.Debug("connecting to sqlite", "path", path)
+func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
+	path := cfg.Name
+	log.Debug("connecting to sqlite", "path", path)
 
 	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
-		Logger:               newGormLogger(d.logger),
+		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
 	})
 	if err != nil {
@@ -45,6 +52,6 @@ func newSQLite(d *databaseService) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(1)
 	sqlDB.SetMaxOpenConns(1)
 
-	d.logger.Info("connected to sqlite", "path", path)
+	log.Info("connected to sqlite", "path", path)
 	return db, nil
 }

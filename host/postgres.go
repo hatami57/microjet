@@ -7,26 +7,32 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatami57/microjet/gormx"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
 
-// WithPostgreSQL registers a database service that forces the PostgreSQL driver.
-// Config is loaded from [database] (default) or [database.<name>] at Init time.
-// Pass a name to register a named database; no args registers the default.
+// postgresDriver is the built-in PostgreSQL Driver (gorm + pgx).
+type postgresDriver struct{}
+
+// Postgres returns the built-in PostgreSQL Driver. Connection settings are read
+// from the database config section (host, port, user, password, name, sslMode):
+//
+//	app.WithDatabase(host.Postgres())
+//	app.WithNamedDatabase("bot", host.Postgres())
+func Postgres() Driver { return postgresDriver{} }
+
+// WithPostgreSQL registers a default-or-named database forced to PostgreSQL.
+//
+// Deprecated: use WithDatabase(host.Postgres()) or
+// WithNamedDatabase(name, host.Postgres()) instead.
 func (a *App) WithPostgreSQL(name ...string) *App {
-	if a.err != nil {
-		return a
-	}
-	n := firstOrEmpty(name)
-	a.container.Store(dbKey(n), &databaseService{name: n, driver: "postgres", logger: a.Logger})
-	return a
+	return a.WithNamedDatabase(firstOrEmpty(name), Postgres())
 }
 
-func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
-	cfg := &d.config
-	d.logger.Debug("connecting to postgresql",
+func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
+	log.Debug("connecting to postgresql",
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db", cfg.Name,
@@ -37,7 +43,7 @@ func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger:               newGormLogger(d.logger),
+		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
 	})
 	if err != nil {
@@ -55,7 +61,7 @@ func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	d.logger.Info("connected to postgresql",
+	log.Info("connected to postgresql",
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db", cfg.Name,

@@ -5,48 +5,49 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/gormx"
 	"gorm.io/gorm"
 )
 
-// databaseService implements core.Configurable, core.Initer, and core.Closer.
-// A preset driver (postgres/sqlite) overrides whatever driver the TOML specifies.
-// Pre-injecting db (via WithDatabase/WithNamedDatabase) skips both LoadConfig
-// and Init so tests can supply *gorm.DB directly.
+// databaseService implements core.Configurable, core.Initer, core.Closer, and
+// core.HealthChecker. It resolves its config section, hands the result to its
+// Driver to open a connection, and manages that connection's lifecycle. A driver
+// of type existingDB (via ExistingDB) returns a pre-built *gorm.DB and ignores
+// the resolved config.
 type databaseService struct {
-	name       string
-	driver     string // overrides config.Driver when set
-	config     gormx.Config
-	logger     *slog.Logger
-	db         *gorm.DB
-	configured bool // true = config already populated, skip LoadConfig
+	name    string
+	section string // config section override; empty means derive from name
+	driver  Driver
+	config  gormx.Config
+	logger  *slog.Logger
+	db      *gorm.DB
 }
 
 func (d *databaseService) LoadConfig(l *core.ConfigLoader) error {
-	if d.configured {
-		return nil
+	return l.UnmarshalKey(d.configKey(), &d.config)
+}
+
+// configKey returns the TOML section this database loads, derived from the
+// section override or the registration name. The default database maps to
+// [database]; a named one to [database.<name>].
+func (d *databaseService) configKey() string {
+	section := d.section
+	if section == "" {
+		section = d.name
 	}
-	key := "database"
-	if d.name != "" {
-		key = "database." + d.name
+	if section == "" || section == DefaultDatabase {
+		return "database"
 	}
-	if err := l.UnmarshalKey(key, &d.config); err != nil {
-		return err
-	}
-	if d.driver != "" {
-		d.config.Driver = d.driver
-	}
-	return nil
+	return "database." + section
 }
 
 func (d *databaseService) Init() error {
 	if d.db != nil {
 		return nil
 	}
-	db, err := connectDatabase(d)
+	db, err := d.driver.Open(d.config, d.logger)
 	if err != nil {
 		return err
 	}
@@ -113,39 +114,42 @@ func (a *App) NamedDB(name string) *gorm.DB {
 	return svc.db
 }
 
-// WithDatabase injects a pre-built *gorm.DB as the default database,
-// bypassing config loading and Init. Intended for tests and custom setups.
-func (a *App) WithDatabase(db *gorm.DB) *App {
-	return a.WithNamedDatabase(DefaultDatabase, db)
+// WithDatabase registers driver as the default database. The connection is
+// opened during the host's init phase from the [database] config section.
+// Pass a built-in driver (Postgres(), SQLite(), AutoDriver()), ExistingDB to
+// inject a pre-built connection, or any custom Driver implementation.
+func (a *App) WithDatabase(driver Driver, opts ...DBOption) *App {
+	return a.WithNamedDatabase(DefaultDatabase, driver, opts...)
 }
 
-// WithNamedDatabase injects a pre-built *gorm.DB under a specific name,
-// bypassing config loading and Init.
-func (a *App) WithNamedDatabase(name string, db *gorm.DB) *App {
-	a.container.Store(dbKey(name), &databaseService{
-		name:       name,
-		db:         db,
-		logger:     a.Logger,
-		configured: true,
-	})
-	return a
-}
-
-// WithDatabaseFromConfig registers a database service that loads its config
-// from [database] (default) or [database.<name>] (named) at Init time.
-// Pass a name to register a named database; no args registers the default.
-func (a *App) WithDatabaseFromConfig(name ...string) *App {
+// WithNamedDatabase registers driver under name. Config is loaded from
+// [database.<name>] unless overridden with Section. Use this to run several
+// databases side by side, each retrievable via NamedDB(name).
+func (a *App) WithNamedDatabase(name string, driver Driver, opts ...DBOption) *App {
 	if a.err != nil {
 		return a
 	}
-	n := firstOrEmpty(name)
-	a.container.Store(dbKey(n), &databaseService{name: n, logger: a.Logger})
+	if driver == nil {
+		return a.fail(fmt.Errorf("database %q: nil driver", name))
+	}
+	svc := &databaseService{name: name, driver: driver, logger: a.Logger}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	a.container.Store(dbKey(name), svc)
 	return a
 }
 
+// WithDatabaseFromConfig registers a database whose engine is selected by the
+// "driver" field of [database] (default) or [database.<name>] (named) at init
+// time. Equivalent to WithDatabase(AutoDriver()) / WithNamedDatabase(name, AutoDriver()).
+func (a *App) WithDatabaseFromConfig(name ...string) *App {
+	return a.WithNamedDatabase(firstOrEmpty(name), AutoDriver())
+}
+
 // WithDatabasesFromConfig discovers all named databases defined as sub-tables
-// under [database] (e.g. [database.analytics]) and registers each as a
-// service. Connections are established in sorted name order at Init time.
+// under [database] (e.g. [database.analytics]) and registers each with
+// AutoDriver. Connections are established in sorted name order at init time.
 func (a *App) WithDatabasesFromConfig() *App {
 	if a.err != nil {
 		return a
@@ -162,23 +166,9 @@ func (a *App) WithDatabasesFromConfig() *App {
 	}
 	slices.Sort(names)
 	for _, n := range names {
-		a.container.Store(dbKey(n), &databaseService{name: n, logger: a.Logger})
+		a.WithNamedDatabase(n, AutoDriver())
 	}
 	return a
-}
-
-// connectDatabase opens a GORM connection for the given service, dispatching on driver.
-func connectDatabase(d *databaseService) (*gorm.DB, error) {
-	switch strings.ToLower(strings.TrimSpace(d.config.Driver)) {
-	case "postgres", "postgresql":
-		return newPostgreSQL(d)
-	case "sqlite", "sqlite3":
-		return newSQLite(d)
-	case "":
-		return nil, fmt.Errorf("no driver configured (set driver in [database] config)")
-	default:
-		return nil, fmt.Errorf("unsupported driver %q", d.config.Driver)
-	}
 }
 
 func firstOrEmpty(s []string) string {
