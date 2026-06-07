@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/glebarez/sqlite v1.11.0
-	github.com/hatami57/microjet/gormx v0.7.0
+	github.com/hatami57/microjet/gormx v0.8.0
 	gorm.io/gorm v1.31.1
 )
 

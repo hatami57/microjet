@@ -3,7 +3,7 @@ module github.com/hatami57/microjet/gormx/postgres
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/gormx v0.7.0
+	github.com/hatami57/microjet/gormx v0.8.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )

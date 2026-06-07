@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/minimal
 
 go 1.26.2
 
-require github.com/hatami57/microjet/host v0.7.0-00010101000000-000000000000
+require github.com/hatami57/microjet/host v0.8.0-00010101000000-000000000000
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -58,9 +58,9 @@ require (
 	github.com/hatami57/microjet/aws v0.7.0 // indirect
 	github.com/hatami57/microjet/cache v0.7.0 // indirect
 	github.com/hatami57/microjet/core v0.7.0 // indirect
-	github.com/hatami57/microjet/gormx v0.7.0 // indirect
+	github.com/hatami57/microjet/gormx v0.8.0 // indirect
 	github.com/hatami57/microjet/httpx v0.7.0 // indirect
-	github.com/hatami57/microjet/messaging v0.7.0 // indirect
+	github.com/hatami57/microjet/messaging v0.8.0 // indirect
 	github.com/hatami57/microjet/tenant v0.7.0 // indirect
 	github.com/hatami57/microjet/types v0.7.0 // indirect
 	github.com/hatami57/microjet/utils v0.7.0 // indirect

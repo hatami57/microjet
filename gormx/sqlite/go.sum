@@ -12,8 +12,8 @@ github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 h1:Xim43kblpZXfIBQsbu
 github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26/go.mod h1:dDKJzRmX4S37WGHujM7tX//fmj1uioxKzKxz3lo4HJo=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/hatami57/microjet/gormx v0.7.0 h1:kqKM2Mx7fr07+hE6YehAhVuLiwsR6ZVzlf8byftZkDc=
-github.com/hatami57/microjet/gormx v0.7.0/go.mod h1:CmML+tZUcB1+zhclk74ZZn+RX4QXtRxD23q7K7UG1EA=
+github.com/hatami57/microjet/gormx v0.8.0 h1:2fPlSKjmwU6OU+DEB8YNzuMdYbKtoL5L6JzV0te3+Mw=
+github.com/hatami57/microjet/gormx v0.8.0/go.mod h1:CmML+tZUcB1+zhclk74ZZn+RX4QXtRxD23q7K7UG1EA=
 github.com/hatami57/microjet/types v0.7.0 h1:HbJQ493vcQUHrcT0Afjr2CgXirTurkfHp1xw4+nBL3E=
 github.com/hatami57/microjet/types v0.7.0/go.mod h1:z3U8t/BRGyc54fPbvYHT+y1DPJDDF93OCNBaYhae8cA=
 github.com/hatami57/microjet/utils v0.7.0 h1:vfGKqImx3H5vJvSGQXuEULhwx21b9PvBI8A/tnsiF4o=

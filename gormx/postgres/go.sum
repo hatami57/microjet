@@ -2,8 +2,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
-github.com/hatami57/microjet/gormx v0.7.0 h1:kqKM2Mx7fr07+hE6YehAhVuLiwsR6ZVzlf8byftZkDc=
-github.com/hatami57/microjet/gormx v0.7.0/go.mod h1:CmML+tZUcB1+zhclk74ZZn+RX4QXtRxD23q7K7UG1EA=
+github.com/hatami57/microjet/gormx v0.8.0 h1:2fPlSKjmwU6OU+DEB8YNzuMdYbKtoL5L6JzV0te3+Mw=
+github.com/hatami57/microjet/gormx v0.8.0/go.mod h1:CmML+tZUcB1+zhclk74ZZn+RX4QXtRxD23q7K7UG1EA=
 github.com/hatami57/microjet/types v0.7.0 h1:HbJQ493vcQUHrcT0Afjr2CgXirTurkfHp1xw4+nBL3E=
 github.com/hatami57/microjet/types v0.7.0/go.mod h1:z3U8t/BRGyc54fPbvYHT+y1DPJDDF93OCNBaYhae8cA=
 github.com/hatami57/microjet/utils v0.7.0 h1:vfGKqImx3H5vJvSGQXuEULhwx21b9PvBI8A/tnsiF4o=
