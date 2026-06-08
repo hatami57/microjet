@@ -19,7 +19,7 @@ var (
 // Service manages the lifecycle of a single *gorm.DB connection. It implements
 // core.Configurable, core.Initer, core.Closer, and core.HealthChecker, so the
 // host drives config loading, dialing, and shutdown automatically. When a
-// connection is injected up front (InjectService), config loading and Init are
+// connection is provided up front (NewServiceFromDB), config loading and Init are
 // no-ops, but Close and health checks still run.
 type Service struct {
 	name    string // display name used in health-check error messages

@@ -12,12 +12,12 @@ import "github.com/hatami57/microjet/host"
 
 ## Features
 
-- **Application Orchestrator** — Fluent builder API (`MustNew().WithPostgreSQL().WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, and managed graceful shutdown.
+- **Application Orchestrator** — Fluent builder API (`MustNew().WithDatabase(postgres.Driver()).WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, and managed graceful shutdown.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, core.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`); `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
-- **SQL / GORM** — `WithPostgreSQL()` and `WithSQLite()` (pure-Go, no cgo), or `WithDatabaseFromConfig()` to pick the driver from config. Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading.
+- **SQL / GORM** — `WithDatabase(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading. `WithNamedDatabase` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain.
 - **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation, plus integer minor-unit conversion (`FromMinorUnits`/`MinorUnits`) with a zero/two/three-decimal currency registry.
@@ -75,11 +75,16 @@ type MyConfig struct {
  MaxWorkers  int    `mapstructure:"maxWorkers"`
 }
 
+func (c *MyConfig) LoadConfig(l *core.ConfigLoader) error {
+ return l.UnmarshalKey("myapp", c)
+}
+
 func main() {
- app := host.MustNewWithExtraConfig[MyConfig](host.WithEnvPrefix("MYAPP"))
+ app := host.MustNew(host.WithEnvPrefix("MYAPP"))
  defer app.Close()
 
- cfg := core.MustGetExtraConfig[MyConfig](app.Config)
+ var cfg MyConfig
+ app.LoadConfig(&cfg)
  app.Logger.Info("started", "service", cfg.ServiceName)
  host.WaitForExitSignal()
 }
@@ -91,10 +96,13 @@ func main() {
 package main
 
 import (
+ "net/http"
+
  "github.com/gin-gonic/gin"
- "github.com/hatami57/microjet/httpx"
- "github.com/hatami57/microjet/host"
  "github.com/hatami57/microjet/gormx"
+ "github.com/hatami57/microjet/gormx/postgres"
+ "github.com/hatami57/microjet/host"
+ "github.com/hatami57/microjet/httpx"
 )
 
 type User struct {
@@ -106,16 +114,16 @@ type User struct {
 func main() {
  app := host.MustNew()
 
- app.WithPostgreSQL().
+ app.WithDatabase(postgres.Driver()).
   Setup(func(a *host.App) error {
-   return a.DB.AutoMigrate(&User{})
+   return a.DB().AutoMigrate(&User{})
   }).
   WithHTTPServer(func(a *host.App) error {
-   userTable := gormx.NewTable[User](a.DB)
+   users := gormx.NewTable[User](a.DB())
    a.HTTPServer.Router.GET("/users", func(c *gin.Context) {
-    items, _ := userTable.ListAll(c.Request.Context(),
-     gormx.NewListRequestByID[User](httpx.PagedRequest(c)))
-    c.JSON(200, items)
+    req := gormx.NewPageRequest[User, uint](httpx.PagedRequest(c), "id", func(u User) uint { return u.ID })
+    items, _ := users.List(c.Request.Context(), req)
+    c.JSON(http.StatusOK, items)
    })
    return nil
   }).
@@ -132,21 +140,21 @@ For manual control, use `app.StartHTTP()` + `host.WaitForExitSignal()` with
 
 ### Database drivers
 
-`WithPostgreSQL()` and `WithSQLite()` both read the `[database]` config section
-and register the connection as the default database (retrieve it with
-`app.DB()`). SQLite uses the pure-Go [`glebarez/sqlite`](https://github.com/glebarez/sqlite)
-driver — no cgo or C toolchain required — and takes its file path from
-`database.name` (use `":memory:"` for an in-memory database).
-
-To select the driver from config instead of hard-coding it, call
-`WithDatabaseFromConfig()`, which dispatches on `database.driver`
-(`postgres`/`postgresql` or `sqlite`/`sqlite3`):
+`WithDatabase(driver)` reads the `[database]` config section, opens the
+connection during init, and registers it as the default database (retrieve with
+`app.DB()`). Two built-in drivers are available as separate opt-in modules:
 
 ```go
-app.WithDatabaseFromConfig(). // uses [database].driver
- Setup(func(a *host.App) error { return a.DB().AutoMigrate(&Note{}) }).
- MustRun()
+import "github.com/hatami57/microjet/gormx/postgres"
+app.WithDatabase(postgres.Driver())
+
+import "github.com/hatami57/microjet/gormx/sqlite"
+app.WithDatabase(sqlite.Driver()) // pure-Go, no cgo; set database.name = ":memory:" for in-memory
 ```
+
+To run multiple databases side by side, use `WithNamedDatabase(name, driver)`;
+retrieve each with `app.NamedDB(name)`. Each named database reads its config
+from `[database.<name>]`.
 
 ### Cached tenant lookups
 
@@ -205,7 +213,7 @@ Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_SERVER_PORT=443` (pref
 
 ### Extra Config
 
-Place service-specific config in an `[extra]` TOML section and load it with a typed parameter:
+Implement `core.Configurable` on your config struct and pass it to `app.LoadConfig`:
 
 ```go
 type MyExtra struct {
@@ -213,14 +221,13 @@ type MyExtra struct {
  QueueName   string `mapstructure:"queueName"`
 }
 
-// At startup — T is inferred from the type argument:
-app := host.MustNewWithExtraConfig[MyExtra]()
+func (c *MyExtra) LoadConfig(l *core.ConfigLoader) error {
+ return l.UnmarshalKey("myapp", c)
+}
 
-// Retrieve the typed value anywhere you have access to app.Config:
-extra := core.MustGetExtraConfig[MyExtra](app.Config)
-
-// Or the non-panicking form:
-extra, ok := core.GetExtraConfig[MyExtra](app.Config)
+// At startup:
+var extra MyExtra
+app.LoadConfig(&extra)
 ```
 
 ## Error Handling
@@ -273,7 +280,7 @@ import (
 )
 
 // Cursor-based pagination by ID
-req := gormx.NewListRequestByID[User](httpx.PagedRequest(c)).
+req := gormx.NewPageRequest[User, uint](httpx.PagedRequest(c), "id", func(u User) uint { return u.ID }).
     SetWhere("name ILIKE ?", "%john%")
 
 result, _ := userTable.List(ctx, req)
@@ -334,14 +341,14 @@ For database migrations in production, see [`docs/migrations.md`](docs/migration
 utils  (JSON, converters, env)
   |
   +-- types  (Message, PagedResult, money)
-  |     +-- gormx    (Table[T], pagination)
   |
   +-- aws  (S3, SQS, DynamoDB)
   |
 core  (errors, config, logging, time)
   |
+  +-- gormx    (Table[T], pagination, Service lifecycle)
   +-- messaging  (NATS client)
-  +-- http  (Gin server, middleware, helpers)
+  +-- httpx  (Gin server, middleware, helpers)
         |
         +-- host  (orchestrator, DI, lifecycle)
               imports: aws, core, httpx, messaging, gormx, types, utils
