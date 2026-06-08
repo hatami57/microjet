@@ -1,0 +1,114 @@
+package gormx
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"github.com/hatami57/microjet/core"
+	"gorm.io/gorm"
+)
+
+var (
+	_ core.Configurable  = (*Service)(nil)
+	_ core.Initer        = (*Service)(nil)
+	_ core.Closer        = (*Service)(nil)
+	_ core.HealthChecker = (*Service)(nil)
+)
+
+// Service manages the lifecycle of a single *gorm.DB connection. It implements
+// core.Configurable, core.Initer, core.Closer, and core.HealthChecker, so the
+// host drives config loading, dialing, and shutdown automatically. When a
+// connection is injected up front (InjectService), config loading and Init are
+// no-ops, but Close and health checks still run.
+type Service struct {
+	name    string // display name used in health-check error messages
+	section string // config key, e.g. "database" or "database.secondary"
+	driver  Driver
+	config  Config
+	logger  *slog.Logger
+	db      *gorm.DB
+}
+
+// NewService creates a Service that opens a connection via driver during Init.
+// name is used in health-check error messages; section is the config key
+// (e.g. "database" or "database.secondary").
+func NewService(name, section string, driver Driver) *Service {
+	return &Service{
+		name:    name,
+		section: section,
+		driver:  driver,
+		logger:  slog.Default(),
+	}
+}
+
+// NewServiceFromDB creates a Service around an already-open *gorm.DB. The
+// Service participates in Close and health checks but skips config loading and
+// Init.
+func NewServiceFromDB(name string, db *gorm.DB) *Service {
+	return &Service{name: name, db: db, logger: slog.Default()}
+}
+
+// SetLogger replaces the logger. A nil logger is ignored.
+func (s *Service) SetLogger(l *slog.Logger) {
+	if l != nil {
+		s.logger = l
+	}
+}
+
+// DB returns the underlying *gorm.DB, nil until Init is called.
+func (s *Service) DB() *gorm.DB { return s.db }
+
+// LoadConfig implements core.Configurable. It is a no-op for injected connections.
+func (s *Service) LoadConfig(l *core.ConfigLoader) error {
+	if s.db != nil {
+		return nil
+	}
+	return l.UnmarshalKey(s.section, &s.config)
+}
+
+// Init implements core.Initer. It is a no-op for injected connections.
+func (s *Service) Init() error {
+	if s.db != nil {
+		return nil
+	}
+	db, err := s.driver.Open(s.config, s.logger)
+	if err != nil {
+		return err
+	}
+	s.db = db
+	return nil
+}
+
+// Close implements core.Closer, closing the underlying SQL connection.
+func (s *Service) Close() error {
+	if s.db == nil {
+		return nil
+	}
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
+// Healthy implements core.HealthChecker, pinging the underlying connection so
+// the host's /readyz can report the database. A self-describing error names the
+// database for multi-database setups.
+func (s *Service) Healthy(ctx context.Context) error {
+	if s.db == nil {
+		return nil
+	}
+	name := s.name
+	if name == "" {
+		name = "default"
+	}
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return fmt.Errorf("db %q: %w", name, err)
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("db %q: %w", name, err)
+	}
+	return nil
+}
