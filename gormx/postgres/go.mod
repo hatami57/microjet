@@ -3,14 +3,14 @@ module github.com/hatami57/microjet/gormx/postgres
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/gormx v0.8.0
+	github.com/hatami57/microjet/gormx v0.9.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )
 
 require (
-	github.com/hatami57/microjet/types v0.7.0 // indirect
-	github.com/hatami57/microjet/utils v0.7.0 // indirect
+	github.com/hatami57/microjet/types v0.9.0 // indirect
+	github.com/hatami57/microjet/utils v0.9.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
