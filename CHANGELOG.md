@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-06-09
+
+### Added
+
+- **Composable modules** — `host.Module` interface (`Register(app *App) error`) lets
+  functionality be bundled behind a single hook and composed into a tree.
+  `app.WithModule` / `app.WithModules` install modules with diamond-safe
+  deduplication: struct modules install once per type (or per `ModuleKey()` for
+  parameterised variants); `host.ModuleFunc` wraps a plain function for
+  anonymous, one-off modules that are never deduplicated. Optional
+  `host.NamedModule` and `host.KeyedModule` interfaces allow custom display names
+  and instance-level dedup keys respectively.
+- **`WithMessaging` setup handlers** — `app.WithMessaging(client, setup ...HandlerFunc)`
+  now accepts optional route/setup handlers, consistent with `WithHTTPServer`.
+- **`UseProvider`** — `app.UseProvider(fn HandlerFunc)` runs a provider function
+  and captures any error into the deferred chain (replaces `WithProvider`).
+- **`examples/modules`** — runnable three-level diamond dependency tree
+  demonstrating recursive registration and shared-module deduplication.
+
+### Changed
+
+- **`host.App.Setup` is now variadic** — `Setup(handler ...HandlerFunc)` accepts
+  any number of handlers in one call.
+- **`core.NewLogger` gains `forceDebug bool`** — when `true` (wired to
+  `cfg.App.Debug`) all log outputs are forced to `debug` level regardless of
+  configured level.
+- **`ProvidedItem` exported** — `host.ProvidedItem[T, V]` (was unexported
+  `providedItem`); callers building custom providers can now type-assert or
+  return it directly.
+- **`initServices` fixpoint drain** — the service initialization loop runs to a
+  fixpoint so services dynamically registered inside another service's `Init`
+  are still configured and initialized within the same `Run` call.
+
+### Removed
+
+- **`host.WithProvider`** — replaced by `UseProvider` (no automatic
+  `initServices` side-effect; callers control initialization order via the
+  normal `Run`/`MustRun` path).
+- **`host.ErrDatabaseNotInitialized`** — removed; callers should handle a nil
+  `app.DB()` directly or rely on the service lifecycle.
+
 ## [0.3.0] - 2026-06-06
 
 ### Added
