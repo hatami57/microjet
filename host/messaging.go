@@ -25,17 +25,21 @@ type loggerAware interface {
 //
 // If the client implements SetLogger, it receives the host logger here so a
 // client constructed inline in the fluent chain still logs correctly.
-func (a *App) WithMessaging(client messaging.Client) *App {
+func (a *App) WithMessaging(client messaging.Client, setup ...HandlerFunc) *App {
 	if a.err != nil {
 		return a
 	}
 	if client == nil {
 		return a.fail(fmt.Errorf("messaging: nil client"))
 	}
+
 	if la, ok := client.(loggerAware); ok {
 		la.SetLogger(a.Logger)
 	}
+
 	a.Messaging = client
+	a.Setup(setup...)
+
 	ProvideService(a, client)
 	return a
 }

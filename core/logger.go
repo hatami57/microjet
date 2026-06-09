@@ -17,13 +17,11 @@ import (
 // Console output is always enabled unless config.Console.Enabled=false.
 // A second file output is added when config.File.Enabled=true and config.File.Path is set.
 // Each output has its own level and format, falling back to config.Level and config.Format.
-func NewLogger(config *LogConfig) *slog.Logger {
+func NewLogger(config *LogConfig, forceDebug bool) *slog.Logger {
 	defaultLevel := "info"
 	defaultFormat := "text"
 	if config != nil {
-		if config.Level != "" {
-			defaultLevel = config.Level
-		}
+		defaultLevel = config.Level
 		if config.Format != "" {
 			defaultFormat = config.Format
 		}
@@ -36,38 +34,56 @@ func NewLogger(config *LogConfig) *slog.Logger {
 	consoleFormat := defaultFormat
 	if config != nil && config.Console != nil {
 		consoleEnabled = config.Console.Enabled
-		if config.Console.Level != "" {
-			consoleLevel = config.Console.Level
-		}
+		consoleLevel = config.Console.Level
 		if config.Console.Format != "" {
 			consoleFormat = config.Console.Format
 		}
 	}
 	if consoleEnabled {
+		consoleLevel = getLogLevel(defaultLevel, consoleLevel, forceDebug)
 		handlers = append(handlers, newSlogHandler(os.Stdout, consoleLevel, consoleFormat))
 	}
 
 	if config != nil && config.File != nil && config.File.Enabled && config.File.Path != "" {
 		fileLevel := defaultLevel
 		fileFormat := defaultFormat
-		if config.File.Level != "" {
-			fileLevel = config.File.Level
-		}
+		fileLevel = config.File.Level
 		if config.File.Format != "" {
 			fileFormat = config.File.Format
 		}
 		if f, err := openLogFile(config.File.Path); err == nil {
+			fileLevel = getLogLevel(defaultLevel, fileLevel, forceDebug)
 			handlers = append(handlers, newSlogHandler(f, fileLevel, fileFormat))
 		}
 	}
 
 	if len(handlers) == 0 {
+		defaultLevel = getLogLevel(defaultLevel, "", forceDebug)
 		handlers = append(handlers, newSlogHandler(os.Stdout, defaultLevel, defaultFormat))
 	}
 	if len(handlers) == 1 {
 		return slog.New(handlers[0])
 	}
 	return slog.New(&multiHandler{handlers: handlers})
+}
+
+func getLogLevel(defaultLevel string, level string, forceDebug bool) string {
+	if forceDebug {
+		return "debug"
+	}
+	switch strings.ToLower(level) {
+	case "debug", "trace":
+		return level
+	case "warn", "warning":
+		return "warn"
+	case "error", "fatal", "panic":
+		return "error"
+	default:
+		if defaultLevel == "" {
+			return "info"
+		}
+		return defaultLevel
+	}
 }
 
 func newSlogHandler(w io.Writer, levelStr, format string) slog.Handler {

@@ -8,8 +8,7 @@ import (
 )
 
 var (
-	ErrServiceNotRegistered   = core.NewInternalError("General", "Service is not registered")
-	ErrDatabaseNotInitialized = core.NewInternalError("Database", "Database is not initialized")
+	ErrServiceNotRegistered = core.NewInternalError("General", "Service is not registered")
 )
 
 type ServiceIniter interface {
@@ -24,7 +23,7 @@ type ServiceCloser interface {
 	Close(app *App) error
 }
 
-type providedItem[T, V any] struct {
+type ProvidedItem[T, V any] struct {
 	Key   T
 	Value V
 }
@@ -33,8 +32,8 @@ func ResolveType[T any]() reflect.Type {
 	return reflect.TypeFor[T]()
 }
 
-func ProvideType[T any](service T) *providedItem[reflect.Type, any] {
-	return &providedItem[reflect.Type, any]{Key: ResolveType[T](), Value: service}
+func ProvideType[T any](service T) *ProvidedItem[reflect.Type, any] {
+	return &ProvidedItem[reflect.Type, any]{Key: ResolveType[T](), Value: service}
 }
 
 func ProvideService[T any](a *App, service T) {
@@ -57,16 +56,23 @@ func MustResolveService[T any](a *App) T {
 	panic(ErrServiceNotRegistered.WithSubject(ResolveType[T]().String()))
 }
 
-func (a *App) ProvideService(item *providedItem[reflect.Type, any]) *App {
+func (a *App) ProvideService(item *ProvidedItem[reflect.Type, any]) *App {
 	a.container.Store(item.Key, item.Value)
 	return a
 }
 
-func (a *App) ProvideServices(items ...*providedItem[reflect.Type, any]) *App {
+func (a *App) ProvideServices(items ...*ProvidedItem[reflect.Type, any]) *App {
 	for _, item := range items {
 		a.container.Store(item.Key, item.Value)
 	}
 	return a
+}
+
+func (a *App) UseProvider(fn HandlerFunc) *App {
+	if a.err != nil {
+		return a
+	}
+	return a.fail(fn(a))
 }
 
 func (a *App) ProvideKey(key string, value any) *App {
@@ -94,21 +100,6 @@ func (a *App) MustResolveService(key reflect.Type) any {
 	panic(ErrServiceNotRegistered.WithParams("name", key.String()))
 }
 
-func (a *App) WithProvider(provider HandlerFunc) *App {
-	if a.err != nil {
-		return a
-	}
-	if provider != nil {
-		if err := provider(a); err != nil {
-			return a.fail(err)
-		}
-	}
-	if err := a.initServices(); err != nil {
-		return a.fail(err)
-	}
-	return a
-}
-
 func (a *App) InitServices() *App {
 	if a.err != nil {
 		return a
@@ -124,53 +115,87 @@ func (a *App) initServices() error {
 		return nil
 	}
 	a.Logger.Debug("initializing services")
-	var initErr error
 
-	// Load config for services that manage their own configuration.
-	a.container.Range(func(_, item any) bool {
-		cfg, ok := item.(core.Configurable)
-		if !ok {
+	// Services may provide further services from inside their config or Init
+	// hooks (the dynamic "service provides services" case; modules register at
+	// build time and so are already present). A single sync.Map.Range is not
+	// guaranteed to visit entries added mid-iteration, so we drain to a fixpoint:
+	// repeat passes until one full pass configures and initializes nothing new.
+	// A service is only initialized after it has been configured, so a service
+	// added during the init pass waits for the next iteration's config pass.
+	configured := make(map[any]bool)
+	initialized := make(map[any]bool)
+	configCallCount := 0
+	initCallCount := 0
+
+	for {
+		var passErr error
+		progressed := false
+
+		// Load config for services that manage their own configuration.
+		a.container.Range(func(key, item any) bool {
+			if configured[key] {
+				return true
+			}
+			configured[key] = true
+			progressed = true
+			cfg, ok := item.(core.Configurable)
+			if !ok {
+				return true
+			}
+			configCallCount++
+			name := reflect.TypeOf(item).String()
+			a.Logger.Debug("loading config for service", "type", name)
+			if err := a.configLoader.Configure(cfg); err != nil {
+				a.Logger.Error("failed to load config for service", "type", name, "error", err)
+				passErr = err
+				return false
+			}
 			return true
+		})
+		if passErr != nil {
+			return passErr
 		}
-		name := reflect.TypeOf(item).String()
-		a.Logger.Debug("loading config for service", "type", name)
-		if err := a.configLoader.Configure(cfg); err != nil {
-			a.Logger.Error("failed to load config for service", "type", name, "error", err)
-			initErr = err
-			return false
+
+		// Initialize configured services. host.ServiceIniter (receives *App) takes
+		// precedence over core.Initer for services that need host-level DI.
+		a.container.Range(func(key, item any) bool {
+			if initialized[key] || !configured[key] {
+				return true
+			}
+			initialized[key] = true
+			progressed = true
+			name := reflect.TypeOf(item).String()
+			a.Logger.Debug("initializing service", "type", name)
+			var err error
+			if svc, ok := item.(ServiceIniter); ok {
+				initCallCount++
+				err = svc.Init(a)
+			} else if svc, ok := item.(core.Initer); ok {
+				initCallCount++
+				err = svc.Init()
+			} else {
+				return true
+			}
+			if err != nil {
+				a.Logger.Error("failed to initialize service", "type", name, "error", err)
+				passErr = err
+				return false
+			}
+			a.Logger.Debug("service initialized", "type", name)
+			return true
+		})
+		if passErr != nil {
+			return passErr
 		}
-		return true
-	})
-	if initErr != nil {
-		return initErr
+
+		if !progressed {
+			break
+		}
 	}
 
-	// Initialize services. host.ServiceIniter (receives *App) takes precedence
-	// over core.Initer for services that need host-level DI.
-	a.container.Range(func(_, item any) bool {
-		name := reflect.TypeOf(item).String()
-		a.Logger.Debug("initializing service", "type", name)
-		var err error
-		if svc, ok := item.(ServiceIniter); ok {
-			err = svc.Init(a)
-		} else if svc, ok := item.(core.Initer); ok {
-			err = svc.Init()
-		} else {
-			return true
-		}
-		if err != nil {
-			a.Logger.Error("failed to initialize service", "type", name, "error", err)
-			initErr = err
-			return false
-		}
-		a.Logger.Debug("service initialized", "type", name)
-		return true
-	})
-	if initErr != nil {
-		return initErr
-	}
 	a.isServiceInitialized = true
-	a.Logger.Info("all services initialized")
+	a.Logger.Info("all services initialized", "configs", configCallCount, "inits", initCallCount)
 	return nil
 }
 

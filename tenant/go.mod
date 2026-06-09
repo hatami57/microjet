@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.9.0
+	github.com/hatami57/microjet/core v0.10.0
 )
 
 require (

@@ -33,6 +33,7 @@ type App struct {
 	configLoader         *core.ConfigLoader
 	shutdownTimeout      time.Duration
 	container            sync.Map
+	modules              sync.Map
 	workers              []worker
 	setups               []HandlerFunc
 	isServiceInitialized bool
@@ -88,7 +89,7 @@ func New(opts ...Option) (*App, error) {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}
 	a.Config = cfg
-	a.Logger = core.NewLogger(cfg.Log)
+	a.Logger = core.NewLogger(cfg.Log, cfg.App.Debug)
 	return a, nil
 }
 
@@ -132,11 +133,11 @@ func (a *App) fail(err error) *App {
 // they run in registration order. If services are already initialized (the
 // manual InitServices path) the handler runs immediately. Errors are deferred
 // and surfaced by Run/MustRun/Err.
-func (a *App) Setup(handler HandlerFunc) *App {
+func (a *App) Setup(handler ...HandlerFunc) *App {
 	if a.err != nil || handler == nil {
 		return a
 	}
-	a.setups = append(a.setups, handler)
+	a.setups = append(a.setups, handler...)
 	if a.isServiceInitialized {
 		if err := a.runSetups(); err != nil {
 			return a.fail(err)

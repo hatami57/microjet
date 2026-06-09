@@ -12,7 +12,7 @@ import "github.com/hatami57/microjet/host"
 
 ## Features
 
-- **Application Orchestrator** — Fluent builder API (`MustNew().WithDatabase(postgres.Driver()).WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, and managed graceful shutdown.
+- **Application Orchestrator** — Fluent builder API (`MustNew().WithDatabase(postgres.Driver()).WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](#modules) for tree-structured feature wiring, and managed graceful shutdown.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, core.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
@@ -320,6 +320,66 @@ svc, ok := host.ResolveService[*UserService](app)
 svc := host.MustResolveService[*UserService](app)
 ```
 
+## Modules
+
+A **Module** bundles a slice of functionality — its services, routes, config, and
+workers — behind one `Register` hook, and may install further modules, forming a
+tree. This is how you compose a service out of self-contained features (and how a
+feature pulls in the features it depends on) without a giant `main()`.
+
+```go
+type Module interface {
+    Register(app *host.App) error
+}
+```
+
+Install modules with the fluent chain; `WithModule` runs the module's `Register`,
+and a module's `Register` installs its children the same way:
+
+```go
+type EmailModule struct{}
+
+func (EmailModule) Register(app *host.App) error {
+    host.ProvideService(app, &EmailSender{}) // a managed service
+    return nil
+}
+
+type UsersModule struct{}
+
+func (UsersModule) Register(app *host.App) error {
+    app.WithModule(EmailModule{}) // child module
+    host.ProvideService(app, &UserService{})
+    return app.Setup(func(a *host.App) error {
+        registerUserRoutes(a)
+        return nil
+    }).Err()
+}
+
+func main() {
+    host.MustNew().
+        WithHTTPServer().
+        WithModule(UsersModule{}). // brings EmailModule with it
+        MustRun()
+}
+```
+
+Key behaviors:
+
+- **Recursive** — a module's `Register` can install any number of child modules.
+- **Deduplicated** — struct modules install once per type, so a shared module
+  imported by several parents (the "diamond" case) is registered exactly once.
+  Implement `KeyedModule` (`ModuleKey() string`) to install the same type more
+  than once with different config; `host.ModuleFunc` wraps a plain function for
+  one-off modules and is never deduplicated.
+- **Register provides, `Init` wires** — `Register` should only *provide* services
+  and *import* child modules, never resolve dependencies (siblings and children
+  may register afterwards). Resolve dependencies in each service's `Init(app)` /
+  `Start(app)`, which runs after every module has registered, so registration
+  order doesn't matter. Provided services join the normal lifecycle (config →
+  init → start → close) regardless of how deeply they were nested.
+
+See [`examples/modules`](examples/modules) for a runnable three-level tree.
+
 ## Graceful Shutdown
 
 `app.Close()` drains messaging, stops the HTTP server, closes DB connections, and calls all registered `ServiceCloser` implementations — all running concurrently with a `sync.WaitGroup`. It is idempotent (guarded by `sync.Once`), so it is safe to call it via both `Run()`/`MustRun()` and a `defer app.Close()`.
@@ -332,6 +392,7 @@ Runnable example services live in [`examples/`](examples/):
 - [`examples/http-postgres`](examples/http-postgres) — HTTP CRUD backed by PostgreSQL.
 - [`examples/sqlite`](examples/sqlite) — HTTP CRUD backed by SQLite; runs with no external database.
 - [`examples/features`](examples/features) — middleware (CORS, rate limit, JWT), request-scoped logging, the cache, and the JSON client with retries.
+- [`examples/modules`](examples/modules) — composable modules: a three-level dependency tree with shared-module deduplication.
 
 For database migrations in production, see [`docs/migrations.md`](docs/migrations.md).
 

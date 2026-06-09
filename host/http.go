@@ -22,9 +22,7 @@ func (a *App) WithHTTPServer(setup ...HandlerFunc) *App {
 
 	// Route-registration handlers are queued, not run now: they run after services
 	// are initialized (so a.DB() is connected) but before the server starts serving.
-	for _, s := range setup {
-		a.Setup(s)
-	}
+	a.Setup(setup...)
 
 	ProvideService(a, a.HTTPServer)
 	return a
