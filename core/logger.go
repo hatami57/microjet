@@ -13,6 +13,26 @@ import (
 	"time"
 )
 
+// LogConfig configures the logger. Console output is always enabled unless
+// explicitly disabled via Console.Enabled=false. A file output is added when
+// File.Enabled=true and File.Path is set. Each output can independently
+// override the top-level Level and Format.
+// Valid levels: debug, info, warn, error. Valid formats: text, json.
+type LogConfig struct {
+	Level   string           `mapstructure:"level"`
+	Format  string           `mapstructure:"format"`
+	Console *LogOutputConfig `mapstructure:"console"`
+	File    *LogOutputConfig `mapstructure:"file"`
+}
+
+// LogOutputConfig configures a single log output destination (console or file).
+type LogOutputConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Level   string `mapstructure:"level"`  // overrides LogConfig.Level for this output
+	Format  string `mapstructure:"format"` // overrides LogConfig.Format for this output
+	Path    string `mapstructure:"path"`   // file output only; parent dirs are created automatically
+}
+
 // NewLogger constructs a *slog.Logger from LogConfig.
 // Console output is always enabled unless config.Console.Enabled=false.
 // A second file output is added when config.File.Enabled=true and config.File.Path is set.

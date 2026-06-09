@@ -59,12 +59,12 @@ func (s *Service) SetLogger(l *slog.Logger) {
 // DB returns the underlying *gorm.DB, nil until Init is called.
 func (s *Service) DB() *gorm.DB { return s.db }
 
-// LoadConfig implements core.Configurable. It is a no-op for injected connections.
-func (s *Service) LoadConfig(l *core.ConfigLoader) error {
+// ReadConfig implements core.Configurable. It is a no-op for injected connections.
+func (s *Service) ReadConfig(l core.ConfigReader) error {
 	if s.db != nil {
 		return nil
 	}
-	return l.UnmarshalKey(s.section, &s.config)
+	return l.Read(s.section, &s.config)
 }
 
 // Init implements core.Initer. It is a no-op for injected connections.

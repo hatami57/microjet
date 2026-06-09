@@ -19,11 +19,11 @@ type cacheService struct {
 	configured bool // true = client/config already set, skip LoadConfig
 }
 
-func (s *cacheService) LoadConfig(l *core.ConfigLoader) error {
+func (s *cacheService) ReadConfig(l core.ConfigReader) error {
 	if s.configured {
 		return nil
 	}
-	return l.UnmarshalKey("cache", &s.config)
+	return l.Read("cache", &s.config)
 }
 
 func (s *cacheService) Init() error {

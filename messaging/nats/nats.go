@@ -63,9 +63,9 @@ func (c *Client) defaultOptions() []nats.Option {
 	}
 }
 
-// LoadConfig implements core.Configurable, reading the [messaging] section.
-func (c *Client) LoadConfig(l *core.ConfigLoader) error {
-	return l.UnmarshalKey("messaging", &c.Config)
+// ReadConfig implements core.Configurable, reading the [messaging] section.
+func (c *Client) ReadConfig(l core.ConfigReader) error {
+	return l.Read("messaging", &c.Config)
 }
 
 // Connect dials the NATS broker using the loaded config. Call this after

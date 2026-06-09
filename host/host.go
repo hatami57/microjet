@@ -16,9 +16,6 @@ import (
 	"github.com/hatami57/microjet/messaging"
 )
 
-// DefaultDatabase is the key used for the primary database registered via WithDatabase or InjectDatabase.
-const DefaultDatabase = "default"
-
 // App is the central runtime object for a service. Build it with the fluent
 // New().With*() chain at service startup.
 type App struct {
@@ -30,7 +27,7 @@ type App struct {
 	HTTPServer *httpx.Server
 
 	envPrefix            string
-	configLoader         *core.ConfigLoader
+	configReader         core.ConfigReader
 	shutdownTimeout      time.Duration
 	container            sync.Map
 	modules              sync.Map
@@ -79,14 +76,14 @@ func New(opts ...Option) (*App, error) {
 	if a.Clock == nil {
 		a.Clock = core.UTC
 	}
-	loader, err := core.NewConfigLoader(a.envPrefix)
+	reader, err := core.NewViperConfigReader(a.envPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("creating config loader: %w", err)
 	}
-	a.configLoader = loader
+	a.configReader = reader
 	cfg := &Config{}
-	if err := loader.Configure(cfg); err != nil {
-		return nil, fmt.Errorf("loading config: %w", err)
+	if err := cfg.ReadConfig(reader); err != nil {
+		return nil, fmt.Errorf("reading config: %w", err)
 	}
 	a.Config = cfg
 	a.Logger = core.NewLogger(cfg.Log, cfg.App.Debug)
@@ -98,19 +95,6 @@ func MustNew(opts ...Option) *App {
 	a, err := New(opts...)
 	if err != nil {
 		panic(fmt.Errorf("host.MustNew: %w", err))
-	}
-	return a
-}
-
-// LoadConfig loads additional config sections using the app's shared config
-// loader, so the config file is only parsed once. Call this right after New()
-// to populate service-specific config structs before starting services.
-func (a *App) LoadConfig(cfgs ...core.Configurable) *App {
-	if a.err != nil {
-		return a
-	}
-	if err := a.configLoader.Configure(cfgs...); err != nil {
-		return a.fail(err)
 	}
 	return a
 }

@@ -7,6 +7,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// DefaultDatabase is the key used for the primary database registered via WithDatabase or InjectDatabase.
+const DefaultDatabase = "default"
+
 // dbKey returns the sync.Map key for a named database.
 // An empty name maps to "db:default".
 func dbKey(name string) string {

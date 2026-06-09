@@ -17,7 +17,7 @@ func newTestApp(t *testing.T) *App {
 
 func TestWithDatabaseSQLiteInMemory(t *testing.T) {
 	app := newTestApp(t)
-	app.configLoader.SetDefault("database.name", ":memory:")
+	app.configReader.SetDefault("database.name", ":memory:")
 	app.WithDatabase(sqlite.Driver()).InitServices()
 	if err := app.Err(); err != nil {
 		t.Fatalf("WithDatabase(SQLite()): %v", err)
@@ -27,4 +27,3 @@ func TestWithDatabaseSQLiteInMemory(t *testing.T) {
 	}
 	t.Cleanup(app.Close)
 }
-

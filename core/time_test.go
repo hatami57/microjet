@@ -29,8 +29,8 @@ func TestTruncateToSecond(t *testing.T) {
 	}
 }
 
-func TestSystemClockIsUTC(t *testing.T) {
-	c := &SystemClock{}
+func TestUTCClockIsUTC(t *testing.T) {
+	c := UTC
 	if loc := c.Now().Location(); loc != time.UTC {
 		t.Errorf("Now location = %v, want UTC", loc)
 	}
@@ -39,8 +39,7 @@ func TestSystemClockIsUTC(t *testing.T) {
 func TestUTCAndClockSatisfyTimeProvider(t *testing.T) {
 	// Both the package default and value/pointer forms implement TimeProvider.
 	var _ TimeProvider = UTC
-	var _ TimeProvider = SystemClock{}
-	var _ TimeProvider = &SystemClock{}
+	var _ TimeProvider = Local
 	if UTC.Now().Location() != time.UTC {
 		t.Errorf("UTC.Now not in UTC")
 	}

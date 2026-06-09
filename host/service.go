@@ -7,9 +7,7 @@ import (
 	"github.com/hatami57/microjet/core"
 )
 
-var (
-	ErrServiceNotRegistered = core.NewInternalError("General", "Service is not registered")
-)
+var ErrServiceNotRegistered = core.NewInternalError("General", "Service is not registered")
 
 type ServiceIniter interface {
 	Init(app *App) error
@@ -146,7 +144,7 @@ func (a *App) initServices() error {
 			configCallCount++
 			name := reflect.TypeOf(item).String()
 			a.Logger.Debug("loading config for service", "type", name)
-			if err := a.configLoader.Configure(cfg); err != nil {
+			if err := cfg.ReadConfig(a.configReader); err != nil {
 				a.Logger.Error("failed to load config for service", "type", name, "error", err)
 				passErr = err
 				return false

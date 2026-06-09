@@ -55,10 +55,10 @@ type Config struct {
 	Log *core.LogConfig `mapstructure:"log"`
 }
 
-// LoadConfig implements core.Configurable, loading all standard host sections.
+// ReadConfig implements core.Configurable, loading all standard host sections.
 // It sets app and server defaults before unmarshaling so they apply when no
 // config file is present.
-func (c *Config) LoadConfig(l *core.ConfigLoader) error {
+func (c *Config) ReadConfig(l core.ConfigReader) error {
 	l.SetDefault("app.namespace", "App")
 	l.SetDefault("app.environment", "development")
 	l.SetDefault("app.name", "App")
@@ -68,20 +68,16 @@ func (c *Config) LoadConfig(l *core.ConfigLoader) error {
 	// for a library that may be embedded in production. Opt in via app.debug=true.
 	l.SetDefault("app.debug", false)
 
-	if err := l.UnmarshalKey("app", &c.App); err != nil {
+	if err := l.Read("app", &c.App); err != nil {
 		return err
 	}
-	return l.UnmarshalKey("log", &c.Log)
+	return l.Read("log", &c.Log)
 }
 
-// LoadConfig loads the standard host configuration sections as a standalone call.
-func LoadConfig(envPrefix string) (*Config, error) {
-	loader, err := core.NewConfigLoader(envPrefix)
-	if err != nil {
-		return nil, err
-	}
+// ReadConfig reads the standard host configuration sections as a standalone call.
+func ReadConfig(envPrefix string) (*Config, error) {
 	cfg := &Config{}
-	if err := loader.Configure(cfg); err != nil {
+	if err := core.Configure(envPrefix, cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil

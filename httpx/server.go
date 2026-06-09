@@ -124,10 +124,10 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 
 // LoadConfig implements core.Configurable, reading the [server] section so the
 // server owns its configuration independently of host.Config.
-func (s *Server) LoadConfig(l *core.ConfigLoader) error {
+func (s *Server) LoadConfig(l core.ConfigReader) error {
 	l.SetDefault("server.host", "localhost")
 	l.SetDefault("server.port", 8080)
-	return l.UnmarshalKey("server", &s.config)
+	return l.Read("server", &s.config)
 }
 
 // Init implements core.Initer. It builds the underlying http.Server but does not

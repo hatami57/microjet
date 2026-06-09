@@ -15,39 +15,48 @@ type TimeProvider interface {
 	NowSortableMS() string
 }
 
-// SystemClock is a TimeProvider backed by the real wall clock, normalized to UTC.
-type SystemClock struct{}
+type NowProvider func() time.Time
+
+type Clock struct {
+	now NowProvider
+}
+
+func NewClock(now NowProvider) *Clock {
+	return &Clock{now: now}
+}
+
+func (c *Clock) Now() time.Time        { return c.now() }
+func (c *Clock) NowTS() int64          { return c.Now().Unix() }
+func (c *Clock) NowSortable() string   { return TimeToSortable(c.Now()) }
+func (c *Clock) NowSortableMS() string { return TimeToSortableMS(c.Now()) }
 
 // UTC is the default real-time clock, used when no clock is injected.
-var UTC TimeProvider = SystemClock{}
-
-// Clock is a process-wide SystemClock kept for backward compatibility. Prefer
-// injecting a TimeProvider (host.WithClock) over reaching for this global.
-var Clock = SystemClock{}
-
-// Value receivers so both SystemClock{} and &SystemClock{} satisfy TimeProvider.
-func (SystemClock) Now() time.Time          { return time.Now().UTC() }
-func (c SystemClock) NowTS() int64          { return c.Now().Unix() }
-func (c SystemClock) NowSortable() string   { return TimeToSortable(c.Now()) }
-func (c SystemClock) NowSortableMS() string { return TimeToSortableMS(c.Now()) }
+var (
+	UTC   TimeProvider = NewClock(func() time.Time { return time.Now().UTC() })
+	Local TimeProvider = NewClock(func() time.Time { return time.Now() })
+)
 
 // FixedClock is a TimeProvider that reports a preset time, for deterministic
 // tests. It is not safe for concurrent mutation; set the time before use.
-type FixedClock struct{ T time.Time }
+type FixedClock struct {
+	*Clock
+	T time.Time
+}
 
-// NewFixedClock returns a FixedClock pinned to t (normalized to UTC).
-func NewFixedClock(t time.Time) *FixedClock { return &FixedClock{T: t.UTC()} }
+func NewFixedClock(t time.Time) *FixedClock {
+	clock := &FixedClock{
+		T: t,
+	}
+
+	clock.Clock = NewClock(func() time.Time { return clock.T })
+	return clock
+}
 
 // Set replaces the time the clock reports.
 func (c *FixedClock) Set(t time.Time) { c.T = t.UTC() }
 
 // Advance moves the clock forward by d.
 func (c *FixedClock) Advance(d time.Duration) { c.T = c.T.Add(d) }
-
-func (c *FixedClock) Now() time.Time        { return c.T }
-func (c *FixedClock) NowTS() int64          { return c.T.Unix() }
-func (c *FixedClock) NowSortable() string   { return TimeToSortable(c.T) }
-func (c *FixedClock) NowSortableMS() string { return TimeToSortableMS(c.T) }
 
 // TimeToSortableMS formats t as a 17-digit lexicographically sortable string
 // with millisecond precision: YYYYMMDDHHMMSSmmm. Go only recognizes fractional

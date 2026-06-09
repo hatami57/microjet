@@ -43,10 +43,10 @@ const (
 	DynamoDB Service = "aws-dynamodb"
 )
 
-// LoadConfig implements core.Configurable, reading the [aws] section into the
+// ReadConfig implements core.Configurable, reading the [aws] section into the
 // AWS client's own config field.
-func (a *AWS) LoadConfig(l *core.ConfigLoader) error {
-	return l.UnmarshalKey("aws", &a.config)
+func (a *AWS) ReadConfig(l core.ConfigReader) error {
+	return l.Read("aws", &a.config)
 }
 
 // Init implements core.Initer, building the AWS SDK config from the loaded
