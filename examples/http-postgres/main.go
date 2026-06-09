@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/gormx"
+	"github.com/hatami57/microjet/gormx/postgres"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/httpx"
 )
@@ -27,7 +28,7 @@ type User struct {
 func main() {
 	app := host.MustNew()
 
-	app.WithPostgreSQL().
+	app.WithDatabase(postgres.Driver()).
 		Setup(func(a *host.App) error {
 			return a.DB().AutoMigrate(&User{})
 		}).

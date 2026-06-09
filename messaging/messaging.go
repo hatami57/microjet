@@ -8,8 +8,10 @@ import (
 
 // Handler processes a received message. The context is derived from the
 // subscription context and is cancelled when the subscription ends.
-type Handler func(ctx context.Context, msg *Message) error
-type RequestHandler func(ctx context.Context, req *Request) (*Response, error)
+type (
+	Handler        func(ctx context.Context, msg *Message) error
+	RequestHandler func(ctx context.Context, req *Request) (*Response, error)
+)
 
 // Publisher defines a generic interface for message publishing
 type Publisher interface {
@@ -39,6 +41,15 @@ type Responder interface {
 	QueueRespond(command string, queue string, handler RequestHandler) (Subscription, error)
 }
 
+// Subscription represents an active subscription that can be cancelled.
+type Subscription interface {
+	// Unsubscribe cancels the subscription
+	Unsubscribe() error
+
+	// Subject returns the subject of the subscription
+	Subject() string
+}
+
 // Client is the messaging abstraction used by the host. Publish and Subscribe
 // take a context for cancellation/deadlines, and messages carry headers so
 // metadata (correlation ids, trace context) survives across the broker.
@@ -52,13 +63,4 @@ type Client interface {
 	Connect() error
 	Disconnect() error
 	IsConnected() bool
-}
-
-// Subscription represents an active subscription that can be cancelled.
-type Subscription interface {
-	// Unsubscribe cancels the subscription
-	Unsubscribe() error
-
-	// Subject returns the subject of the subscription
-	Subject() string
 }

@@ -2,8 +2,6 @@ module github.com/hatami57/microjet/messaging
 
 go 1.26.2
 
-require github.com/nats-io/nats.go v1.52.0
-
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
@@ -19,10 +17,6 @@ require (
 )
 
 require (
-	github.com/hatami57/microjet/core v0.7.0
-	github.com/klauspost/compress v1.18.5 // indirect
-	github.com/nats-io/nkeys v0.4.15 // indirect
-	github.com/nats-io/nuid v1.0.1 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
+	github.com/hatami57/microjet/core v0.9.0
 	golang.org/x/sys v0.43.0 // indirect
 )

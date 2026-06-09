@@ -1,4 +1,4 @@
-package host
+package postgres
 
 import (
 	"context"
@@ -7,26 +7,24 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/driver/postgres"
+	"github.com/hatami57/microjet/gormx"
+	gormpg "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
 
-// WithPostgreSQL registers a database service that forces the PostgreSQL driver.
-// Config is loaded from [database] (default) or [database.<name>] at Init time.
-// Pass a name to register a named database; no args registers the default.
-func (a *App) WithPostgreSQL(name ...string) *App {
-	if a.err != nil {
-		return a
-	}
-	n := firstOrEmpty(name)
-	a.container.Store(dbKey(n), &databaseService{name: n, driver: "postgres", logger: a.Logger})
-	return a
-}
+type postgresDriver struct{}
 
-func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
-	cfg := &d.config
-	d.logger.Debug("connecting to postgresql",
+// Driver returns the built-in PostgreSQL driver (pgx). Connection settings are
+// read from the config section the host resolves (host, port, user, password,
+// name, sslMode):
+//
+//	app.WithDatabase(postgres.Driver())
+//	app.WithNamedDatabase("analytics", postgres.Driver())
+func Driver() gormx.Driver { return postgresDriver{} }
+
+func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
+	log.Debug("connecting to postgresql",
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db", cfg.Name,
@@ -36,8 +34,8 @@ func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger:               newGormLogger(d.logger),
+	db, err := gorm.Open(gormpg.Open(dsn), &gorm.Config{
+		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
 	})
 	if err != nil {
@@ -55,15 +53,10 @@ func newPostgreSQL(d *databaseService) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	d.logger.Info("connected to postgresql",
-		"host", cfg.Host,
-		"port", cfg.Port,
-		"db", cfg.Name,
-	)
+	log.Info("connected to postgresql", "host", cfg.Host, "port", cfg.Port, "db", cfg.Name)
 	return db, nil
 }
 
-// newGormLogger creates a GORM logger that routes SQL logs through the slog logger.
 func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	level := gormLogger.Info
 	ctx := context.Background()
@@ -73,7 +66,6 @@ func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	case !sl.Enabled(ctx, slog.LevelWarn):
 		level = gormLogger.Error
 	}
-
 	return gormLogger.New(
 		&slogWriter{logger: sl},
 		gormLogger.Config{
@@ -85,12 +77,8 @@ func newGormLogger(sl *slog.Logger) gormLogger.Interface {
 	)
 }
 
-// slogWriter adapts slog.Logger to the io.Writer / log.Logger interface expected by GORM.
-type slogWriter struct {
-	logger *slog.Logger
-}
+type slogWriter struct{ logger *slog.Logger }
 
 func (w *slogWriter) Printf(format string, args ...any) {
-	msg := strings.TrimRight(fmt.Sprintf(format, args...), "\n")
-	w.logger.Debug(msg)
+	w.logger.Debug(strings.TrimRight(fmt.Sprintf(format, args...), "\n"))
 }
