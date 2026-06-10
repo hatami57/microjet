@@ -283,6 +283,66 @@ func (t *Table[T]) BatchGet(ctx context.Context, keys []*T) ([]*T, error) {
 	return result, nil
 }
 
+// QueryGSIPage fetches one page of items from a GSI whose partition key attribute equals
+// pkValue. An optional skCond narrows results by the GSI sort key; pass nil to match all
+// items under the partition key. Pagination tokens are automatically decoded on input and
+// encoded on output.
+func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue string, skCond *SKCondition, pageSize int32, token *string) ([]*T, *string, error) {
+	var startKey map[string]dynamoTypes.AttributeValue
+	if token != nil {
+		decoded, err := base64.StdEncoding.DecodeString(*token)
+		if err != nil {
+			return nil, nil, core.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+		}
+		if err = json.Unmarshal(decoded, &startKey); err != nil {
+			return nil, nil, core.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+		}
+	}
+
+	keyEx := expression.Key(pkAttr).Equal(expression.Value(pkValue))
+	if skCond != nil {
+		keyEx = skCond.apply(keyEx)
+	}
+	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
+	if err != nil {
+		return nil, nil, core.ErrInternal.WithInner(err)
+	}
+
+	paginator := dynamodb.NewQueryPaginator(t.client, &dynamodb.QueryInput{
+		TableName:                 aws.String(t.tableName),
+		IndexName:                 aws.String(indexName),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		KeyConditionExpression:    expr.KeyCondition(),
+		ExclusiveStartKey:         startKey,
+		Limit:                     aws.Int32(pageSize),
+	})
+	output, err := paginator.NextPage(ctx)
+	if err != nil {
+		return nil, nil, core.ErrInternal.WithInner(err)
+	}
+
+	items := make([]*T, 0, len(output.Items))
+	for _, raw := range output.Items {
+		item, err := t.unmarshalItem(raw)
+		if err != nil {
+			return nil, nil, err
+		}
+		items = append(items, item)
+	}
+
+	var nextToken *string
+	if output.LastEvaluatedKey != nil {
+		encoded, err := json.Marshal(output.LastEvaluatedKey)
+		if err != nil {
+			return nil, nil, core.ErrInternal.WithInner(err)
+		}
+		s := base64.StdEncoding.EncodeToString(encoded)
+		nextToken = &s
+	}
+	return items, nextToken, nil
+}
+
 // QueryPage fetches one page of items whose PK matches the pk-tagged field of pkItem,
 // optionally filtered by an SK prefix. Pagination tokens are automatically decoded on
 // input and encoded on output.

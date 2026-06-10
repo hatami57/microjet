@@ -18,10 +18,16 @@ jobs:
           - utils
           - aws
           - messaging
+          - messaging/nats
           - gormx
+          - gormx/postgres
+          - gormx/sqlite
           - httpx
           - host
           - cache
+          - jsonx
+          - tenant
+          - versioninfo
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +35,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          cache-dependency-path: "**/go.sum"
 
       - name: Build
         working-directory: ${{ matrix.module }}
@@ -39,7 +45,7 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: go vet ./...
 
-      - name: Staticcheck
+      - name: Install staticcheck
         run: go install honnef.co/go/tools/cmd/staticcheck@latest
 
       - name: Run staticcheck

@@ -66,7 +66,7 @@ func (m moduleA) Register(*App) error { *m.order = append(*m.order, "A"); return
 func (m moduleB) Register(app *App) error {
 	*m.order = append(*m.order, "B")
 	// Both branches import the same shared module type; it must install once.
-	app.WithModule(moduleA{order: m.order})
+	app.WithModule(moduleA(m))
 	return nil
 }
 
@@ -123,7 +123,7 @@ func TestWithModulePropagatesError(t *testing.T) {
 // providerService provides another service from inside its own Init, exercising
 // the fixpoint drain in initServices: the dynamically added service must still
 // be initialized.
-type providerService struct{ app *App }
+type providerService struct{}
 
 func (s *providerService) Init(app *App) error {
 	ProvideService(app, &providedService{})

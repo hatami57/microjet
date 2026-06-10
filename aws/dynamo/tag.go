@@ -255,11 +255,18 @@ func applyTimestamps(v reflect.Value, meta *structMeta, isUpdate bool, now time.
 		if !field.CanSet() {
 			continue
 		}
+		var val reflect.Value
+		switch field.Interface().(type) {
+		case Timestamp:
+			val = reflect.ValueOf(Timestamp(now))
+		default:
+			val = reflect.ValueOf(now)
+		}
 		if fm.autoCreate && !isUpdate && field.IsZero() {
-			field.Set(reflect.ValueOf(now))
+			field.Set(val)
 		}
 		if fm.autoUpdate {
-			field.Set(reflect.ValueOf(now))
+			field.Set(val)
 		}
 	}
 }
