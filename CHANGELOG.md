@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-06-10
+
+### Added
+
+- **`jsonx` module** — new `github.com/hatami57/microjet/jsonx` module with JSON
+  helpers (previously in `utils`). `aws` and `types` depend on it via a local
+  `replace` directive.
+- **`host.App.Configure`** — variadic method that calls `ReadConfig` on each
+  `Configurable` using the app's shared config reader (replaces `App.LoadConfig`).
+
+### Changed
+
+- **BREAKING: `Configurable` interface** — `LoadConfig(*core.ConfigLoader) error`
+  renamed to `ReadConfig(core.ConfigReader) error`. `core.ConfigReader` is now an
+  interface (`SetDefault`, `Read`, `ReadMap`, `ReadAll`) instead of the concrete
+  `ConfigLoader` struct, so any code implementing `Configurable` must be updated.
+- **BREAKING: `core.ConfigReader.ReadAsMap` → `ReadMap`** — the map-read method
+  on the `ConfigReader` interface is renamed for brevity.
+- **BREAKING: `core.NewConfigLoader` → `core.NewViperConfigReader`** — the
+  constructor for the config reader has been renamed to match the new type name.
+- **BREAKING: `core.Configure`** — `ConfigLoader.Configure(cfgs...)` is now a
+  package-level function `core.Configure(envPrefix, cfgs...)` that creates its own
+  reader internally.
+- **BREAKING: `host.LoadConfig` → `host.ReadConfig`** — standalone config
+  convenience function renamed for consistency.
+- **BREAKING: `host.App.LoadConfig` → `host.App.Configure`** — fluent method
+  renamed; behavior is unchanged.
+- **BREAKING: `App.UseProvider` → `App.WithProvider`** — restored to the
+  `With*` naming convention (was briefly `UseProvider` in v0.10.0).
+- **BREAKING: `gormx.Table.Remove` → `Table.Delete`** — CRUD vocabulary
+  standardised; callers must rename any `Remove` call sites.
+- **BREAKING: `AsyncWorker.Go` → `AsyncWorker.Run`** — the background-goroutine
+  method is renamed; implement `Run(ctx, app)` instead of `Go(ctx, app)`.
+- **BREAKING: `PeriodicWorker.Go`/`GoInterval` → `Run`/`Interval`** — both
+  methods on the `PeriodicWorker` interface are renamed.
+- **BREAKING: `httpx.Find*` → `httpx.Get*`** — all param/query helpers
+  (`FindParam`, `FindUUIDParam`, `FindInt64Param`, `FindInt32Param`, `FindQuery`,
+  `FindUUIDQuery`, `FindInt64Query`, `FindTenantID`, `FindUserID`,
+  `FindTenantUserID`) are renamed to their `Get*` equivalents.
+- **BREAKING: `httpx.Server.LoadConfig` → `Server.ReadConfig`** — satisfies the
+  updated `core.Configurable` interface.
+- **`core.FixedClock.T` → `FixedClock.Time`** — field renamed for clarity; UTC
+  normalization in `NewFixedClock` is also fixed.
+- `core.LogConfig`, `core.LogOutputConfig`, and the service lifecycle interfaces
+  (`Initer`, `Starter`, `Closer`, `HealthChecker`) are relocated to dedicated
+  files (`logger.go`, `service.go`) with no behavioural change.
+
+### Removed
+
+- **`core.ConfigLoader`** (struct) — replaced by the `core.ConfigReader` interface
+  and `core.NewViperConfigReader`.
+- **`core.ConfigurableFunc`** — removed along with the concrete `ConfigLoader`.
+- **`core.NewViper`** — internalized; use `core.NewViperConfigReader` instead.
+- **`host.App.LoadConfig`** — replaced by `App.Configure`.
+- **`utils` JSON helpers** — moved to the new `jsonx` module.
+
 ## [0.10.0] - 2026-06-09
 
 ### Added
