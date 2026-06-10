@@ -61,7 +61,7 @@ func extractTenantID(c *gin.Context) string {
 	return c.GetHeader(TenantIDHeaderKey)
 }
 
-func FindTenantBase(c *gin.Context) *tenant.Base {
+func GetTenantBase(c *gin.Context) *tenant.Base {
 	v, exists := c.Get(TenantContextKey)
 	if !exists {
 		return nil
@@ -73,7 +73,7 @@ func FindTenantBase(c *gin.Context) *tenant.Base {
 	return t.AsBase()
 }
 
-func FindTenant[T any](c *gin.Context) *T {
+func GetTenant[T any](c *gin.Context) *T {
 	v, exists := c.Get(TenantContextKey)
 	if !exists {
 		return nil
@@ -82,7 +82,7 @@ func FindTenant[T any](c *gin.Context) *T {
 	return t
 }
 
-func FindTenantID(c *gin.Context) (uuid.UUID, error) {
+func GetTenantID(c *gin.Context) (uuid.UUID, error) {
 	value, exists := c.Get(TenantIDContextKey)
 	if !exists {
 		return uuid.Nil, core.ErrNotFound

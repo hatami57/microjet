@@ -18,43 +18,43 @@ func ctxWithURL(target string) *gin.Context {
 	return c
 }
 
-func TestFindQuery(t *testing.T) {
+func TestGetQuery(t *testing.T) {
 	c := ctxWithURL("/?name=alice")
-	got, err := FindQuery(c, "name")
+	got, err := GetQuery(c, "name")
 	if err != nil || got == nil || *got != "alice" {
-		t.Fatalf("FindQuery present = %v, %v", got, err)
+		t.Fatalf("GetQuery present = %v, %v", got, err)
 	}
-	if _, err := FindQuery(c, "missing"); err == nil {
+	if _, err := GetQuery(c, "missing"); err == nil {
 		t.Error("expected error for missing query param")
 	}
 }
 
-func TestFindInt64Query(t *testing.T) {
+func TestGetInt64Query(t *testing.T) {
 	c := ctxWithURL("/?n=42&bad=xyz")
-	if got, err := FindInt64Query(c, "n"); err != nil || got != 42 {
-		t.Errorf("FindInt64Query = %d, %v; want 42", got, err)
+	if got, err := GetInt64Query(c, "n"); err != nil || got != 42 {
+		t.Errorf("GetInt64Query = %d, %v; want 42", got, err)
 	}
-	if _, err := FindInt64Query(c, "bad"); err == nil {
+	if _, err := GetInt64Query(c, "bad"); err == nil {
 		t.Error("expected error for non-integer value")
 	}
 }
 
-func TestFindUUIDQuery(t *testing.T) {
+func TestGetUUIDQuery(t *testing.T) {
 	c := ctxWithURL("/?id=4c7f6f1e-9e0b-4d8a-9b2e-2d3a1c5e7f90&bad=nope")
-	if _, err := FindUUIDQuery(c, "id"); err != nil {
+	if _, err := GetUUIDQuery(c, "id"); err != nil {
 		t.Errorf("valid UUID returned error: %v", err)
 	}
-	if _, err := FindUUIDQuery(c, "bad"); err == nil {
+	if _, err := GetUUIDQuery(c, "bad"); err == nil {
 		t.Error("expected error for invalid UUID")
 	}
 }
 
-func TestFindBoolQuery(t *testing.T) {
+func TestGetBoolQuery(t *testing.T) {
 	c := ctxWithURL("/?ok=true&bad=maybe")
-	if got, err := FindBoolQuery(c, "ok"); err != nil || !got {
-		t.Errorf("FindBoolQuery = %v, %v; want true", got, err)
+	if got, err := GetBoolQuery(c, "ok"); err != nil || !got {
+		t.Errorf("GetBoolQuery = %v, %v; want true", got, err)
 	}
-	if _, err := FindBoolQuery(c, "bad"); err == nil {
+	if _, err := GetBoolQuery(c, "bad"); err == nil {
 		t.Error("expected error for invalid bool")
 	}
 }

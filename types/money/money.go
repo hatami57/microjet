@@ -3,7 +3,7 @@ package money
 import (
 	"errors"
 
-	"github.com/hatami57/microjet/utils"
+	"github.com/hatami57/microjet/jsonx"
 	"github.com/shopspring/decimal"
 )
 
@@ -19,14 +19,14 @@ type Money struct {
 var Zero = Money{Value: decimal.Zero, CurrencyCode: ""}
 
 func FromMap(m map[string]any) (*Money, error) {
-	return utils.MapTo[*Money](m)
+	return jsonx.MapTo[*Money](m)
 }
 
 func (m *Money) ToMap() map[string]any {
 	if m == nil {
 		return nil
 	}
-	mm, _ := utils.ToMap(m)
+	mm, _ := jsonx.ToMap(m)
 	return mm
 }
 

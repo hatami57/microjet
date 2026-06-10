@@ -12,18 +12,18 @@ import (
 )
 
 // AsyncWorker is implemented by DI-registered services that should run as a
-// background goroutine. Go is called in a goroutine and should block until
+// background goroutine. Run is called in a goroutine and should block until
 // ctx is cancelled.
 type AsyncWorker interface {
-	Go(ctx context.Context, app *App) error
+	Run(ctx context.Context, app *App) error
 }
 
 // PeriodicWorker is implemented by DI-registered services that should run on a
-// fixed interval. Go is called immediately on start, then again after each
-// GoInterval. The next call never starts until the previous one has returned.
+// fixed interval. Run is called immediately on start, then again after each
+// Interval. The next call never starts until the previous one has returned.
 type PeriodicWorker interface {
-	GoInterval() time.Duration
-	Go(ctx context.Context, app *App) error
+	Interval() time.Duration
+	Run(ctx context.Context, app *App) error
 }
 
 type worker struct {
@@ -85,10 +85,10 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 		switch w := item.(type) {
 		case PeriodicWorker:
 			seen[name] = true
-			diWorkers = append(diWorkers, worker{name: name, fn: w.Go, interval: w.GoInterval()})
+			diWorkers = append(diWorkers, worker{name: name, fn: w.Run, interval: w.Interval()})
 		case AsyncWorker:
 			seen[name] = true
-			diWorkers = append(diWorkers, worker{name: name, fn: w.Go})
+			diWorkers = append(diWorkers, worker{name: name, fn: w.Run})
 		}
 		return true
 	})

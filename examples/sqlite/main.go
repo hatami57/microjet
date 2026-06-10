@@ -53,7 +53,7 @@ func registerRoutes(a *host.App) {
 
 	// Fetch one: GET /notes/42
 	r.GET("/notes/:id", func(c *gin.Context) {
-		id, err := httpx.FindInt64Param(c, "id")
+		id, err := httpx.GetInt64Param(c, "id")
 		if err != nil {
 			c.Error(err)
 			return

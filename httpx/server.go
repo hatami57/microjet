@@ -122,9 +122,9 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	return s
 }
 
-// LoadConfig implements core.Configurable, reading the [server] section so the
+// ReadConfig implements core.Configurable, reading the [server] section so the
 // server owns its configuration independently of host.Config.
-func (s *Server) LoadConfig(l core.ConfigReader) error {
+func (s *Server) ReadConfig(l core.ConfigReader) error {
 	l.SetDefault("server.host", "localhost")
 	l.SetDefault("server.port", 8080)
 	return l.Read("server", &s.config)

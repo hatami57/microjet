@@ -99,6 +99,21 @@ func MustNew(opts ...Option) *App {
 	return a
 }
 
+// Configure calls ReadConfig on each Configurable using the app's shared config
+// reader, so the config file is only parsed once. Call this right after New()
+// to populate service-specific config structs before starting services.
+func (a *App) Configure(cfgs ...core.Configurable) *App {
+	if a.err != nil {
+		return a
+	}
+	for _, cfg := range cfgs {
+		if err := cfg.ReadConfig(a.configReader); err != nil {
+			return a.fail(err)
+		}
+	}
+	return a
+}
+
 // Err returns the first error recorded while building the App via the fluent
 // With*/Setup methods, or nil if the chain succeeded.
 func (a *App) Err() error { return a.err }

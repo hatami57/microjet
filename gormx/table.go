@@ -229,8 +229,8 @@ func (t *Table[TEntity]) UpdateMap(ctx context.Context, values map[string]any, w
 	return q.Updates(values).Error
 }
 
-// Remove deletes rows matching conditions. Accepts the same GORM condition formats as Find.
-func (t *Table[TEntity]) Remove(ctx context.Context, conditions ...any) error {
+// Delete removes rows matching conditions. Accepts the same GORM condition formats as Find.
+func (t *Table[TEntity]) Delete(ctx context.Context, conditions ...any) error {
 	return t.db(ctx).Delete(t.entity, conditions...).Error
 }
 

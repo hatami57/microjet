@@ -1,6 +1,6 @@
 package types
 
-import "github.com/hatami57/microjet/utils"
+import "github.com/hatami57/microjet/jsonx"
 
 type Message struct {
 	Type      string         `json:"type"`
@@ -14,5 +14,5 @@ type Message struct {
 }
 
 func (b *Message) ExtractBodyTo(v any) error {
-	return utils.AnyToStruct(b.Body, v)
+	return jsonx.AnyToStruct(b.Body, v)
 }

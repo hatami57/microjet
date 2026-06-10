@@ -5,7 +5,7 @@ package core
 type ConfigReader interface {
 	SetDefault(key string, value any)
 	Read(key string, dest any) error
-	ReadAsMap(key string) map[string]any
+	ReadMap(key string) map[string]any
 	ReadAll(dest any) error
 }
 

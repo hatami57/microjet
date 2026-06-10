@@ -35,9 +35,9 @@ func (r *viperConfigReader) Read(key string, dest any) error {
 	return r.v.UnmarshalKey(key, dest)
 }
 
-// ReadAsMap returns all keys and their values under a config key.
+// ReadMap returns all keys and their values under a config key.
 // Sub-tables appear as map[string]any values, scalars as their native types.
-func (r *viperConfigReader) ReadAsMap(key string) map[string]any {
+func (r *viperConfigReader) ReadMap(key string) map[string]any {
 	return r.v.GetStringMap(key)
 }
 

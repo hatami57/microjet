@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.26
 	github.com/google/uuid v1.6.0
 	github.com/hatami57/microjet/core v0.10.0
-	github.com/hatami57/microjet/utils v0.10.0
+	github.com/hatami57/microjet/jsonx v0.0.0-00010101000000-000000000000
 	golang.org/x/sync v0.20.0
 )
 
@@ -51,3 +51,5 @@ require (
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 )
+
+replace github.com/hatami57/microjet/jsonx => ../jsonx

@@ -11,6 +11,7 @@ use (
 	./examples/sqlite
 	./gormx
 	./gormx/postgres
+	./jsonx
 	./gormx/sqlite
 	./host
 	./httpx

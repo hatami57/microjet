@@ -25,27 +25,27 @@ func LoggerFrom(ctx context.Context) *slog.Logger {
 	return middleware.LoggerFromContext(ctx)
 }
 
-func FindTenantID(c *gin.Context) (uuid.UUID, error) {
-	return middleware.FindTenantID(c)
+func GetTenantID(c *gin.Context) (uuid.UUID, error) {
+	return middleware.GetTenantID(c)
 }
 
-func FindUserID(c *gin.Context) (uuid.UUID, error) {
-	return FindUUIDQuery(c, "UserId")
+func GetUserID(c *gin.Context) (uuid.UUID, error) {
+	return GetUUIDQuery(c, "UserId")
 }
 
-func FindTenantUserID(c *gin.Context) (uuid.UUID, uuid.UUID, error) {
-	tenantID, err := FindTenantID(c)
+func GetTenantUserID(c *gin.Context) (uuid.UUID, uuid.UUID, error) {
+	tenantID, err := GetTenantID(c)
 	if err != nil {
 		return uuid.Nil, uuid.Nil, err
 	}
-	userID, err := FindUserID(c)
+	userID, err := GetUserID(c)
 	if err != nil {
 		return uuid.Nil, uuid.Nil, err
 	}
 	return tenantID, userID, nil
 }
 
-func FindParam(c *gin.Context, key string) (string, error) {
+func GetParam(c *gin.Context, key string) (string, error) {
 	value := c.Param(key)
 	if value == "" {
 		return "", core.ErrNotFound.WithMessage(fmt.Sprintf("Param '%s' is not provided", key))
@@ -53,28 +53,28 @@ func FindParam(c *gin.Context, key string) (string, error) {
 	return value, nil
 }
 
-func FindUUIDParam(c *gin.Context, key string) (uuid.UUID, error) {
-	value, err := FindParam(c, key)
+func GetUUIDParam(c *gin.Context, key string) (uuid.UUID, error) {
+	value, err := GetParam(c, key)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	return parseUUID(value, key)
 }
 
-func FindInt64Param(c *gin.Context, key string) (int64, error) {
-	value, err := FindParam(c, key)
+func GetInt64Param(c *gin.Context, key string) (int64, error) {
+	value, err := GetParam(c, key)
 	if err != nil {
 		return 0, err
 	}
 	return parseInt64(value, key)
 }
 
-func FindInt32Param(c *gin.Context, key string) (int32, error) {
-	v, err := FindInt64Param(c, key)
+func GetInt32Param(c *gin.Context, key string) (int32, error) {
+	v, err := GetInt64Param(c, key)
 	return int32(v), err
 }
 
-func FindQuery(c *gin.Context, key string) (*string, error) {
+func GetQuery(c *gin.Context, key string) (*string, error) {
 	value, ok := c.GetQuery(key)
 	if !ok {
 		return nil, core.ErrNotFound.WithMessage(fmt.Sprintf("Query param '%s' is not provided", key))
@@ -82,29 +82,29 @@ func FindQuery(c *gin.Context, key string) (*string, error) {
 	return &value, nil
 }
 
-func FindUUIDQuery(c *gin.Context, key string) (uuid.UUID, error) {
-	value, err := FindQuery(c, key)
+func GetUUIDQuery(c *gin.Context, key string) (uuid.UUID, error) {
+	value, err := GetQuery(c, key)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	return parseUUID(*value, key)
 }
 
-func FindInt64Query(c *gin.Context, key string) (int64, error) {
-	value, err := FindQuery(c, key)
+func GetInt64Query(c *gin.Context, key string) (int64, error) {
+	value, err := GetQuery(c, key)
 	if err != nil {
 		return 0, err
 	}
 	return parseInt64(*value, key)
 }
 
-func FindInt32Query(c *gin.Context, key string) (int32, error) {
-	v, err := FindInt64Query(c, key)
+func GetInt32Query(c *gin.Context, key string) (int32, error) {
+	v, err := GetInt64Query(c, key)
 	return int32(v), err
 }
 
-func FindBoolQuery(c *gin.Context, key string) (bool, error) {
-	value, err := FindQuery(c, key)
+func GetBoolQuery(c *gin.Context, key string) (bool, error) {
+	value, err := GetQuery(c, key)
 	if err != nil {
 		return false, err
 	}
@@ -135,7 +135,7 @@ func PagedRequest(c *gin.Context) *types.PagedResultRequest {
 	if err != nil {
 		pageSize = 10
 	}
-	nextToken, _ := FindQuery(c, "nextPageToken")
+	nextToken, _ := GetQuery(c, "nextPageToken")
 	return &types.PagedResultRequest{
 		PageSize:      int32(pageSize),
 		NextPageToken: nextToken,

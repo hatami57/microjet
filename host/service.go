@@ -66,7 +66,7 @@ func (a *App) ProvideServices(items ...*ProvidedItem[reflect.Type, any]) *App {
 	return a
 }
 
-func (a *App) UseProvider(fn HandlerFunc) *App {
+func (a *App) WithProvider(fn HandlerFunc) *App {
 	if a.err != nil {
 		return a
 	}

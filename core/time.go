@@ -40,23 +40,22 @@ var (
 // tests. It is not safe for concurrent mutation; set the time before use.
 type FixedClock struct {
 	*Clock
-	T time.Time
+	Time time.Time
 }
 
 func NewFixedClock(t time.Time) *FixedClock {
 	clock := &FixedClock{
-		T: t,
+		Time: t.UTC(),
 	}
-
-	clock.Clock = NewClock(func() time.Time { return clock.T })
+	clock.Clock = NewClock(func() time.Time { return clock.Time })
 	return clock
 }
 
 // Set replaces the time the clock reports.
-func (c *FixedClock) Set(t time.Time) { c.T = t.UTC() }
+func (c *FixedClock) Set(t time.Time) { c.Time = t.UTC() }
 
 // Advance moves the clock forward by d.
-func (c *FixedClock) Advance(d time.Duration) { c.T = c.T.Add(d) }
+func (c *FixedClock) Advance(d time.Duration) { c.Time = c.Time.Add(d) }
 
 // TimeToSortableMS formats t as a 17-digit lexicographically sortable string
 // with millisecond precision: YYYYMMDDHHMMSSmmm. Go only recognizes fractional

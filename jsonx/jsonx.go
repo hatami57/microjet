@@ -1,6 +1,18 @@
-package utils
+package jsonx
 
 import jsoniter "github.com/json-iterator/go"
+
+func ToJSON[T any](data T) (string, error) {
+	bytes, err := jsoniter.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func FromJSON[T any](jsonStr string, target T) error {
+	return jsoniter.Unmarshal([]byte(jsonStr), &target)
+}
 
 func ToMap[T any](t T) (map[string]any, error) {
 	data, err := jsoniter.Marshal(t)

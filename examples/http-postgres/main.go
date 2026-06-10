@@ -55,7 +55,7 @@ func registerRoutes(a *host.App, users *gormx.Table[User]) {
 
 	// Fetch one: GET /users/42
 	r.GET("/users/:id", func(c *gin.Context) {
-		id, err := httpx.FindInt64Param(c, "id")
+		id, err := httpx.GetInt64Param(c, "id")
 		if err != nil {
 			c.Error(err)
 			return
