@@ -37,6 +37,7 @@ import "github.com/hatami57/microjet/host"
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
 | `cache` | `github.com/hatami57/microjet/cache` | Cache interface with Redis and in-memory implementations |
 | `otelx` | `github.com/hatami57/microjet/otelx` | OpenTelemetry tracing setup (OTLP exporter, W3C propagation) |
+| `gormx/migrate` | `github.com/hatami57/microjet/gormx/migrate` | Opt-in versioned SQL migrations (goose wrapper) |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
 | `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
 | `types/money` | `github.com/hatami57/microjet/types/money` | Currency-aware decimal money |

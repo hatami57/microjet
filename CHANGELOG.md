@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`gormx/migrate` module** — new opt-in
+  `github.com/hatami57/microjet/gormx/migrate` module wrapping goose for
+  versioned SQL migrations. Derives the goose dialect from the gorm driver
+  (Postgres/SQLite/MySQL), reads embedded migration files, and exposes
+  `Up`/`Down`/`Version` plus a one-call `migrate.Up` for use from a host Setup
+  handler. The core framework gains no migration-tool dependency.
 - **`otelx` module** — new `github.com/hatami57/microjet/otelx` module providing
   OpenTelemetry tracing setup: OTLP/HTTP exporter, W3C trace-context + baggage
   propagation, ratio-based sampling, and lifecycle management (flush on

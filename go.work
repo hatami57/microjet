@@ -10,11 +10,12 @@ use (
 	./examples/modules
 	./examples/sqlite
 	./gormx
+	./gormx/migrate
 	./gormx/postgres
-	./jsonx
 	./gormx/sqlite
 	./host
 	./httpx
+	./jsonx
 	./messaging
 	./messaging/nats
 	./otelx
