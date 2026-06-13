@@ -7,7 +7,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var ErrDifferentCurrency = errors.New("different currency")
+var (
+	ErrDifferentCurrency = errors.New("different currency")
+	ErrInvalidAmount     = errors.New("invalid amount")
+)
 
 type CurrencyCode string
 
@@ -17,6 +20,26 @@ type Money struct {
 }
 
 var Zero = Money{Value: decimal.Zero, CurrencyCode: ""}
+
+func New(value decimal.Decimal, currency CurrencyCode) Money {
+	return Money{Value: value, CurrencyCode: currency}
+}
+
+func NewFromFloat(value float64, currency CurrencyCode) Money {
+	return Money{Value: decimal.NewFromFloat(value), CurrencyCode: currency}
+}
+
+func NewFromInt(value int64, currency CurrencyCode) Money {
+	return Money{Value: decimal.NewFromInt(value), CurrencyCode: currency}
+}
+
+func NewFromString(value string, currency CurrencyCode) (Money, error) {
+	d, err := decimal.NewFromString(value)
+	if err != nil {
+		return Zero, errors.Join(ErrInvalidAmount, err)
+	}
+	return Money{Value: d, CurrencyCode: currency}, nil
+}
 
 func FromMap(m map[string]any) (*Money, error) {
 	return jsonx.MapTo[*Money](m)

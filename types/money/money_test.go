@@ -8,7 +8,30 @@ import (
 )
 
 func usd(v float64) Money {
-	return Money{Value: decimal.NewFromFloat(v), CurrencyCode: "USD"}
+	return NewFromFloat(v, "USD")
+}
+
+func TestNewConstructors(t *testing.T) {
+	want := decimal.NewFromFloat(10.50)
+
+	if got := New(want, "USD"); !got.Value.Equal(want) || got.CurrencyCode != "USD" {
+		t.Errorf("New = %+v", got)
+	}
+	if got := NewFromFloat(10.50, "USD"); !got.Value.Equal(want) || got.CurrencyCode != "USD" {
+		t.Errorf("NewFromFloat = %+v", got)
+	}
+	if got := NewFromInt(10, "USD"); !got.Value.Equal(decimal.NewFromInt(10)) || got.CurrencyCode != "USD" {
+		t.Errorf("NewFromInt = %+v", got)
+	}
+
+	got, err := NewFromString("10.50", "USD")
+	if err != nil || !got.Value.Equal(want) || got.CurrencyCode != "USD" {
+		t.Errorf("NewFromString = %+v, err = %v", got, err)
+	}
+
+	if _, err := NewFromString("not-a-number", "USD"); !errors.Is(err, ErrInvalidAmount) {
+		t.Errorf("NewFromString bad input err = %v, want ErrInvalidAmount", err)
+	}
 }
 
 func TestAddSameCurrency(t *testing.T) {
