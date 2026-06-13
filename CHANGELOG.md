@@ -59,6 +59,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   error middleware. Field names use the json tag (`httpx.UseJSONFieldNames`), and
   `httpx.ValidationError` exposes the translation for manual binders.
 
+- **HTTP client circuit breaker** — `httpx.WithCircuitBreaker(threshold,
+  cooldown)` adds a per-client breaker that opens after consecutive server-side
+  failures (transport errors and 5xx; 4xx does not count), fails fast with a
+  "circuit breaker open" error while open, and admits a single trial request
+  after the cooldown. Complements `WithRetry`.
 - **Idempotency middleware** — `middleware.Idempotency` stores the response to a
   non-safe request keyed by an `Idempotency-Key` header and replays it for
   retries (marking them with the `Idempotent-Replayed` header), so a retried

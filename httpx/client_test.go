@@ -175,3 +175,56 @@ func TestClientInjectsTraceContext(t *testing.T) {
 		t.Errorf("traceparent = %q, want %q", traceparent, want)
 	}
 }
+
+func TestClientCircuitBreakerFailsFast(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithCircuitBreaker(3, time.Minute))
+
+	// Three 5xx responses trip the breaker open.
+	for i := range 3 {
+		if err := c.GetJSON(context.Background(), "/", nil); err == nil {
+			t.Fatalf("request %d: expected an error", i)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 3 {
+		t.Fatalf("upstream hits = %d, want 3 before tripping", got)
+	}
+
+	// Further requests fail fast without reaching the upstream.
+	err := c.GetJSON(context.Background(), "/", nil)
+	if err == nil {
+		t.Fatal("expected fail-fast error while breaker is open")
+	}
+	if !core.IsInternalError(err) {
+		t.Errorf("error = %v, want internal", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 3 {
+		t.Errorf("upstream hits = %d, want still 3 (breaker open)", got)
+	}
+}
+
+func TestClientCircuitBreakerIgnoresClientErrors(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithCircuitBreaker(3, time.Minute))
+	// 4xx must not trip the breaker: every request should reach the upstream.
+	for i := range 5 {
+		if err := c.GetJSON(context.Background(), "/", nil); err == nil {
+			t.Fatalf("request %d: expected a 400 error", i)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 5 {
+		t.Errorf("upstream hits = %d, want 5 (4xx never trips breaker)", got)
+	}
+}

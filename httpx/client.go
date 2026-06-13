@@ -40,6 +40,7 @@ type Client struct {
 	http    *http.Client
 	headers map[string]string
 	retry   retryPolicy
+	breaker *circuitBreaker
 }
 
 // retryPolicy controls automatic retries. With max == 0 (the default) a request
@@ -88,6 +89,17 @@ func WithRetry(maxRetries int, baseBackoff time.Duration) ClientOption {
 			c.retry.base = baseBackoff
 		}
 	}
+}
+
+// WithCircuitBreaker enables a per-client circuit breaker: after threshold
+// consecutive server-side failures (transport errors and 5xx; a 4xx does not
+// count) requests fail fast with a "circuit breaker open" error for cooldown,
+// after which one trial request probes recovery. Pass 0 for either argument to
+// use the defaults (DefaultBreakerThreshold, DefaultBreakerCooldown). It pairs
+// well with WithRetry: retries smooth over blips, the breaker sheds load when an
+// upstream is genuinely down.
+func WithCircuitBreaker(threshold int, cooldown time.Duration) ClientOption {
+	return func(c *Client) { c.breaker = newCircuitBreaker(threshold, cooldown) }
 }
 
 // WithRetryableMethods overrides which HTTP methods are eligible for retry.
@@ -167,20 +179,38 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any, opt
 	}
 	url := c.url(path)
 
-	var lastErr error
+	// Fail fast when the breaker is open, before touching the network.
+	if c.breaker != nil && !c.breaker.allow() {
+		return core.NewInternalError("http", "upstream circuit breaker is open").WithParams("url", url)
+	}
+
+	status, err := c.attempt(ctx, method, url, bodyBytes, body != nil, out, opts...)
+	if c.breaker != nil {
+		c.breaker.record(!serverFailed(status, err))
+	}
+	return err
+}
+
+// attempt runs the request with the configured retry policy and returns the
+// final attempt's status (0 on a transport failure) and error.
+func (c *Client) attempt(ctx context.Context, method, url string, bodyBytes []byte, hasBody bool, out any, opts ...RequestOption) (int, error) {
+	var (
+		lastErr    error
+		lastStatus int
+	)
 	for attempt := 0; ; attempt++ {
 		if attempt > 0 {
 			if err := sleepCtx(ctx, c.backoff(attempt)); err != nil {
-				return lastErr // ctx cancelled while waiting; surface the failure that triggered the retry
+				return lastStatus, lastErr // ctx cancelled while waiting; surface the failure that triggered the retry
 			}
 		}
-		status, err := c.doOnce(ctx, method, url, bodyBytes, body != nil, out, opts...)
+		status, err := c.doOnce(ctx, method, url, bodyBytes, hasBody, out, opts...)
 		if err == nil {
-			return nil
+			return status, nil
 		}
-		lastErr = err
+		lastErr, lastStatus = err, status
 		if attempt >= c.retry.max || !c.shouldRetry(method, status) {
-			return err
+			return status, err
 		}
 	}
 }
