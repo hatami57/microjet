@@ -29,6 +29,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   broker headers; the NATS client wraps publish/request/receive/respond in
   producer/client/consumer/server spans and hands handlers a context carrying
   the remote trace and correlation id.
+- **`host.App.WithSubscriber`** — registers a message subscription tied to the
+  app lifecycle: it subscribes once the broker is connected and the app starts,
+  and unsubscribes on shutdown. `host.WithQueueGroup` joins a queue group to
+  load-balance a subject across replicas. Multiple subscribers share one
+  lifecycle-managed consumer.
+- **Typed message handlers** — `messaging.HandleJSON[T]` and
+  `messaging.HandleEnvelope[T]` adapt typed handlers (`func(ctx, T) error`) into
+  raw `messaging.Handler`s, JSON-decoding the payload (or a `types.Message`
+  envelope) and returning a BadRequest `*core.Error` on decode failure.
+  `messaging.NewJSONMessage` builds a `Message` from a typed payload for
+  publishing.
 
 ### Fixed
 
