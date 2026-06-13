@@ -19,6 +19,7 @@ use (
 	./messaging
 	./messaging/nats
 	./otelx
+	./outbox
 	./tenant
 	./types
 	./utils

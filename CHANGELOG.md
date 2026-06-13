@@ -8,6 +8,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`outbox` module** — new `github.com/hatami57/microjet/outbox` module
+  implementing the transactional outbox pattern. `outbox.Enqueue` /
+  `EnqueueJSON` record a broker message in the same gorm transaction as a domain
+  write; `outbox.Relay` (and `host.WithOutbox`) publish pending rows to a
+  `messaging.Publisher` with at-least-once delivery, recording per-message
+  attempts/errors on failure. `host.WithOutbox` migrates the table and runs the
+  relay as a periodic worker.
 - **`gormx/migrate` module** — new opt-in
   `github.com/hatami57/microjet/gormx/migrate` module wrapping goose for
   versioned SQL migrations. Derives the goose dialect from the gorm driver

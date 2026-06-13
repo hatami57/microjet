@@ -51,7 +51,7 @@ func TestUpAppliesAllMigrations(t *testing.T) {
 func TestUpIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	db := openSQLite(t)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if err := Up(ctx, db, migrationsFS, WithDir("testdata/migrations")); err != nil {
 			t.Fatalf("Up pass %d: %v", i, err)
 		}

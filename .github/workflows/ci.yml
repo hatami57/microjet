@@ -28,6 +28,7 @@ jobs:
           - cache
           - jsonx
           - otelx
+          - outbox
           - tenant
           - versioninfo
     steps:

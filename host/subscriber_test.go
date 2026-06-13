@@ -16,6 +16,7 @@ type fakeBroker struct {
 	handlers     map[string]messaging.Handler
 	queues       map[string]string
 	unsubscribed []string
+	published    []messaging.Message
 }
 
 func newFakeBroker() *fakeBroker {
@@ -62,8 +63,14 @@ func (b *fakeBroker) deliver(t *testing.T, subject string, data []byte) {
 	}
 }
 
+func (b *fakeBroker) Publish(_ context.Context, msg messaging.Message) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.published = append(b.published, msg)
+	return nil
+}
+
 // Unused interface methods.
-func (b *fakeBroker) Publish(context.Context, messaging.Message) error { return nil }
 func (b *fakeBroker) Request(context.Context, messaging.Request) (*messaging.Response, error) {
 	return nil, nil
 }

@@ -1,4 +1,4 @@
-MODULES := core types utils aws messaging messaging/nats gormx gormx/migrate gormx/postgres gormx/sqlite httpx host cache jsonx otelx tenant versioninfo
+MODULES := core types utils aws messaging messaging/nats gormx gormx/migrate gormx/postgres gormx/sqlite httpx host cache jsonx otelx outbox tenant versioninfo
 
 .PHONY: build vet test fmt tidy lint staticcheck $(MODULES)
 

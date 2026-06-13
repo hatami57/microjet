@@ -85,6 +85,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hatami57/microjet/otelx v0.0.0-00010101000000-000000000000
+	github.com/hatami57/microjet/outbox v0.11.0
 	github.com/hatami57/microjet/tenant v0.11.0 // indirect
 	github.com/hatami57/microjet/types v0.11.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -139,3 +140,5 @@ require (
 )
 
 replace github.com/hatami57/microjet/otelx => ../otelx
+
+replace github.com/hatami57/microjet/outbox => ../outbox
