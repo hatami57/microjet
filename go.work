@@ -17,6 +17,7 @@ use (
 	./httpx
 	./messaging
 	./messaging/nats
+	./otelx
 	./tenant
 	./types
 	./utils

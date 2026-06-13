@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`otelx` module** — new `github.com/hatami57/microjet/otelx` module providing
+  OpenTelemetry tracing setup: OTLP/HTTP exporter, W3C trace-context + baggage
+  propagation, ratio-based sampling, and lifecycle management (flush on
+  shutdown). Configured from the `[tracing]` section; service name/version
+  default to the `[app]` section.
+- **`host.App.WithTracing`** — registers the otelx service so the whole stack
+  traces automatically.
+- **HTTP server tracing** — new `middleware.Tracing` (installed by default)
+  starts a server span per request, continues incoming `traceparent` headers,
+  and names spans by route pattern. The request logger now also carries
+  `trace_id` alongside `request_id`.
+- **HTTP client tracing** — `httpx.Client` starts a client span per attempt and
+  injects the W3C trace context into outbound requests.
+- **GORM tracing** — `gormx.UseTracing(db)` registers span callbacks for all
+  operations (applied automatically to driver-opened connections); spans record
+  the table, SQL template (placeholders only), and errors.
+- **NATS tracing & propagation** — `messaging.InjectContext` /
+  `messaging.ExtractContext` carry the trace context and correlation id through
+  broker headers; the NATS client wraps publish/request/receive/respond in
+  producer/client/consumer/server spans and hands handlers a context carrying
+  the remote trace and correlation id.
+
+### Fixed
+
+- **`types`/`aws` jsonx dependency** — both modules now require the published
+  `jsonx v0.11.0` instead of a placeholder pseudo-version with a `replace`
+  directive, so downstream `go mod tidy` resolves cleanly outside this repo.
+
 ## [0.11.0] - 2026-06-10
 
 ### Added

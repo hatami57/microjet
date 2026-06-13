@@ -10,7 +10,23 @@ import (
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/messaging"
 	"github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// tracerName identifies this instrumentation in exported spans. Spans are
+// no-ops until a global tracer provider is installed (e.g. via otelx).
+const tracerName = "github.com/hatami57/microjet/messaging/nats"
+
+// spanAttrs returns the standard messaging attributes for a span on subject.
+func spanAttrs(subject string) trace.SpanStartOption {
+	return trace.WithAttributes(
+		attribute.String("messaging.system", "nats"),
+		attribute.String("messaging.destination.name", subject),
+	)
+}
 
 var (
 	_ messaging.Client  = (*Client)(nil)
@@ -115,16 +131,27 @@ func (c *Client) Healthy(_ context.Context) error {
 	return nil
 }
 
-// Publish sends a message to the subject carried on msg.
+// Publish sends a message to the subject carried on msg. The trace context and
+// correlation id carried by ctx are injected into the message headers so
+// consumers continue the trace.
 func (c *Client) Publish(ctx context.Context, msg messaging.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return c.conn.PublishMsg(&nats.Msg{
+	ctx, span := otel.Tracer(tracerName).Start(ctx, msg.Subject+" publish",
+		trace.WithSpanKind(trace.SpanKindProducer), spanAttrs(msg.Subject))
+	defer span.End()
+	msg.Headers = messaging.InjectContext(ctx, msg.Headers)
+
+	err := c.conn.PublishMsg(&nats.Msg{
 		Subject: msg.Subject,
 		Data:    msg.Data,
 		Header:  toNATSHeader(msg.Headers),
 	})
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 // Subscribe registers handler for messages on subject. The handler is invoked
@@ -148,14 +175,21 @@ func (c *Client) QueueSubscribe(ctx context.Context, subject, queue string, hand
 }
 
 // Request sends req and waits for a single reply, honouring ctx for
-// cancellation and deadlines.
+// cancellation and deadlines. The trace context and correlation id carried by
+// ctx are injected into the request headers so the responder continues the trace.
 func (c *Client) Request(ctx context.Context, req messaging.Request) (*messaging.Response, error) {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, req.Subject+" request",
+		trace.WithSpanKind(trace.SpanKindClient), spanAttrs(req.Subject))
+	defer span.End()
+	req.Headers = messaging.InjectContext(ctx, req.Headers)
+
 	reply, err := c.conn.RequestMsgWithContext(ctx, &nats.Msg{
 		Subject: req.Subject,
 		Data:    req.Data,
 		Header:  toNATSHeader(req.Headers),
 	})
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		// Normalise NATS' timeout/no-responder errors into the transport-agnostic
 		// sentinel so callers can detect them without importing nats.
 		if errors.Is(err, nats.ErrTimeout) || errors.Is(err, nats.ErrNoResponders) {
@@ -192,7 +226,9 @@ func (c *Client) QueueRespond(command, queue string, handler messaging.RequestHa
 }
 
 // messageCallback adapts a messaging.Handler to a nats.MsgHandler, propagating
-// ctx and logging handler errors (NATS has no delivery channel for them).
+// ctx and logging handler errors (NATS has no delivery channel for them). The
+// handler context carries the trace context and correlation id extracted from
+// the message headers, wrapped in a consumer span.
 func (c *Client) messageCallback(ctx context.Context, handler messaging.Handler) nats.MsgHandler {
 	return func(m *nats.Msg) {
 		msg := &messaging.Message{
@@ -200,14 +236,22 @@ func (c *Client) messageCallback(ctx context.Context, handler messaging.Handler)
 			Data:    m.Data,
 			Headers: fromNATSHeader(m.Header),
 		}
-		if err := handler(ctx, msg); err != nil {
+		hctx := messaging.ExtractContext(ctx, msg.Headers)
+		hctx, span := otel.Tracer(tracerName).Start(hctx, m.Subject+" receive",
+			trace.WithSpanKind(trace.SpanKindConsumer), spanAttrs(m.Subject))
+		defer span.End()
+		if err := handler(hctx, msg); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			c.logger.Error("message handler failed", "subject", m.Subject, "error", err)
 		}
 	}
 }
 
 // requestCallback adapts a messaging.RequestHandler to a nats.MsgHandler,
-// publishing the handler's response to the request's reply subject.
+// publishing the handler's response to the request's reply subject. The handler
+// context carries the trace context and correlation id extracted from the
+// request headers, wrapped in a server span.
 func (c *Client) requestCallback(handler messaging.RequestHandler) nats.MsgHandler {
 	return func(m *nats.Msg) {
 		req := &messaging.Request{
@@ -215,8 +259,14 @@ func (c *Client) requestCallback(handler messaging.RequestHandler) nats.MsgHandl
 			Data:    m.Data,
 			Headers: fromNATSHeader(m.Header),
 		}
-		resp, err := handler(context.Background(), req)
+		hctx := messaging.ExtractContext(context.Background(), req.Headers)
+		hctx, span := otel.Tracer(tracerName).Start(hctx, m.Subject+" respond",
+			trace.WithSpanKind(trace.SpanKindServer), spanAttrs(m.Subject))
+		defer span.End()
+		resp, err := handler(hctx, req)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			c.logger.Error("request handler failed", "subject", m.Subject, "error", err)
 			return
 		}

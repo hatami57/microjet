@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func Logger(logger *slog.Logger) gin.HandlerFunc {
@@ -17,6 +18,11 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 		reqLogger := logger
 		if id := RequestIDFromContext(c.Request.Context()); id != "" {
 			reqLogger = logger.With("request_id", id)
+		}
+		// Tag logs with the trace id (set by the Tracing middleware, if a tracer
+		// provider is installed) so log lines join up with exported spans.
+		if sc := trace.SpanContextFromContext(c.Request.Context()); sc.HasTraceID() {
+			reqLogger = reqLogger.With("trace_id", sc.TraceID().String())
 		}
 		c.Request = c.Request.WithContext(ContextWithLogger(c.Request.Context(), reqLogger))
 

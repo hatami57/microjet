@@ -26,6 +26,7 @@ jobs:
           - host
           - cache
           - jsonx
+          - otelx
           - tenant
           - versioninfo
     steps:

@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestClientPostJSON(t *testing.T) {
@@ -142,5 +145,33 @@ func TestClientAbsolutePath(t *testing.T) {
 	c := NewClient("")
 	if err := c.GetJSON(context.Background(), srv.URL+"/abs", nil); err != nil {
 		t.Fatalf("GetJSON absolute: %v", err)
+	}
+}
+
+func TestClientInjectsTraceContext(t *testing.T) {
+	prev := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	defer otel.SetTextMapPropagator(prev)
+
+	var traceparent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		traceparent = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10},
+		SpanID:     trace.SpanID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+		TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+
+	if err := NewClient(srv.URL).GetJSON(ctx, "/", nil); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+	want := "00-0102030405060708090a0b0c0d0e0f10-0102030405060708-01"
+	if traceparent != want {
+		t.Errorf("traceparent = %q, want %q", traceparent, want)
 	}
 }

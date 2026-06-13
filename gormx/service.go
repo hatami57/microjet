@@ -76,6 +76,12 @@ func (s *Service) Init() error {
 	if err != nil {
 		return err
 	}
+	// Tracing callbacks are no-ops without a tracer provider (see otelx), so
+	// every driver-opened connection is instrumented unconditionally. Injected
+	// connections (NewServiceFromDB) are left untouched — their owner decides.
+	if err := UseTracing(db); err != nil {
+		return err
+	}
 	s.db = db
 	return nil
 }

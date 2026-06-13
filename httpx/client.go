@@ -13,7 +13,15 @@ import (
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/httpx/middleware"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// tracerName identifies the client instrumentation in exported spans.
+const tracerName = "github.com/hatami57/microjet/httpx"
 
 // DefaultClientTimeout bounds every request made by a Client that was not given
 // its own *http.Client, so a hung upstream cannot block a caller forever.
@@ -179,16 +187,38 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any, opt
 
 // doOnce performs a single attempt and returns the response status code (0 for a
 // transport-level failure) together with any error.
-func (c *Client) doOnce(ctx context.Context, method, url string, bodyBytes []byte, hasBody bool, out any, opts ...RequestOption) (int, error) {
+func (c *Client) doOnce(ctx context.Context, method, url string, bodyBytes []byte, hasBody bool, out any, opts ...RequestOption) (status int, err error) {
 	var reader io.Reader
 	if hasBody {
 		reader = bytes.NewReader(bodyBytes)
 	}
 
+	// One client span per attempt, so retries are visible as separate spans. A
+	// no-op without a global tracer provider (see the otelx module).
+	ctx, span := otel.Tracer(tracerName).Start(ctx, method,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.HTTPRequestMethodKey.String(method),
+			semconv.URLFull(url),
+		),
+	)
+	defer func() {
+		if status != 0 {
+			span.SetAttributes(semconv.HTTPResponseStatusCode(status))
+		}
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return 0, core.NewInternalError("http", "building request failed").WithInner(err)
 	}
+	// Carry the trace across the wire (W3C traceparent; a no-op until otelx
+	// installs the global propagator).
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	req.Header.Set("Accept", "application/json")
 	if hasBody {
 		req.Header.Set("Content-Type", "application/json")

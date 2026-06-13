@@ -20,6 +20,7 @@ import "github.com/hatami57/microjet/host"
 - **SQL / GORM** — `WithDatabase(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading. `WithNamedDatabase` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain.
+- **Distributed Tracing** — Opt-in OpenTelemetry via `WithTracing()`: the `otelx` module installs an OTLP exporter and the W3C propagator, and the instrumented layers — HTTP server and client, GORM, NATS — emit and propagate spans automatically (no-ops while tracing is off). Request logs carry `trace_id` for log/trace correlation.
 - **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation, plus integer minor-unit conversion (`FromMinorUnits`/`MinorUnits`) with a zero/two/three-decimal currency registry.
 - **Time Utilities** — `TimeProvider` interface for testability, sortable timestamp formats.
 - **Type Converters** — Generic JSON, struct-to-map, and pointer coalescing utilities.
@@ -35,6 +36,7 @@ import "github.com/hatami57/microjet/host"
 | `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
 | `cache` | `github.com/hatami57/microjet/cache` | Cache interface with Redis and in-memory implementations |
+| `otelx` | `github.com/hatami57/microjet/otelx` | OpenTelemetry tracing setup (OTLP exporter, W3C propagation) |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
 | `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
 | `types/money` | `github.com/hatami57/microjet/types/money` | Currency-aware decimal money |
