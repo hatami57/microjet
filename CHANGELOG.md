@@ -59,6 +59,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   error middleware. Field names use the json tag (`httpx.UseJSONFieldNames`), and
   `httpx.ValidationError` exposes the translation for manual binders.
 
+- **Idempotency middleware** — `middleware.Idempotency` stores the response to a
+  non-safe request keyed by an `Idempotency-Key` header and replays it for
+  retries (marking them with the `Idempotent-Replayed` header), so a retried
+  request does not execute twice. Keys are scoped by method + route; only
+  responses with status < 500 are stored. Backed by a minimal `IdempotencyStore`
+  (Get/Set) interface that `cache.Cache` satisfies directly.
+
 ### Fixed
 
 - **`types`/`aws` jsonx dependency** — both modules now require the published
