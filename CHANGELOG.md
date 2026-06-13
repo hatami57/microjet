@@ -40,6 +40,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   envelope) and returning a BadRequest `*core.Error` on decode failure.
   `messaging.NewJSONMessage` builds a `Message` from a typed payload for
   publishing.
+- **Request validation** — `httpx.Body[T]` now turns `binding`/`validate` tag
+  failures into a BadRequest `*core.Error` carrying a per-field breakdown (field
+  name → reason) under the `fields` param, rendered in the 400 response by the
+  error middleware. Field names use the json tag (`httpx.UseJSONFieldNames`), and
+  `httpx.ValidationError` exposes the translation for manual binders.
 
 ### Fixed
 
