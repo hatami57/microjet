@@ -82,6 +82,24 @@ Not done (was lower-priority, not selected): **DB migration guidance
 
 ---
 
+## Phase 4 — DONE ✅
+
+- ✅ OpenTelemetry distributed tracing: new `otelx` module (OTLP/HTTP exporter,
+  W3C propagation, ratio sampling, lifecycle) + `host.WithTracing`. Automatic,
+  no-op-until-enabled instrumentation across httpx server/client, gormx, and the
+  NATS client; request logs carry `trace_id`.
+- ✅ Message consumption ergonomics: `host.WithSubscriber` (lifecycle-bound
+  subscribe/drain) + `host.WithQueueGroup`; typed handlers
+  `messaging.HandleJSON[T]` / `HandleEnvelope[T]` and `NewJSONMessage`.
+- ✅ Request validation: `httpx.Body[T]` returns BadRequest with per-field
+  details (json-named) via `httpx.ValidationError` / `UseJSONFieldNames`.
+
+Candidates considered but not selected this round: transactional outbox,
+`httpx.Client` circuit breaker, a `testx` module, migrations module,
+idempotency-key middleware.
+
+---
+
 ## Deferred earlier (judgment calls, intentionally not done)
 
 - H2 `Error()` prints inner (stdlib-consistent; output-format choice)
