@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-06-14
+
+### Added
+
+- **`gormx.Table.Where`** — accumulating WHERE clause that mirrors `gorm.DB.Where`,
+  complementing the existing `WhereIf`.
+- **`gormx.Table.ListPage`** — returns one page of results using the table's
+  accumulated scopes, configured via the fluent `PageOptions[T]` builder
+  (`PageSize`, `OrderBy`, `Cursor`, `NextToken`). Supports cursor-based pagination
+  without implementing an interface; `Cursor` returns a `[]any` WHERE condition and
+  `NextToken` builds the following page's token.
+
+### Changed
+
+- **BREAKING: `gormx.Table.ListAll`** — signature changed from
+  `ListAll(ctx, req ListAllRequest)` to `ListAll(ctx, orderBy string)`. Filtering is
+  now expressed by chaining `Where`/`WhereIf`/`Preload` on the table. The
+  `ListAllRequest` interface has been removed.
+- **`gormx.Scoper`** — documented as an optional interface for `ListRequest` only
+  (no longer referenced by `ListAll`).
+
 ## [0.12.0] - 2026-06-14
 
 ### Added

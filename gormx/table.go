@@ -94,14 +94,7 @@ type ListRequest[T any] interface {
 	Where() []any
 }
 
-// ListAllRequest is the interface Table.ListAll requires.
-// Implement it when you need a filtered, ordered full-table scan without pagination.
-type ListAllRequest interface {
-	Where() []any
-	OrderBy() string
-}
-
-// Scoper is an optional interface for ListRequest and ListAllRequest.
+// Scoper is an optional interface for ListRequest.
 // If implemented, Scope() takes precedence over Where().
 type Scoper interface {
 	Scope() func(*gorm.DB) *gorm.DB
@@ -158,6 +151,19 @@ func (t *Table[TEntity]) Preload(association string, args ...any) *Table[TEntity
 	}
 }
 
+// Where returns a copy of the Table with an additional WHERE clause. Calls accumulate;
+// the original Table is not modified. Accepts the same formats as gorm.DB.Where.
+func (t *Table[TEntity]) Where(query any, args ...any) *Table[TEntity] {
+	return &Table[TEntity]{
+		entity:   t.entity,
+		gormDB:   t.gormDB,
+		preloads: t.preloads,
+		scopes: append(append([]func(*gorm.DB) *gorm.DB{}, t.scopes...), func(db *gorm.DB) *gorm.DB {
+			return db.Where(query, args...)
+		}),
+	}
+}
+
 // WhereIf returns a copy of the Table with an additional WHERE clause that is applied
 // only when condition is true. Calls accumulate; the original Table is not modified.
 //
@@ -166,7 +172,7 @@ func (t *Table[TEntity]) Preload(association string, args ...any) *Table[TEntity
 //	results, err := table.
 //	    WhereIf(req.TenantID != "", "tenant_id = ?", req.TenantID).
 //	    WhereIf(req.Active, "active = true").
-//	    ListAll(ctx, req)
+//	    ListAll(ctx, "created_at DESC")
 func (t *Table[TEntity]) WhereIf(condition bool, where ...any) *Table[TEntity] {
 	if !condition {
 		return t
@@ -279,6 +285,107 @@ func (t *Table[TEntity]) Find(ctx context.Context, conditions ...any) (*TEntity,
 	return &item, nil
 }
 
+// PageOptions configures a ListPage call. Build it fluently with NewPageOptions:
+//
+//	NewPageOptions[Order]().PageSize(20).OrderBy("created_at DESC")
+//
+// For cursor-based pagination, also set Cursor (the current-page filter) and
+// NextToken (builds the token for the following page):
+//
+//	NewPageOptions[Order]().
+//	    PageSize(20).
+//	    OrderBy("created_at DESC").
+//	    Cursor(func() ([]any, error) {
+//	        if token == "" {
+//	            return nil, nil
+//	        }
+//	        return []any{"created_at < ?", token}, nil
+//	    }).
+//	    NextToken(func(items []Order) (*string, error) {
+//	        s := items[len(items)-1].CreatedAt.Format(time.RFC3339)
+//	        return &s, nil
+//	    })
+type PageOptions[T any] struct {
+	pageSize  int
+	orderBy   string
+	cursor    func() ([]any, error)
+	nextToken func(items []T) (*string, error)
+}
+
+// NewPageOptions returns an empty PageOptions ready to configure.
+func NewPageOptions[T any]() *PageOptions[T] { return &PageOptions[T]{} }
+
+// PageSize sets the maximum number of rows returned and returns o for chaining.
+func (o *PageOptions[T]) PageSize(n int) *PageOptions[T] { o.pageSize = n; return o }
+
+// OrderBy sets the ORDER BY clause and returns o for chaining.
+func (o *PageOptions[T]) OrderBy(s string) *PageOptions[T] { o.orderBy = s; return o }
+
+// Cursor sets the WHERE condition that filters to the current page; decode the page
+// token here and return it as {query, args...}, or nil for the first page. It runs
+// after the table's accumulated Where/WhereIf scopes.
+func (o *PageOptions[T]) Cursor(fn func() ([]any, error)) *PageOptions[T] {
+	o.cursor = fn
+	return o
+}
+
+// NextToken sets the function that builds the next-page token from the page's items.
+// When set, ListPage fetches one extra row to decide whether a next page exists.
+func (o *PageOptions[T]) NextToken(fn func(items []T) (*string, error)) *PageOptions[T] {
+	o.nextToken = fn
+	return o
+}
+
+// ListPage returns one page of results using the table's accumulated scopes.
+// Chain Where/WhereIf/Preload on the Table to filter and eager-load before calling.
+// Set Cursor/NextToken on opts for cursor-based pagination; otherwise NextPageToken is nil.
+func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity]) (*types.PagedResult[TEntity], error) {
+	if opts == nil {
+		opts = NewPageOptions[TEntity]()
+	}
+
+	q := t.applyPreloads(t.db(ctx)).Order(opts.orderBy)
+	if opts.cursor != nil {
+		where, err := opts.cursor()
+		if err != nil {
+			return nil, err
+		}
+		if len(where) > 0 {
+			q = q.Where(where[0], where[1:]...)
+		}
+	}
+
+	// Fetch one extra row to detect a following page when generating a token.
+	limit := opts.pageSize
+	if opts.nextToken != nil && limit > 0 {
+		limit++
+	}
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+
+	var items []TEntity
+	if err := q.Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	var nextPageToken *string
+	if opts.nextToken != nil && opts.pageSize > 0 && len(items) > opts.pageSize {
+		items = items[:opts.pageSize]
+		var err error
+		if nextPageToken, err = opts.nextToken(items); err != nil {
+			return nil, err
+		}
+	}
+
+	return &types.PagedResult[TEntity]{
+		Items:         items,
+		PageSize:      int32(opts.pageSize),
+		TotalCount:    -1,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
 // List returns one page of results. TotalCount is always -1 (not computed).
 // If the request implements Scoper, its Scope() replaces Where().
 // If it implements CursorScoper, its CursorScope() replaces CurrentPageData().
@@ -333,14 +440,9 @@ func (t *Table[TEntity]) List(ctx context.Context, req ListRequest[TEntity]) (*t
 }
 
 // ListAll returns all matching rows. Use only when the result set is known to be small.
-// If the request implements Scoper, its Scope() replaces Where().
-func (t *Table[TEntity]) ListAll(ctx context.Context, req ListAllRequest) ([]*TEntity, error) {
-	q := t.applyPreloads(t.db(ctx)).Order(req.OrderBy())
-	if sr, ok := req.(Scoper); ok {
-		q = q.Scopes(sr.Scope())
-	} else if w := req.Where(); len(w) > 0 {
-		q = q.Where(w[0], w[1:]...)
-	}
+// Chain Where/WhereIf/Preload on the Table to filter and eager-load before calling.
+func (t *Table[TEntity]) ListAll(ctx context.Context, orderBy string) ([]*TEntity, error) {
+	q := t.applyPreloads(t.db(ctx)).Order(orderBy)
 	var items []*TEntity
 	if err := q.Find(&items).Error; err != nil {
 		return nil, err
