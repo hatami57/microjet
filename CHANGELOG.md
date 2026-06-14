@@ -76,11 +76,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   responses with status < 500 are stored. Backed by a minimal `IdempotencyStore`
   (Get/Set) interface that `cache.Cache` satisfies directly.
 
-### Fixed
+### Changed
 
-- **`types`/`aws` jsonx dependency** — both modules now require a published
-  `jsonx` release instead of a placeholder pseudo-version with a `replace`
-  directive, so downstream `go mod tidy` resolves cleanly outside this repo.
+- **Internal dependencies pinned to v0.15.0** — every module now requires its
+  microjet siblings at the matching v0.15.0 release and no longer carries local
+  `replace` directives (used only for in-repo development via `go.work`). All
+  modules, including the new `otelx`, `outbox`, `testx`, and `gormx/migrate`,
+  resolve their dependencies from the module proxy and install with a plain
+  `go get`.
 
 ## [0.14.0] - 2026-06-14
 
