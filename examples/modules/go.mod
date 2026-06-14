@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/gin-gonic/gin v1.12.0
-	github.com/hatami57/microjet/host v0.11.0
+	github.com/hatami57/microjet/host v0.15.0
 )
 
 require (
@@ -56,15 +56,17 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hatami57/microjet/aws v0.11.0 // indirect
-	github.com/hatami57/microjet/cache v0.11.0 // indirect
-	github.com/hatami57/microjet/core v0.11.0 // indirect
-	github.com/hatami57/microjet/gormx v0.11.0 // indirect
-	github.com/hatami57/microjet/httpx v0.11.0 // indirect
-	github.com/hatami57/microjet/jsonx v0.11.0 // indirect
-	github.com/hatami57/microjet/messaging v0.11.0 // indirect
-	github.com/hatami57/microjet/tenant v0.11.0 // indirect
-	github.com/hatami57/microjet/types v0.11.0 // indirect
+	github.com/hatami57/microjet/aws v0.15.0 // indirect
+	github.com/hatami57/microjet/cache v0.15.0 // indirect
+	github.com/hatami57/microjet/core v0.15.0 // indirect
+	github.com/hatami57/microjet/gormx v0.15.0 // indirect
+	github.com/hatami57/microjet/httpx v0.15.0 // indirect
+	github.com/hatami57/microjet/jsonx v0.15.0 // indirect
+	github.com/hatami57/microjet/messaging v0.15.0 // indirect
+	github.com/hatami57/microjet/tenant v0.15.0 // indirect
+	github.com/hatami57/microjet/types v0.15.0 // indirect
+	github.com/hatami57/microjet/utils v0.15.0
+	github.com/hatami57/microjet/versioninfo v0.15.0
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

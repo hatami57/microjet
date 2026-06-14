@@ -3,9 +3,9 @@ module github.com/hatami57/microjet/outbox
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.11.0
-	github.com/hatami57/microjet/jsonx v0.11.0
-	github.com/hatami57/microjet/messaging v0.11.0
+	github.com/hatami57/microjet/core v0.15.0
+	github.com/hatami57/microjet/jsonx v0.15.0
+	github.com/hatami57/microjet/messaging v0.15.0
 	gorm.io/gorm v1.31.1
 )
 
@@ -28,7 +28,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/hatami57/microjet/types v0.11.0 // indirect
+	github.com/hatami57/microjet/types v0.15.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -49,11 +49,3 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 )
-
-replace github.com/hatami57/microjet/messaging => ../messaging
-
-replace github.com/hatami57/microjet/core => ../core
-
-replace github.com/hatami57/microjet/types => ../types
-
-replace github.com/hatami57/microjet/jsonx => ../jsonx

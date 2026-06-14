@@ -30,8 +30,8 @@ require (
 )
 
 require (
-	github.com/hatami57/microjet/core v0.11.0
-	github.com/hatami57/microjet/jsonx v0.11.0
-	github.com/hatami57/microjet/types v0.11.0
+	github.com/hatami57/microjet/core v0.15.0
+	github.com/hatami57/microjet/jsonx v0.15.0
+	github.com/hatami57/microjet/types v0.15.0
 	golang.org/x/sys v0.45.0 // indirect
 )

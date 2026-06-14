@@ -3,13 +3,13 @@ module github.com/hatami57/microjet/host
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/aws v0.11.0
-	github.com/hatami57/microjet/cache v0.11.0
-	github.com/hatami57/microjet/core v0.11.0
-	github.com/hatami57/microjet/gormx v0.11.0
-	github.com/hatami57/microjet/gormx/sqlite v0.11.0
-	github.com/hatami57/microjet/httpx v0.11.0
-	github.com/hatami57/microjet/messaging v0.11.0
+	github.com/hatami57/microjet/aws v0.15.0
+	github.com/hatami57/microjet/cache v0.15.0
+	github.com/hatami57/microjet/core v0.15.0
+	github.com/hatami57/microjet/gormx v0.15.0
+	github.com/hatami57/microjet/gormx/sqlite v0.15.0
+	github.com/hatami57/microjet/httpx v0.15.0
+	github.com/hatami57/microjet/messaging v0.15.0
 	gorm.io/gorm v1.31.1
 )
 
@@ -18,7 +18,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
-	github.com/hatami57/microjet/jsonx v0.11.0 // indirect
+	github.com/hatami57/microjet/jsonx v0.15.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.44.0 // indirect
@@ -84,10 +84,10 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hatami57/microjet/otelx v0.0.0-00010101000000-000000000000
-	github.com/hatami57/microjet/outbox v0.11.0
-	github.com/hatami57/microjet/tenant v0.11.0 // indirect
-	github.com/hatami57/microjet/types v0.11.0 // indirect
+	github.com/hatami57/microjet/otelx v0.15.0
+	github.com/hatami57/microjet/outbox v0.15.0
+	github.com/hatami57/microjet/tenant v0.15.0 // indirect
+	github.com/hatami57/microjet/types v0.15.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -138,7 +138,3 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.49.1 // indirect
 )
-
-replace github.com/hatami57/microjet/otelx => ../otelx
-
-replace github.com/hatami57/microjet/outbox => ../outbox

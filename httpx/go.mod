@@ -7,9 +7,9 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.11.0
-	github.com/hatami57/microjet/tenant v0.11.0
-	github.com/hatami57/microjet/types v0.11.0
+	github.com/hatami57/microjet/core v0.15.0
+	github.com/hatami57/microjet/tenant v0.15.0
+	github.com/hatami57/microjet/types v0.15.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
@@ -43,7 +43,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/hatami57/microjet/jsonx v0.11.0 // indirect
+	github.com/hatami57/microjet/jsonx v0.15.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
