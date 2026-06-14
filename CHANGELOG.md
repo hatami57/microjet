@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-06-14
+
+### Added
+
+- **`versioninfo.Info`** — new struct with `Get()` and `Print(w io.Writer)` methods
+  exposing build version fields as a structured value; suitable for logging, JSON
+  serialisation, and writing `key=value` lines to any `io.Writer`.
+- **`types/money` constructors** — `New`, `NewFromFloat`, `NewFromInt`, and
+  `NewFromString` for constructing `Money` values without direct struct literals.
+- **`aws/dynamo.QueryGSIPage`** — GSI pagination method with an optional sort key
+  condition alongside the existing `QueryPage`.
+- **`aws/dynamo.SKCondition`** — type for expressing sort key conditions on GSI
+  queries.
+- **`aws/dynamo.Timestamp`** — DynamoDB-compatible timestamp type; `applyTimestamps`
+  now handles `Timestamp` in addition to `time.Time`.
+
+### Changed
+
+- **BREAKING: `gormx.Table.Preload`** — signature changed from
+  `Preload(fields ...string)` to `Preload(association string, args ...any)`,
+  matching GORM's native `Preload` API. Callers that passed multiple associations
+  in a single call must now chain `.Preload` calls. Conditional preloads (SQL
+  condition string + values, or a `func(*gorm.DB) *gorm.DB`) and
+  `clause.Associations` (`"*"`) are now supported.
+
+### Tooling
+
+- CI matrix extended to cover all modules: `messaging/nats`, `gormx/postgres`,
+  `gormx/sqlite`, `jsonx`, `tenant`, `versioninfo`. Cache key uses `**/go.sum`
+  to handle modules without external dependencies.
+
 ## [0.11.0] - 2026-06-10
 
 ### Added
