@@ -10,6 +10,16 @@ type Initer interface {
 	Init() error
 }
 
+// Setupper is implemented by services that need to perform post-init work once
+// every service has finished Init — typically work that depends on other
+// services being connected (running migrations, finalizing route registration).
+// It runs in the same phase as host.App.Setup handlers but is co-located on the
+// service itself. The host calls Setup on each registered service implementing
+// this interface (host.ServiceSetupper, which carries *App, takes precedence).
+type Setupper interface {
+	Setup() error
+}
+
 // Starter is implemented by services that begin active work (serving, listening)
 // only after every service has finished Init. Splitting Start from Init gives the
 // host a window between "resources acquired" and "serving" in which setup work

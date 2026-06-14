@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-06-14
+
+### Added
+
+- **`host.ServiceSetupper`** / **`core.Setupper`** — new service lifecycle hook for
+  the setup phase. A registered service can now perform post-init work that depends
+  on other services being connected (migrations, route registration) by
+  implementing `Setup(app *App) error` (or the no-arg `core.Setupper`) instead of
+  registering a separate `app.Setup` handler. The host runs these hooks after
+  `Init` and before the queued `app.Setup` handlers; `host.ServiceSetupper` takes
+  precedence over `core.Setupper`. Order across services is unspecified, matching
+  the `Start` and `Close` phases.
+
 ## [0.13.0] - 2026-06-14
 
 ### Added

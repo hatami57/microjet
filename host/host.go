@@ -34,6 +34,7 @@ type App struct {
 	workers              []worker
 	setups               []HandlerFunc
 	isServiceInitialized bool
+	isServiceSetup       bool
 	isServiceStarted     bool
 	err                  error
 	closeOnce            sync.Once
@@ -172,7 +173,12 @@ func (a *App) Run() error {
 		return fmt.Errorf("initializing services: %w", err)
 	}
 	// Resources are connected; run setup (migrations, route registration) before
-	// anything begins serving.
+	// anything begins serving — first the services' own Setup hooks, then the
+	// queued app.Setup handlers, which observe the services' setup.
+	if err := a.setupServices(); err != nil {
+		a.Close()
+		return fmt.Errorf("setting up services: %w", err)
+	}
 	if err := a.runSetups(); err != nil {
 		a.Close()
 		return fmt.Errorf("running setup: %w", err)
@@ -231,6 +237,9 @@ func (a *App) StartHTTP() error {
 	if err := a.initServices(); err != nil {
 		return fmt.Errorf("initializing services: %w", err)
 	}
+	if err := a.setupServices(); err != nil {
+		return fmt.Errorf("setting up services: %w", err)
+	}
 	if err := a.runSetups(); err != nil {
 		return fmt.Errorf("running setup: %w", err)
 	}
@@ -270,11 +279,9 @@ func (a *App) close() {
 
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		a.closeServices()
-	}()
+	})
 
 	// Bound the overall shutdown: a misbehaving service must not block exit
 	// forever. Branches whose APIs don't take a context (Disconnect, db.Close)

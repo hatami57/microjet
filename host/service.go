@@ -13,6 +13,10 @@ type ServiceIniter interface {
 	Init(app *App) error
 }
 
+type ServiceSetupper interface {
+	Setup(app *App) error
+}
+
 type ServiceStarter interface {
 	Start(app *App) error
 }
@@ -194,6 +198,42 @@ func (a *App) initServices() error {
 
 	a.isServiceInitialized = true
 	a.Logger.Info("all services initialized", "configs", configCallCount, "inits", initCallCount)
+	return nil
+}
+
+// setupServices runs the Setup phase for services: every service that implements
+// ServiceSetupper (receives *App) or core.Setupper performs post-init work that
+// depends on other services being connected (migrations, route registration). It
+// runs after initServices, so resources are available, and before the queued
+// app.Setup handlers, so those handlers observe the services' setup. Like Start
+// and Close, order across services is unspecified.
+func (a *App) setupServices() error {
+	if a.isServiceSetup {
+		return nil
+	}
+	a.Logger.Debug("setting up services")
+	var setupErr error
+	a.container.Range(func(_, item any) bool {
+		var err error
+		if svc, ok := item.(ServiceSetupper); ok {
+			err = svc.Setup(a)
+		} else if svc, ok := item.(core.Setupper); ok {
+			err = svc.Setup()
+		} else {
+			return true
+		}
+		if err != nil {
+			name := reflect.TypeOf(item).String()
+			a.Logger.Error("failed to set up service", "type", name, "error", err)
+			setupErr = err
+			return false
+		}
+		return true
+	})
+	if setupErr != nil {
+		return setupErr
+	}
+	a.isServiceSetup = true
 	return nil
 }
 

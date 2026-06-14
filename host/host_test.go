@@ -61,6 +61,83 @@ type fakeService struct {
 	name string
 }
 
+type setupperService struct {
+	setupCalls int
+	err        error
+}
+
+func (s *setupperService) Setup(*App) error {
+	s.setupCalls++
+	return s.err
+}
+
+func TestSetupServicesRunsHookBeforeQueuedSetups(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	var order []string
+	svc := &setupperService{}
+	ProvideService(app, svc)
+	app.Setup(func(*App) error { order = append(order, "queued"); return nil })
+
+	// setupServices runs the service's own Setup hook; the queued app.Setup
+	// handler must observe it, so the service hook runs first.
+	if err := app.setupServices(); err != nil {
+		t.Fatalf("setupServices: %v", err)
+	}
+	if svc.setupCalls != 1 {
+		t.Fatalf("Setup called %d times, want 1", svc.setupCalls)
+	}
+	order = append(order, "afterSetupServices")
+	if err := app.runSetups(); err != nil {
+		t.Fatalf("runSetups: %v", err)
+	}
+
+	want := []string{"afterSetupServices", "queued"}
+	if len(order) != len(want) || order[0] != want[0] || order[1] != want[1] {
+		t.Errorf("order = %v, want %v", order, want)
+	}
+}
+
+func TestSetupServicesIsIdempotent(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	svc := &setupperService{}
+	ProvideService(app, svc)
+
+	for range 3 {
+		if err := app.setupServices(); err != nil {
+			t.Fatalf("setupServices: %v", err)
+		}
+	}
+	if svc.setupCalls != 1 {
+		t.Errorf("Setup called %d times across repeated setupServices, want 1", svc.setupCalls)
+	}
+}
+
+func TestSetupServicesPropagatesError(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	boom := errors.New("setup failed")
+	svc := &setupperService{err: boom}
+	ProvideService(app, svc)
+
+	if err := app.setupServices(); !errors.Is(err, boom) {
+		t.Fatalf("setupServices() = %v, want %v", err, boom)
+	}
+	if app.isServiceSetup {
+		t.Error("isServiceSetup set despite a failing Setup hook")
+	}
+}
+
 func TestProvideAndResolveService(t *testing.T) {
 	app, err := New()
 	if err != nil {

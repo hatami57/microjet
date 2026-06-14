@@ -52,9 +52,7 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 	var wg sync.WaitGroup
 
 	launch := func(name string, interval time.Duration, fn func(context.Context, *App) error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			a.Logger.Info("worker started", "worker", name)
 			if interval > 0 {
 				a.runPeriodic(ctx, name, interval, fn)
@@ -62,7 +60,7 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 				a.Logger.Error("worker exited with error", "worker", name, "error", err)
 			}
 			a.Logger.Info("worker stopped", "worker", name)
-		}()
+		})
 	}
 
 	// Explicitly registered workers first, in registration order.
