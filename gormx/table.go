@@ -67,6 +67,11 @@ func NewTableFor[TEntity any](r *BaseRepository) *Table[TEntity] {
 	return NewTable[TEntity](r.gormDB)
 }
 
+type preloadEntry struct {
+	query string
+	args  []any
+}
+
 // Table is a generic GORM wrapper for a single database table.
 // Create one per entity type via NewTable.
 // Call Preload to eager-load associations before executing a query.
@@ -74,7 +79,7 @@ func NewTableFor[TEntity any](r *BaseRepository) *Table[TEntity] {
 type Table[TEntity any] struct {
 	entity   *TEntity
 	gormDB   *gorm.DB
-	preloads []string
+	preloads []preloadEntry
 	scopes   []func(*gorm.DB) *gorm.DB
 }
 
@@ -139,13 +144,16 @@ func NewTable[TEntity any](db *gorm.DB) *Table[TEntity] {
 	return &Table[TEntity]{entity: &entity, gormDB: db}
 }
 
-// Preload returns a copy of the Table that eager-loads the named associations on every query.
+// Preload returns a copy of the Table that eager-loads association on every query.
+// args mirrors GORM's Preload: a SQL condition string + values, or a func(*gorm.DB) *gorm.DB,
+// or nothing for an unconditional preload. Use clause.Associations ("*") to preload all.
 // Multiple calls accumulate; preloads do not modify the original Table.
-func (t *Table[TEntity]) Preload(fields ...string) *Table[TEntity] {
+func (t *Table[TEntity]) Preload(association string, args ...any) *Table[TEntity] {
+	entry := preloadEntry{query: association, args: args}
 	return &Table[TEntity]{
 		entity:   t.entity,
 		gormDB:   t.gormDB,
-		preloads: append(append([]string{}, t.preloads...), fields...),
+		preloads: append(append([]preloadEntry{}, t.preloads...), entry),
 		scopes:   t.scopes,
 	}
 }
@@ -187,8 +195,8 @@ func (t *Table[TEntity]) db(ctx context.Context) *gorm.DB {
 }
 
 func (t *Table[TEntity]) applyPreloads(db *gorm.DB) *gorm.DB {
-	for _, f := range t.preloads {
-		db = db.Preload(f)
+	for _, p := range t.preloads {
+		db = db.Preload(p.query, p.args...)
 	}
 	return db
 }
