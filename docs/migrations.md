@@ -1,14 +1,44 @@
 # Database migrations
 
-microjet does **not** ship a migration engine. The examples call GORM's
+microjet's core does **not** ship a migration engine. The examples call GORM's
 `AutoMigrate` for brevity, which is fine for prototyping and tests but is **not
 recommended for production**: it never drops or renames columns, can't express
 data backfills, and gives you no versioned, reviewable history of schema change.
 
-For production use a dedicated migration tool. The two common choices in the Go
-ecosystem are [golang-migrate](https://github.com/golang-migrate/migrate) and
-[goose](https://github.com/pressly/goose). Both work with the same `*sql.DB`
-that GORM uses, so they integrate cleanly with microjet.
+## Opt-in module: `gormx/migrate`
+
+For the common case there is a thin opt-in wrapper around
+[goose](https://github.com/pressly/goose):
+`github.com/hatami57/microjet/gormx/migrate`. It derives the goose dialect from
+the gorm driver (Postgres, SQLite, MySQL), so embedded SQL migrations apply with
+one call:
+
+```go
+import (
+    "context"
+    "embed"
+
+    "github.com/hatami57/microjet/gormx/migrate"
+)
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
+
+app := host.MustNew().
+    WithDatabase(postgres.Driver()).
+    Setup(func(a *host.App) error {
+        return migrate.Up(context.Background(), a.DB(), migrationsFS)
+    }).
+    WithHTTPServer(registerRoutes)
+```
+
+`migrate.New` returns a `*Migrator` exposing `Up`, `Down`, and `Version` for
+finer control. By default it reads from the `migrations` directory of the
+provided `fs.FS`; override with `migrate.WithDir`.
+
+If you prefer another engine, or need features goose doesn't cover, both
+[golang-migrate](https://github.com/golang-migrate/migrate) and goose work
+directly against the `*sql.DB` that GORM uses, as shown below.
 
 ## Where migrations run
 

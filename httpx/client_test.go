@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestClientPostJSON(t *testing.T) {
@@ -142,5 +145,86 @@ func TestClientAbsolutePath(t *testing.T) {
 	c := NewClient("")
 	if err := c.GetJSON(context.Background(), srv.URL+"/abs", nil); err != nil {
 		t.Fatalf("GetJSON absolute: %v", err)
+	}
+}
+
+func TestClientInjectsTraceContext(t *testing.T) {
+	prev := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	defer otel.SetTextMapPropagator(prev)
+
+	var traceparent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		traceparent = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10},
+		SpanID:     trace.SpanID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+		TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+
+	if err := NewClient(srv.URL).GetJSON(ctx, "/", nil); err != nil {
+		t.Fatalf("GetJSON: %v", err)
+	}
+	want := "00-0102030405060708090a0b0c0d0e0f10-0102030405060708-01"
+	if traceparent != want {
+		t.Errorf("traceparent = %q, want %q", traceparent, want)
+	}
+}
+
+func TestClientCircuitBreakerFailsFast(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithCircuitBreaker(3, time.Minute))
+
+	// Three 5xx responses trip the breaker open.
+	for i := range 3 {
+		if err := c.GetJSON(context.Background(), "/", nil); err == nil {
+			t.Fatalf("request %d: expected an error", i)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 3 {
+		t.Fatalf("upstream hits = %d, want 3 before tripping", got)
+	}
+
+	// Further requests fail fast without reaching the upstream.
+	err := c.GetJSON(context.Background(), "/", nil)
+	if err == nil {
+		t.Fatal("expected fail-fast error while breaker is open")
+	}
+	if !core.IsInternalError(err) {
+		t.Errorf("error = %v, want internal", err)
+	}
+	if got := atomic.LoadInt32(&hits); got != 3 {
+		t.Errorf("upstream hits = %d, want still 3 (breaker open)", got)
+	}
+}
+
+func TestClientCircuitBreakerIgnoresClientErrors(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, WithCircuitBreaker(3, time.Minute))
+	// 4xx must not trip the breaker: every request should reach the upstream.
+	for i := range 5 {
+		if err := c.GetJSON(context.Background(), "/", nil); err == nil {
+			t.Fatalf("request %d: expected a 400 error", i)
+		}
+	}
+	if got := atomic.LoadInt32(&hits); got != 5 {
+		t.Errorf("upstream hits = %d, want 5 (4xx never trips breaker)", got)
 	}
 }

@@ -15,11 +15,14 @@ import "github.com/hatami57/microjet/host"
 - **Application Orchestrator** — Fluent builder API (`MustNew().WithDatabase(postgres.Driver()).WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](#modules) for tree-structured feature wiring, and managed graceful shutdown.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, core.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
-- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
-- **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`); `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
+- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
+- **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
 - **SQL / GORM** — `WithDatabase(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading. `WithNamedDatabase` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
-- **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain.
+- **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain. `WithSubscriber` ties subscriptions to the app lifecycle (subscribe on start, drain on shutdown); `messaging.HandleJSON` / `HandleEnvelope` give typed handlers (`func(ctx, T) error`) with automatic decoding, and `WithQueueGroup` load-balances a subject across replicas.
+- **Transactional Outbox** — `outbox.Enqueue`/`EnqueueJSON` record an event in the same DB transaction as your domain write; `WithOutbox()` migrates the table and runs a periodic relay that publishes pending events to the broker with at-least-once delivery, so events are never lost on a crash between commit and publish.
+- **Idempotency** — `middleware.Idempotency` replays the stored response for a repeated non-safe request carrying the same `Idempotency-Key`, so client retries don't act twice. Keys are scoped by method+route; backed by any store satisfying a small Get/Set interface (the app cache fits directly).
+- **Distributed Tracing** — Opt-in OpenTelemetry via `WithTracing()`: the `otelx` module installs an OTLP exporter and the W3C propagator, and the instrumented layers — HTTP server and client, GORM, NATS — emit and propagate spans automatically (no-ops while tracing is off). Request logs carry `trace_id` for log/trace correlation.
 - **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation, plus integer minor-unit conversion (`FromMinorUnits`/`MinorUnits`) with a zero/two/three-decimal currency registry.
 - **Time Utilities** — `TimeProvider` interface for testability, sortable timestamp formats.
 - **Type Converters** — Generic JSON, struct-to-map, and pointer coalescing utilities.
@@ -35,6 +38,10 @@ import "github.com/hatami57/microjet/host"
 | `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
 | `cache` | `github.com/hatami57/microjet/cache` | Cache interface with Redis and in-memory implementations |
+| `otelx` | `github.com/hatami57/microjet/otelx` | OpenTelemetry tracing setup (OTLP exporter, W3C propagation) |
+| `gormx/migrate` | `github.com/hatami57/microjet/gormx/migrate` | Opt-in versioned SQL migrations (goose wrapper) |
+| `outbox` | `github.com/hatami57/microjet/outbox` | Transactional outbox: enqueue events in a DB tx, relay to the broker |
+| `testx` | `github.com/hatami57/microjet/testx` | Test helpers: in-memory app builder, fake broker, HTTP request helpers |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
 | `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
 | `types/money` | `github.com/hatami57/microjet/types/money` | Currency-aware decimal money |

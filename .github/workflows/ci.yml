@@ -20,12 +20,16 @@ jobs:
           - messaging
           - messaging/nats
           - gormx
+          - gormx/migrate
           - gormx/postgres
           - gormx/sqlite
           - httpx
           - host
           - cache
           - jsonx
+          - otelx
+          - outbox
+          - testx
           - tenant
           - versioninfo
     steps:

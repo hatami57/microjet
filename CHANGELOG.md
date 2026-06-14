@@ -4,6 +4,84 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-06-14
+
+### Added
+
+- **`testx` module** — new `github.com/hatami57/microjet/testx` module of test
+  helpers: `NewApp` builds a `host.App` with deterministic in-memory defaults
+  (FixedClock, in-memory SQLite, in-memory cache) and registers cleanup; `NewDB`
+  returns a throwaway `*gorm.DB`; `Broker` is an in-memory `messaging.Client`
+  fake for pub/sub and request-reply; and `Request`/`DecodeJSON`/`AssertStatus`
+  exercise a gin router over httptest.
+- **`outbox` module** — new `github.com/hatami57/microjet/outbox` module
+  implementing the transactional outbox pattern. `outbox.Enqueue` /
+  `EnqueueJSON` record a broker message in the same gorm transaction as a domain
+  write; `outbox.Relay` (and `host.WithOutbox`) publish pending rows to a
+  `messaging.Publisher` with at-least-once delivery, recording per-message
+  attempts/errors on failure. `host.WithOutbox` migrates the table and runs the
+  relay as a periodic worker.
+- **`gormx/migrate` module** — new opt-in
+  `github.com/hatami57/microjet/gormx/migrate` module wrapping goose for
+  versioned SQL migrations. Derives the goose dialect from the gorm driver
+  (Postgres/SQLite/MySQL), reads embedded migration files, and exposes
+  `Up`/`Down`/`Version` plus a one-call `migrate.Up` for use from a host Setup
+  handler. The core framework gains no migration-tool dependency.
+- **`otelx` module** — new `github.com/hatami57/microjet/otelx` module providing
+  OpenTelemetry tracing setup: OTLP/HTTP exporter, W3C trace-context + baggage
+  propagation, ratio-based sampling, and lifecycle management (flush on
+  shutdown). Configured from the `[tracing]` section; service name/version
+  default to the `[app]` section.
+- **`host.App.WithTracing`** — registers the otelx service so the whole stack
+  traces automatically.
+- **HTTP server tracing** — new `middleware.Tracing` (installed by default)
+  starts a server span per request, continues incoming `traceparent` headers,
+  and names spans by route pattern. The request logger now also carries
+  `trace_id` alongside `request_id`.
+- **HTTP client tracing** — `httpx.Client` starts a client span per attempt and
+  injects the W3C trace context into outbound requests.
+- **GORM tracing** — `gormx.UseTracing(db)` registers span callbacks for all
+  operations (applied automatically to driver-opened connections); spans record
+  the table, SQL template (placeholders only), and errors.
+- **NATS tracing & propagation** — `messaging.InjectContext` /
+  `messaging.ExtractContext` carry the trace context and correlation id through
+  broker headers; the NATS client wraps publish/request/receive/respond in
+  producer/client/consumer/server spans and hands handlers a context carrying
+  the remote trace and correlation id.
+- **`host.App.WithSubscriber`** — registers a message subscription tied to the
+  app lifecycle: it subscribes once the broker is connected and the app starts,
+  and unsubscribes on shutdown. `host.WithQueueGroup` joins a queue group to
+  load-balance a subject across replicas. Multiple subscribers share one
+  lifecycle-managed consumer.
+- **Typed message handlers** — `messaging.HandleJSON[T]` and
+  `messaging.HandleEnvelope[T]` adapt typed handlers (`func(ctx, T) error`) into
+  raw `messaging.Handler`s, JSON-decoding the payload (or a `types.Message`
+  envelope) and returning a BadRequest `*core.Error` on decode failure.
+  `messaging.NewJSONMessage` builds a `Message` from a typed payload for
+  publishing.
+- **Request validation** — `httpx.Body[T]` now turns `binding`/`validate` tag
+  failures into a BadRequest `*core.Error` carrying a per-field breakdown (field
+  name → reason) under the `fields` param, rendered in the 400 response by the
+  error middleware. Field names use the json tag (`httpx.UseJSONFieldNames`), and
+  `httpx.ValidationError` exposes the translation for manual binders.
+- **HTTP client circuit breaker** — `httpx.WithCircuitBreaker(threshold,
+  cooldown)` adds a per-client breaker that opens after consecutive server-side
+  failures (transport errors and 5xx; 4xx does not count), fails fast with a
+  "circuit breaker open" error while open, and admits a single trial request
+  after the cooldown. Complements `WithRetry`.
+- **Idempotency middleware** — `middleware.Idempotency` stores the response to a
+  non-safe request keyed by an `Idempotency-Key` header and replays it for
+  retries (marking them with the `Idempotent-Replayed` header), so a retried
+  request does not execute twice. Keys are scoped by method + route; only
+  responses with status < 500 are stored. Backed by a minimal `IdempotencyStore`
+  (Get/Set) interface that `cache.Cache` satisfies directly.
+
+### Fixed
+
+- **`types`/`aws` jsonx dependency** — both modules now require a published
+  `jsonx` release instead of a placeholder pseudo-version with a `replace`
+  directive, so downstream `go mod tidy` resolves cleanly outside this repo.
+
 ## [0.14.0] - 2026-06-14
 
 ### Added

@@ -117,11 +117,15 @@ func GetBoolQuery(c *gin.Context, key string) (bool, error) {
 
 // Body decodes and validates the JSON request body into a value of type T.
 // It returns the value directly (not a pointer): request bodies are value-shaped
-// data, and returning T avoids a nil-pointer footgun on the error path.
+// data, and returning T avoids a nil-pointer footgun on the error path. A
+// binding or `validate`/`binding` tag failure is returned as a structured
+// BadRequest *core.Error with per-field details (see ValidationError), so the
+// error middleware renders a 400 listing exactly which fields were rejected.
 func Body[T any](c *gin.Context) (T, error) {
+	UseJSONFieldNames()
 	var body T
 	if err := c.ShouldBindJSON(&body); err != nil {
-		return body, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
+		return body, ValidationError(err)
 	}
 	return body, nil
 }

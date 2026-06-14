@@ -82,6 +82,37 @@ Not done (was lower-priority, not selected): **DB migration guidance
 
 ---
 
+## Phase 4 — DONE ✅
+
+- ✅ OpenTelemetry distributed tracing: new `otelx` module (OTLP/HTTP exporter,
+  W3C propagation, ratio sampling, lifecycle) + `host.WithTracing`. Automatic,
+  no-op-until-enabled instrumentation across httpx server/client, gormx, and the
+  NATS client; request logs carry `trace_id`.
+- ✅ Message consumption ergonomics: `host.WithSubscriber` (lifecycle-bound
+  subscribe/drain) + `host.WithQueueGroup`; typed handlers
+  `messaging.HandleJSON[T]` / `HandleEnvelope[T]` and `NewJSONMessage`.
+- ✅ Request validation: `httpx.Body[T]` returns BadRequest with per-field
+  details (json-named) via `httpx.ValidationError` / `UseJSONFieldNames`.
+
+---
+
+## Phase 5 — DONE ✅
+
+- ✅ Opt-in migrations module `gormx/migrate` (goose wrapper; dialect derived
+  from the gorm driver; Up/Down/Version; runs from a host Setup handler).
+- ✅ Transactional outbox `outbox` module: `Enqueue`/`EnqueueJSON` within a tx,
+  `Relay` with at-least-once delivery, `host.WithOutbox` (migrate + periodic
+  relay worker).
+- ✅ Idempotency-key middleware `middleware.Idempotency` (replays stored response
+  for repeated non-safe requests; method+route scoped; cache.Cache-compatible
+  store).
+- ✅ Circuit breaker for `httpx.Client` (`WithCircuitBreaker`; consecutive
+  server-side failures open it; half-open trial).
+- ✅ `testx` module: in-memory app builder, throwaway DB, fake broker, HTTP
+  request helpers.
+
+---
+
 ## Deferred earlier (judgment calls, intentionally not done)
 
 - H2 `Error()` prints inner (stdlib-consistent; output-format choice)
