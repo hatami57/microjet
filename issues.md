@@ -94,9 +94,22 @@ Not done (was lower-priority, not selected): **DB migration guidance
 - ✅ Request validation: `httpx.Body[T]` returns BadRequest with per-field
   details (json-named) via `httpx.ValidationError` / `UseJSONFieldNames`.
 
-Candidates considered but not selected this round: transactional outbox,
-`httpx.Client` circuit breaker, a `testx` module, migrations module,
-idempotency-key middleware.
+---
+
+## Phase 5 — DONE ✅
+
+- ✅ Opt-in migrations module `gormx/migrate` (goose wrapper; dialect derived
+  from the gorm driver; Up/Down/Version; runs from a host Setup handler).
+- ✅ Transactional outbox `outbox` module: `Enqueue`/`EnqueueJSON` within a tx,
+  `Relay` with at-least-once delivery, `host.WithOutbox` (migrate + periodic
+  relay worker).
+- ✅ Idempotency-key middleware `middleware.Idempotency` (replays stored response
+  for repeated non-safe requests; method+route scoped; cache.Cache-compatible
+  store).
+- ✅ Circuit breaker for `httpx.Client` (`WithCircuitBreaker`; consecutive
+  server-side failures open it; half-open trial).
+- ✅ `testx` module: in-memory app builder, throwaway DB, fake broker, HTTP
+  request helpers.
 
 ---
 
