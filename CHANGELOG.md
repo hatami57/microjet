@@ -8,6 +8,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`testx` module** — new `github.com/hatami57/microjet/testx` module of test
+  helpers: `NewApp` builds a `host.App` with deterministic in-memory defaults
+  (FixedClock, in-memory SQLite, in-memory cache) and registers cleanup; `NewDB`
+  returns a throwaway `*gorm.DB`; `Broker` is an in-memory `messaging.Client`
+  fake for pub/sub and request-reply; and `Request`/`DecodeJSON`/`AssertStatus`
+  exercise a gin router over httptest.
 - **`outbox` module** — new `github.com/hatami57/microjet/outbox` module
   implementing the transactional outbox pattern. `outbox.Enqueue` /
   `EnqueueJSON` record a broker message in the same gorm transaction as a domain

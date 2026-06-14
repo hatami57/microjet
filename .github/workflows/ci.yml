@@ -29,6 +29,7 @@ jobs:
           - jsonx
           - otelx
           - outbox
+          - testx
           - tenant
           - versioninfo
     steps:
