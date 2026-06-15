@@ -33,11 +33,12 @@ import (
 	"reflect"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/hatami57/microjet/core"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamoTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // Table is a typed accessor for a single DynamoDB table.
@@ -65,15 +66,15 @@ func (t *Table[T]) buildKey(item *T) (map[string]dynamoTypes.AttributeValue, err
 	v := reflect.ValueOf(item).Elem()
 	pkStr, err := t.meta.pkField.format.encode(v)
 	if err != nil {
-		return nil, core.ErrInternal.WithInner(err)
+		return nil, errorx.ErrInternal.WithInner(err)
 	}
 	skStr, err := t.meta.skField.format.encode(v)
 	if err != nil {
-		return nil, core.ErrInternal.WithInner(err)
+		return nil, errorx.ErrInternal.WithInner(err)
 	}
 	key, err := attributevalue.MarshalMap(map[string]string{"PK": pkStr, "SK": skStr})
 	if err != nil {
-		return nil, core.ErrInternal.WithInner(err)
+		return nil, errorx.ErrInternal.WithInner(err)
 	}
 	return key, nil
 }
@@ -85,19 +86,19 @@ func (t *Table[T]) injectKeys(item *T, raw map[string]dynamoTypes.AttributeValue
 	if pkAttr, ok := raw["PK"]; ok {
 		var pkStr string
 		if err := attributevalue.Unmarshal(pkAttr, &pkStr); err != nil {
-			return core.ErrInternal.WithInner(err)
+			return errorx.ErrInternal.WithInner(err)
 		}
 		if err := t.meta.pkField.format.decode(pkStr, v); err != nil {
-			return core.ErrInternal.WithInner(err)
+			return errorx.ErrInternal.WithInner(err)
 		}
 	}
 	if skAttr, ok := raw["SK"]; ok {
 		var skStr string
 		if err := attributevalue.Unmarshal(skAttr, &skStr); err != nil {
-			return core.ErrInternal.WithInner(err)
+			return errorx.ErrInternal.WithInner(err)
 		}
 		if err := t.meta.skField.format.decode(skStr, v); err != nil {
-			return core.ErrInternal.WithInner(err)
+			return errorx.ErrInternal.WithInner(err)
 		}
 	}
 	return nil
@@ -108,7 +109,7 @@ func (t *Table[T]) injectKeys(item *T, raw map[string]dynamoTypes.AttributeValue
 func (t *Table[T]) unmarshalItem(raw map[string]dynamoTypes.AttributeValue) (*T, error) {
 	var item T
 	if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-		return nil, core.ErrInternal.WithInner(err)
+		return nil, errorx.ErrInternal.WithInner(err)
 	}
 	if err := t.injectKeys(&item, raw); err != nil {
 		return nil, err
@@ -127,7 +128,7 @@ func (t *Table[T]) Put(ctx context.Context, item *T) error {
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		return core.ErrInternal.WithInner(err)
+		return errorx.ErrInternal.WithInner(err)
 	}
 	maps.Copy(av, key)
 	_, err = t.client.PutItem(ctx, &dynamodb.PutItemInput{
@@ -135,7 +136,7 @@ func (t *Table[T]) Put(ctx context.Context, item *T) error {
 		Item:      av,
 	})
 	if err != nil {
-		return core.ErrInternal.WithInner(err)
+		return errorx.ErrInternal.WithInner(err)
 	}
 	return nil
 }
@@ -152,7 +153,7 @@ func (t *Table[T]) Get(ctx context.Context, key *T) (*T, bool, error) {
 		Key:       k,
 	})
 	if err != nil {
-		return nil, false, core.ErrInternal.WithInner(err)
+		return nil, false, errorx.ErrInternal.WithInner(err)
 	}
 	if len(res.Item) == 0 {
 		return nil, false, nil
@@ -175,7 +176,7 @@ func (t *Table[T]) Delete(ctx context.Context, key *T) error {
 		Key:       k,
 	})
 	if err != nil {
-		return core.ErrInternal.WithInner(err)
+		return errorx.ErrInternal.WithInner(err)
 	}
 	return nil
 }
@@ -192,7 +193,7 @@ func (t *Table[T]) Update(ctx context.Context, item *T, fields ...string) error 
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		return core.ErrInternal.WithInner(err)
+		return errorx.ErrInternal.WithInner(err)
 	}
 
 	// Merge caller-supplied field names with auto_update field names.
@@ -226,7 +227,7 @@ func (t *Table[T]) Update(ctx context.Context, item *T, fields ...string) error 
 
 	expr, err := expression.NewBuilder().WithUpdate(update).Build()
 	if err != nil {
-		return core.ErrInternal.WithInner(err)
+		return errorx.ErrInternal.WithInner(err)
 	}
 	_, err = t.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 aws.String(t.tableName),
@@ -236,7 +237,7 @@ func (t *Table[T]) Update(ctx context.Context, item *T, fields ...string) error 
 		UpdateExpression:          expr.Update(),
 	})
 	if err != nil {
-		return core.ErrInternal.WithInner(err)
+		return errorx.ErrInternal.WithInner(err)
 	}
 	return nil
 }
@@ -266,7 +267,7 @@ func (t *Table[T]) BatchGet(ctx context.Context, keys []*T) ([]*T, error) {
 				RequestItems: requestItems,
 			})
 			if err != nil {
-				return nil, core.ErrInternal.WithInner(err)
+				return nil, errorx.ErrInternal.WithInner(err)
 			}
 			for _, items := range res.Responses {
 				for _, raw := range items {
@@ -292,10 +293,10 @@ func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue 
 	if token != nil {
 		decoded, err := base64.StdEncoding.DecodeString(*token)
 		if err != nil {
-			return nil, nil, core.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
 		}
 		if err = json.Unmarshal(decoded, &startKey); err != nil {
-			return nil, nil, core.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
 		}
 	}
 
@@ -305,7 +306,7 @@ func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue 
 	}
 	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
 	if err != nil {
-		return nil, nil, core.ErrInternal.WithInner(err)
+		return nil, nil, errorx.ErrInternal.WithInner(err)
 	}
 
 	paginator := dynamodb.NewQueryPaginator(t.client, &dynamodb.QueryInput{
@@ -319,7 +320,7 @@ func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue 
 	})
 	output, err := paginator.NextPage(ctx)
 	if err != nil {
-		return nil, nil, core.ErrInternal.WithInner(err)
+		return nil, nil, errorx.ErrInternal.WithInner(err)
 	}
 
 	items := make([]*T, 0, len(output.Items))
@@ -335,7 +336,7 @@ func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue 
 	if output.LastEvaluatedKey != nil {
 		encoded, err := json.Marshal(output.LastEvaluatedKey)
 		if err != nil {
-			return nil, nil, core.ErrInternal.WithInner(err)
+			return nil, nil, errorx.ErrInternal.WithInner(err)
 		}
 		s := base64.StdEncoding.EncodeToString(encoded)
 		nextToken = &s
@@ -349,17 +350,17 @@ func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue 
 func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pageSize int32, token *string) ([]*T, *string, error) {
 	pkStr, err := t.meta.pkField.format.encode(reflect.ValueOf(pkItem).Elem())
 	if err != nil {
-		return nil, nil, core.ErrInternal.WithInner(err)
+		return nil, nil, errorx.ErrInternal.WithInner(err)
 	}
 
 	var startKey map[string]dynamoTypes.AttributeValue
 	if token != nil {
 		decoded, err := base64.StdEncoding.DecodeString(*token)
 		if err != nil {
-			return nil, nil, core.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
 		}
 		if err = json.Unmarshal(decoded, &startKey); err != nil {
-			return nil, nil, core.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
 		}
 	}
 
@@ -369,7 +370,7 @@ func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pa
 	}
 	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
 	if err != nil {
-		return nil, nil, core.ErrInternal.WithInner(err)
+		return nil, nil, errorx.ErrInternal.WithInner(err)
 	}
 
 	paginator := dynamodb.NewQueryPaginator(t.client, &dynamodb.QueryInput{
@@ -382,7 +383,7 @@ func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pa
 	})
 	output, err := paginator.NextPage(ctx)
 	if err != nil {
-		return nil, nil, core.ErrInternal.WithInner(err)
+		return nil, nil, errorx.ErrInternal.WithInner(err)
 	}
 
 	items := make([]*T, 0, len(output.Items))
@@ -398,7 +399,7 @@ func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pa
 	if output.LastEvaluatedKey != nil {
 		encoded, err := json.Marshal(output.LastEvaluatedKey)
 		if err != nil {
-			return nil, nil, core.ErrInternal.WithInner(err)
+			return nil, nil, errorx.ErrInternal.WithInner(err)
 		}
 		s := base64.StdEncoding.EncodeToString(encoded)
 		nextToken = &s

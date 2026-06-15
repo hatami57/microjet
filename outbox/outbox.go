@@ -18,8 +18,8 @@ package outbox
 import (
 	"time"
 
-	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/jsonx"
+	"github.com/hatami57/microjet/core/errorx"
+	"github.com/hatami57/microjet/core/jsonx"
 	"github.com/hatami57/microjet/messaging"
 	"gorm.io/gorm"
 )
@@ -43,7 +43,7 @@ func (Message) TableName() string { return "outbox_messages" }
 // integration does this automatically) before enqueuing or relaying.
 func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(&Message{}); err != nil {
-		return core.NewInternalError("outbox", "migrating outbox table failed").WithInner(err)
+		return errorx.NewInternalError("outbox", "migrating outbox table failed").WithInner(err)
 	}
 	return nil
 }
@@ -56,13 +56,13 @@ func Enqueue(tx *gorm.DB, msg messaging.Message) error {
 	if len(msg.Headers) > 0 {
 		h, err := jsonx.ToJSON(msg.Headers)
 		if err != nil {
-			return core.NewInternalError("outbox", "encoding message headers failed").
+			return errorx.NewInternalError("outbox", "encoding message headers failed").
 				WithParams("subject", msg.Subject).WithInner(err)
 		}
 		row.Headers = []byte(h)
 	}
 	if err := tx.Create(&row).Error; err != nil {
-		return core.NewInternalError("outbox", "enqueuing message failed").
+		return errorx.NewInternalError("outbox", "enqueuing message failed").
 			WithParams("subject", msg.Subject).WithInner(err)
 	}
 	return nil
@@ -73,7 +73,7 @@ func Enqueue(tx *gorm.DB, msg messaging.Message) error {
 func EnqueueJSON(tx *gorm.DB, subject string, payload any) error {
 	data, err := jsonx.ToJSON(payload)
 	if err != nil {
-		return core.NewInternalError("outbox", "encoding message payload failed").
+		return errorx.NewInternalError("outbox", "encoding message payload failed").
 			WithParams("subject", subject).WithInner(err)
 	}
 	return Enqueue(tx, messaging.Message{Subject: subject, Data: []byte(data)})

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -67,10 +67,10 @@ func TestClientNon2xxReturnsStructuredError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 502 response")
 	}
-	if !core.IsInternalError(err) {
+	if !errorx.IsInternalError(err) {
 		t.Errorf("error type = %T %v, want Internal", err, err)
 	}
-	ce := core.GetError(err)
+	ce := errorx.GetError(err)
 	if ce == nil || ce.Params["status"] != 502 {
 		t.Errorf("error params = %+v, want status 502", ce)
 	}
@@ -201,7 +201,7 @@ func TestClientCircuitBreakerFailsFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected fail-fast error while breaker is open")
 	}
-	if !core.IsInternalError(err) {
+	if !errorx.IsInternalError(err) {
 		t.Errorf("error = %v, want internal", err)
 	}
 	if got := atomic.LoadInt32(&hits); got != 3 {

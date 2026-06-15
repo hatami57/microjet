@@ -1,10 +1,10 @@
-// Package versioninfo provides build-time version variables.
+// Package version provides build-time version variables.
 // Set these via -ldflags at build time:
 //
-//	go build -ldflags "-X github.com/hatami57/microjet/versioninfo.Version=1.2.3 \
-//	    -X github.com/hatami57/microjet/versioninfo.CommitHash=$(git rev-parse --short HEAD) \
-//	    -X github.com/hatami57/microjet/versioninfo.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-package versioninfo
+//	go build -ldflags "-X github.com/hatami57/microjet/core/version.Version=1.2.3 \
+//	    -X github.com/hatami57/microjet/core/version.CommitHash=$(git rev-parse --short HEAD) \
+//	    -X github.com/hatami57/microjet/core/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+package version
 
 import (
 	"fmt"

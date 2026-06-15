@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/tenant"
+	"github.com/hatami57/microjet/core/tenant"
 )
 
 type countingStore struct {

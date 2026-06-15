@@ -102,7 +102,7 @@ func NewApp(t testing.TB, opts ...AppOption) *App {
 		app.InjectDatabase(NewDB(t))
 	}
 	if cfg.withCache {
-		app.WithCacheClient(cache.NewMemoryCache())
+		app.WithCacheClient(cache.NewMemoryCache(cfg.clock))
 	}
 	if cfg.broker != nil {
 		app.WithMessaging(cfg.broker)

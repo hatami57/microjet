@@ -1,4 +1,4 @@
-package core
+package config
 
 import "testing"
 
@@ -7,4 +7,3 @@ func TestNewViperDoesNotErrorWithNoFile(t *testing.T) {
 		t.Fatalf("NewViper returned error with no config file: %v", err)
 	}
 }
-

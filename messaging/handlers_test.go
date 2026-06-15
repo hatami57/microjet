@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/jsonx"
-	"github.com/hatami57/microjet/types"
+	"github.com/hatami57/microjet/core/errorx"
+	"github.com/hatami57/microjet/core/jsonx"
+	"github.com/hatami57/microjet/core/types"
 )
 
 type order struct {
@@ -39,7 +39,7 @@ func TestHandleJSONBadPayloadReturnsBadRequest(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	if !core.IsBadRequestError(err) {
+	if !errorx.IsBadRequestError(err) {
 		t.Errorf("error = %v, want BadRequest", err)
 	}
 	if called {

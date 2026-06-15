@@ -5,9 +5,11 @@ import (
 	"reflect"
 
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
-var ErrServiceNotRegistered = core.NewInternalError("General", "Service is not registered")
+var ErrServiceNotRegistered = errorx.NewInternalError("General", "Service is not registered")
 
 type ServiceIniter interface {
 	Init(app *App) error
@@ -141,7 +143,7 @@ func (a *App) initServices() error {
 			}
 			configured[key] = true
 			progressed = true
-			cfg, ok := item.(core.Configurable)
+			cfg, ok := item.(config.Configurable)
 			if !ok {
 				return true
 			}

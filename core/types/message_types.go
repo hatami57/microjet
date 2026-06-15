@@ -1,6 +1,6 @@
 package types
 
-import "github.com/hatami57/microjet/jsonx"
+import "github.com/hatami57/microjet/core/jsonx"
 
 type Message struct {
 	Type      string         `json:"type"`

@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"time"
@@ -49,7 +51,7 @@ func NewRedisWithClient(client *redis.Client, prefix string) *RedisCache {
 
 func (r *RedisCache) key(k string) string { return r.prefix + k }
 
-func (r *RedisCache) Get(ctx context.Context, key string) ([]byte, bool, error) {
+func (r *RedisCache) GetBytes(ctx context.Context, key string) ([]byte, bool, error) {
 	data, err := r.client.Get(ctx, r.key(key)).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, false, nil
@@ -60,11 +62,37 @@ func (r *RedisCache) Get(ctx context.Context, key string) ([]byte, bool, error) 
 	return data, true, nil
 }
 
-func (r *RedisCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+func (r *RedisCache) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	if err := r.client.Set(ctx, r.key(key), value, ttl).Err(); err != nil {
 		return fmt.Errorf("redis set: %w", err)
 	}
 	return nil
+}
+
+// Get fetches key and gob-decodes the stored value. Because Redis cannot hold
+// live Go values, Set serializes with encoding/gob; the dynamic type of the
+// value must be registered with gob.Register for the decode to reconstruct it.
+func (r *RedisCache) Get(ctx context.Context, key string) (any, bool, error) {
+	data, found, err := r.GetBytes(ctx, key)
+	if err != nil || !found {
+		return nil, found, err
+	}
+	var value any
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&value); err != nil {
+		return nil, false, fmt.Errorf("redis get: gob decode: %w", err)
+	}
+	return value, true, nil
+}
+
+// Set gob-encodes value and stores it under key with the given ttl. The
+// dynamic type of value must be registered with gob.Register so Get can decode
+// it back into the same type.
+func (r *RedisCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(&value); err != nil {
+		return fmt.Errorf("redis set: gob encode: %w", err)
+	}
+	return r.SetBytes(ctx, key, buf.Bytes(), ttl)
 }
 
 func (r *RedisCache) Delete(ctx context.Context, key string) error {

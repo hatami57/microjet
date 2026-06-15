@@ -19,19 +19,19 @@ func TestWithCacheDefaultsToMemory(t *testing.T) {
 		t.Fatal("expected a cache to be registered")
 	}
 	ctx := context.Background()
-	if err := c.Set(ctx, "k", []byte("v"), time.Minute); err != nil {
-		t.Fatalf("Set: %v", err)
+	if err := c.SetBytes(ctx, "k", []byte("v"), time.Minute); err != nil {
+		t.Fatalf("SetBytes: %v", err)
 	}
-	got, found, err := c.Get(ctx, "k")
+	got, found, err := c.GetBytes(ctx, "k")
 	if err != nil || !found || string(got) != "v" {
-		t.Fatalf("Get = %q, %v, %v", got, found, err)
+		t.Fatalf("GetBytes = %q, %v, %v", got, found, err)
 	}
 	t.Cleanup(app.Close)
 }
 
 func TestWithCacheClientInjects(t *testing.T) {
 	app := newTestApp(t)
-	mem := cache.NewMemoryCache()
+	mem := cache.NewMemoryCache(app.Clock)
 	app.WithCacheClient(mem).InitServices()
 	if err := app.Err(); err != nil {
 		t.Fatalf("WithCacheClient: %v", err)

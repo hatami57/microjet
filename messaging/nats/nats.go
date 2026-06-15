@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/config"
 	"github.com/hatami57/microjet/messaging"
 	"github.com/nats-io/nats.go"
 	"go.opentelemetry.io/otel"
@@ -29,14 +30,14 @@ func spanAttrs(subject string) trace.SpanStartOption {
 }
 
 var (
-	_ messaging.Client  = (*Client)(nil)
-	_ core.Configurable = (*Client)(nil)
-	_ core.Initer       = (*Client)(nil)
-	_ core.Closer       = (*Client)(nil)
+	_ messaging.Client    = (*Client)(nil)
+	_ config.Configurable = (*Client)(nil)
+	_ core.Initer         = (*Client)(nil)
+	_ core.Closer         = (*Client)(nil)
 )
 
 // Client is the NATS-backed implementation of messaging.Client. It implements
-// core.Configurable so it can participate in a core.LoadAll call — LoadConfig
+// config.Configurable so it can participate in a core.LoadAll call — LoadConfig
 // reads the [messaging] section. Call Connect after LoadAll to dial the broker.
 type Client struct {
 	Config Config
@@ -79,8 +80,8 @@ func (c *Client) defaultOptions() []nats.Option {
 	}
 }
 
-// ReadConfig implements core.Configurable, reading the [messaging] section.
-func (c *Client) ReadConfig(l core.ConfigReader) error {
+// ReadConfig implements config.Configurable, reading the [messaging] section.
+func (c *Client) ReadConfig(l config.Reader) error {
 	return l.Read("messaging", &c.Config)
 }
 

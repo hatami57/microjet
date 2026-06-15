@@ -15,14 +15,9 @@ use (
 	./gormx/sqlite
 	./host
 	./httpx
-	./jsonx
 	./messaging
 	./messaging/nats
 	./otelx
 	./outbox
 	./testx
-	./tenant
-	./types
-	./utils
-	./versioninfo
 )

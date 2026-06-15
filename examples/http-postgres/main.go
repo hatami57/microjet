@@ -12,7 +12,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/gormx/postgres"
 	"github.com/hatami57/microjet/host"
@@ -66,7 +66,7 @@ func registerRoutes(a *host.App, users *gormx.Table[User]) {
 			return
 		}
 		if user == nil {
-			c.Error(core.ErrNotFound.WithSubject("User"))
+			c.Error(errorx.ErrNotFound.WithSubject("User"))
 			return
 		}
 		c.JSON(http.StatusOK, user)

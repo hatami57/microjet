@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 var jsonFieldNamesOnce sync.Once
@@ -37,17 +37,17 @@ func UseJSONFieldNames() {
 }
 
 // ValidationError converts a gin binding/validation error into a structured
-// BadRequest *core.Error. A validator failure carries a per-field breakdown
+// BadRequest *errorx.Error. A validator failure carries a per-field breakdown
 // (field name → reason) under the "fields" param; a JSON type mismatch names
 // the offending field; anything else falls back to the raw decode message. The
-// returned error matches errors.Is(err, core.ErrBadRequest).
-func ValidationError(err error) *core.Error {
+// returned error matches errors.Is(err, errorx.ErrBadRequest).
+func ValidationError(err error) *errorx.Error {
 	if verrs, ok := errors.AsType[validator.ValidationErrors](err); ok {
 		fields := make(map[string]any, len(verrs))
 		for _, fe := range verrs {
 			fields[fe.Field()] = validationMessage(fe)
 		}
-		return core.ErrBadRequest.WithMessage("Validation failed").WithParams("fields", fields)
+		return errorx.ErrBadRequest.WithMessage("Validation failed").WithParams("fields", fields)
 	}
 
 	if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok {
@@ -55,11 +55,11 @@ func ValidationError(err error) *core.Error {
 		if field == "" {
 			field = "body"
 		}
-		return core.ErrBadRequest.WithMessage(
+		return errorx.ErrBadRequest.WithMessage(
 			fmt.Sprintf("Invalid type for field %q: expected %s", field, typeErr.Type.String()))
 	}
 
-	return core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
+	return errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid body: %s", err.Error()))
 }
 
 // validationMessage renders a human-readable reason for a single field error,

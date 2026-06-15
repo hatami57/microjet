@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
 
-func runWith(debug bool, handler gin.HandlerFunc) (*httptest.ResponseRecorder, core.ErrorResponse) {
+func runWith(debug bool, handler gin.HandlerFunc) (*httptest.ResponseRecorder, errorx.ErrorResponse) {
 	r := gin.New()
 	r.Use(Error(debug))
 	r.GET("/", handler)
@@ -22,14 +22,14 @@ func runWith(debug bool, handler gin.HandlerFunc) (*httptest.ResponseRecorder, c
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.ServeHTTP(w, req)
 
-	var resp core.ErrorResponse
+	var resp errorx.ErrorResponse
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 	return w, resp
 }
 
 func TestTypedErrorMapsToStatus(t *testing.T) {
 	w, resp := runWith(false, func(c *gin.Context) {
-		c.Error(core.ErrNotFound.WithSubject("User"))
+		c.Error(errorx.ErrNotFound.WithSubject("User"))
 	})
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", w.Code)
@@ -41,7 +41,7 @@ func TestTypedErrorMapsToStatus(t *testing.T) {
 
 func TestTypedErrorIncludesParams(t *testing.T) {
 	_, resp := runWith(false, func(c *gin.Context) {
-		c.Error(core.ErrBadRequest.WithSubject("email").WithParams("field", "email"))
+		c.Error(errorx.ErrBadRequest.WithSubject("email").WithParams("field", "email"))
 	})
 	if resp.Params == nil || resp.Params["field"] != "email" {
 		t.Errorf("params not propagated: %+v", resp.Params)
@@ -51,7 +51,7 @@ func TestTypedErrorIncludesParams(t *testing.T) {
 func TestInnerCauseHiddenWithoutDebug(t *testing.T) {
 	secret := "connection string user:pass@db"
 	_, resp := runWith(false, func(c *gin.Context) {
-		c.Error(core.ErrInternal.WithInner(errors.New(secret)))
+		c.Error(errorx.ErrInternal.WithInner(errors.New(secret)))
 	})
 	if resp.InnerError != nil {
 		t.Errorf("inner cause leaked in production: %q", *resp.InnerError)
@@ -61,7 +61,7 @@ func TestInnerCauseHiddenWithoutDebug(t *testing.T) {
 func TestInnerCauseShownWithDebug(t *testing.T) {
 	cause := "boom"
 	_, resp := runWith(true, func(c *gin.Context) {
-		c.Error(core.ErrInternal.WithInner(errors.New(cause)))
+		c.Error(errorx.ErrInternal.WithInner(errors.New(cause)))
 	})
 	if resp.InnerError == nil || *resp.InnerError != cause {
 		t.Errorf("inner cause not exposed in debug: %v", resp.InnerError)

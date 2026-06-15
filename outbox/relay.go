@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/jsonx"
+	"github.com/hatami57/microjet/core/errorx"
+	"github.com/hatami57/microjet/core/jsonx"
 	"github.com/hatami57/microjet/messaging"
 	"gorm.io/gorm"
 )
@@ -68,7 +68,7 @@ func (r *Relay) PublishPending(ctx context.Context) (int, error) {
 		Order("id ASC").
 		Limit(r.batchSize).
 		Find(&rows).Error; err != nil {
-		return 0, core.NewInternalError("outbox", "loading pending messages failed").WithInner(err)
+		return 0, errorx.NewInternalError("outbox", "loading pending messages failed").WithInner(err)
 	}
 
 	published := 0

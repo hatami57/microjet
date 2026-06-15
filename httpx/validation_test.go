@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 type signup struct {
@@ -29,10 +29,10 @@ func TestBodyValidationReportsFieldsByJSONName(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a validation error")
 	}
-	if !core.IsBadRequestError(err) {
+	if !errorx.IsBadRequestError(err) {
 		t.Fatalf("error = %v, want BadRequest", err)
 	}
-	appErr := core.GetError(err)
+	appErr := errorx.GetError(err)
 	fields, ok := appErr.Params["fields"].(map[string]any)
 	if !ok {
 		t.Fatalf("missing fields param: %+v", appErr.Params)
@@ -51,7 +51,7 @@ func TestBodyValidationRequiredField(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a validation error")
 	}
-	fields := core.GetError(err).Params["fields"].(map[string]any)
+	fields := errorx.GetError(err).Params["fields"].(map[string]any)
 	if fields["emailAddress"] != "is required" {
 		t.Errorf("emailAddress message = %v, want \"is required\"", fields["emailAddress"])
 	}
@@ -62,10 +62,10 @@ func TestBodyValidationTypeMismatch(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a type-mismatch error")
 	}
-	if !core.IsBadRequestError(err) {
+	if !errorx.IsBadRequestError(err) {
 		t.Errorf("error = %v, want BadRequest", err)
 	}
-	if _, hasFields := core.GetError(err).Params["fields"]; hasFields {
+	if _, hasFields := errorx.GetError(err).Params["fields"]; hasFields {
 		t.Error("type mismatch should not carry per-field validation details")
 	}
 }

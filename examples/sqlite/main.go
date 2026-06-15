@@ -12,7 +12,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/gormx/sqlite"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/httpx"
@@ -61,7 +61,7 @@ func registerRoutes(a *host.App) {
 		var note Note
 		err = db.WithContext(c.Request.Context()).First(&note, id).Error
 		if err != nil {
-			c.Error(core.ErrNotFound.WithSubject("Note"))
+			c.Error(errorx.ErrNotFound.WithSubject("Note"))
 			return
 		}
 		c.JSON(http.StatusOK, note)

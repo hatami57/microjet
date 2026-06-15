@@ -10,13 +10,17 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/hatami57/microjet/core"
 )
 
 // Cache is a byte-oriented key/value store with per-entry expiry. A zero ttl
 // means no expiry. Get reports found=false for a missing or expired key.
 type Cache interface {
-	Get(ctx context.Context, key string) (value []byte, found bool, err error)
-	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	GetBytes(ctx context.Context, key string) (value []byte, found bool, err error)
+	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	Get(ctx context.Context, key string) (value any, found bool, err error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	Close() error
 }
@@ -33,10 +37,10 @@ type Config struct {
 
 // New builds a Cache from cfg. An empty or "memory" driver returns an in-process
 // MemoryCache; "redis" connects to Redis (verifying the connection with a PING).
-func New(ctx context.Context, cfg Config) (Cache, error) {
+func New(ctx context.Context, cfg Config, timeProvider core.TimeProvider) (Cache, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Driver)) {
 	case "", "memory":
-		return NewMemoryCache(), nil
+		return NewMemoryCache(timeProvider), nil
 	case "redis":
 		return NewRedis(ctx, RedisOptions{
 			Addr:     cfg.Addr,
@@ -53,7 +57,7 @@ func New(ctx context.Context, cfg Config) (Cache, error) {
 // and nil error) when the key is absent.
 func GetJSON[T any](ctx context.Context, c Cache, key string) (T, bool, error) {
 	var zero T
-	data, found, err := c.Get(ctx, key)
+	data, found, err := c.GetBytes(ctx, key)
 	if err != nil || !found {
 		return zero, found, err
 	}
@@ -70,5 +74,5 @@ func SetJSON[T any](ctx context.Context, c Cache, key string, v T, ttl time.Dura
 	if err != nil {
 		return err
 	}
-	return c.Set(ctx, key, data, ttl)
+	return c.SetBytes(ctx, key, data, ttl)
 }

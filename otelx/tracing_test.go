@@ -3,12 +3,12 @@ package otelx
 import (
 	"testing"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/config"
 	"go.opentelemetry.io/otel"
 )
 
 func TestReadConfigDefaults(t *testing.T) {
-	reader, err := core.NewViperConfigReader("OTELXTEST")
+	reader, err := config.NewViperConfigReader("OTELXTEST")
 	if err != nil {
 		t.Fatalf("NewViperConfigReader: %v", err)
 	}

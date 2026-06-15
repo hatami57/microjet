@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/tenant"
+	"github.com/hatami57/microjet/core/errorx"
+	"github.com/hatami57/microjet/core/tenant"
 )
 
 const (
@@ -26,7 +26,7 @@ func Tenant(tenantStore tenant.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tenantID, err := uuid.Parse(extractTenantID(c))
 		if err != nil {
-			_ = c.Error(core.ErrUnauthorized)
+			_ = c.Error(errorx.ErrUnauthorized)
 			c.Abort()
 			return
 		}
@@ -37,11 +37,11 @@ func Tenant(tenantStore tenant.Store) gin.HandlerFunc {
 			c.Abort()
 			return
 		} else if t == nil {
-			_ = c.Error(core.ErrUnauthorized.WithParams("tenantId", tenantID))
+			_ = c.Error(errorx.ErrUnauthorized.WithParams("tenantId", tenantID))
 			c.Abort()
 			return
 		} else if !t.AsBase().IsActive {
-			_ = c.Error(core.ErrForbidden.WithParams("tenantId", tenantID))
+			_ = c.Error(errorx.ErrForbidden.WithParams("tenantId", tenantID))
 			c.Abort()
 			return
 		}
@@ -85,11 +85,11 @@ func GetTenant[T any](c *gin.Context) *T {
 func GetTenantID(c *gin.Context) (uuid.UUID, error) {
 	value, exists := c.Get(TenantIDContextKey)
 	if !exists {
-		return uuid.Nil, core.ErrNotFound
+		return uuid.Nil, errorx.ErrNotFound
 	}
 	id, ok := value.(uuid.UUID)
 	if !ok {
-		return uuid.Nil, core.ErrInternal.WithMessage("tenant ID in context has unexpected type")
+		return uuid.Nil, errorx.ErrInternal.WithMessage("tenant ID in context has unexpected type")
 	}
 	return id, nil
 }

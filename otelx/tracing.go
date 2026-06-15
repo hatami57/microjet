@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -21,9 +22,9 @@ import (
 )
 
 var (
-	_ core.Configurable = (*Tracing)(nil)
-	_ core.Initer       = (*Tracing)(nil)
-	_ core.Closer       = (*Tracing)(nil)
+	_ config.Configurable = (*Tracing)(nil)
+	_ core.Initer         = (*Tracing)(nil)
+	_ core.Closer         = (*Tracing)(nil)
 )
 
 // shutdownTimeout bounds how long Close waits for the final span flush so a
@@ -63,8 +64,8 @@ func (t *Tracing) SetServiceInfo(name, version string) {
 	t.serviceVersion = version
 }
 
-// ReadConfig implements core.Configurable, reading the [tracing] section.
-func (t *Tracing) ReadConfig(l core.ConfigReader) error {
+// ReadConfig implements config.Configurable, reading the [tracing] section.
+func (t *Tracing) ReadConfig(l config.Reader) error {
 	l.SetDefault("tracing.enabled", true)
 	l.SetDefault("tracing.endpoint", "localhost:4318")
 	l.SetDefault("tracing.insecure", true)

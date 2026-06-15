@@ -1,4 +1,4 @@
-package core
+package logx
 
 import (
 	"bytes"

@@ -33,10 +33,12 @@ examples/http-postgres/http-postgres
 examples/minimal/minimal
 examples/sqlite/sqlite
 examples/features/features
+examples/modules/modules
 /http-postgres
 /minimal
 /sqlite
 /features
+/modules
 
 # SQLite database files created by examples at runtime
 *.db

@@ -33,7 +33,7 @@ import "github.com/hatami57/microjet/host"
 | Package | Import | Description |
 |---|---|---|
 | `host` | `github.com/hatami57/microjet/host` | Application orchestrator, DI container, lifecycle |
-| `core` | `github.com/hatami57/microjet/core` | Errors, config loading, logging, time |
+| `core` | `github.com/hatami57/microjet/core` | Time, correlation, lifecycle interfaces; with subpackages `errorx` (typed errors), `logx` (slog setup), `config` (config loading), plus `jsonx`, `utils`, `types`, `tenant`, `version` |
 | `httpx` | `github.com/hatami57/microjet/httpx` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
 | `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
@@ -43,9 +43,9 @@ import "github.com/hatami57/microjet/host"
 | `outbox` | `github.com/hatami57/microjet/outbox` | Transactional outbox: enqueue events in a DB tx, relay to the broker |
 | `testx` | `github.com/hatami57/microjet/testx` | Test helpers: in-memory app builder, fake broker, HTTP request helpers |
 | `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
-| `types` | `github.com/hatami57/microjet/types` | Message envelope, pagination types |
-| `types/money` | `github.com/hatami57/microjet/types/money` | Currency-aware decimal money |
-| `utils` | `github.com/hatami57/microjet/utils` | JSON, converters, env, disk |
+| `core/types` | `github.com/hatami57/microjet/core/types` | Message envelope, pagination types |
+| `core/types/money` | `github.com/hatami57/microjet/core/types/money` | Currency-aware decimal money |
+| `core/utils` | `github.com/hatami57/microjet/core/utils` | JSON, converters, env, disk |
 
 ## Installation
 
@@ -300,7 +300,7 @@ for _, user := range result.Items {
 ## Money
 
 ```go
-import "github.com/hatami57/microjet/types/money"
+import "github.com/hatami57/microjet/core/types/money"
 
 price := money.Money{Value: decimal.NewFromFloat(10.50), CurrencyCode: "USD"}
 tax := price.MultiplyInt64(2) // 21.00 USD

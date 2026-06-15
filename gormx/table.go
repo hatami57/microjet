@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/hatami57/microjet/types"
+	"github.com/hatami57/microjet/core/types"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

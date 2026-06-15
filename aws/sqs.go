@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/hatami57/microjet/jsonx"
+	"github.com/hatami57/microjet/core/jsonx"
 )
 
 func (a *AWS) SQSSendMessage(ctx context.Context, message any) error {

@@ -7,19 +7,21 @@ import (
 
 	"github.com/hatami57/microjet/cache"
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/config"
 )
 
-// cacheService implements core.Configurable, core.Initer, and core.Closer, and
+// cacheService implements config.Configurable, core.Initer, and core.Closer, and
 // reports readiness via Healthy. A pre-injected client (WithCacheClient) skips
 // config loading and Init.
 type cacheService struct {
 	config     cache.Config
 	logger     *slog.Logger
+	clock      core.TimeProvider
 	cache      cache.Cache
 	configured bool // true = client/config already set, skip LoadConfig
 }
 
-func (s *cacheService) ReadConfig(l core.ConfigReader) error {
+func (s *cacheService) ReadConfig(l config.Reader) error {
 	if s.configured {
 		return nil
 	}
@@ -30,7 +32,7 @@ func (s *cacheService) Init() error {
 	if s.cache != nil {
 		return nil
 	}
-	c, err := cache.New(context.Background(), s.config)
+	c, err := cache.New(context.Background(), s.config, s.clock)
 	if err != nil {
 		return err
 	}
@@ -81,7 +83,7 @@ func (a *App) WithCache() *App {
 	if a.err != nil {
 		return a
 	}
-	ProvideService(a, &cacheService{logger: a.Logger})
+	ProvideService(a, &cacheService{logger: a.Logger, clock: a.Clock})
 	return a
 }
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/httpx/middleware"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
@@ -33,7 +33,7 @@ const DefaultMaxBackoff = 30 * time.Second
 // Client is a small JSON-over-HTTP client for calling external services
 // (payment gateways, partner APIs, internal microservices). It marshals request
 // bodies to JSON, decodes JSON responses into a caller-supplied value, and turns
-// non-2xx responses into structured *core.Error values. Construct one per
+// non-2xx responses into structured *errorx.Error values. Construct one per
 // upstream with NewClient and reuse it; it is safe for concurrent use.
 type Client struct {
 	baseURL string
@@ -164,7 +164,7 @@ func (c *Client) PostJSON(ctx context.Context, path string, body, out any, opts 
 }
 
 // Do performs a request with an optional JSON body and decodes a JSON response.
-// It returns a *core.Error (Internal) for transport failures and non-2xx
+// It returns a *errorx.Error (Internal) for transport failures and non-2xx
 // responses; the response body is attached to the error's Params for diagnosis.
 // When retries are enabled (WithRetry) it transparently re-attempts retryable
 // failures, returning the last error if all attempts fail.
@@ -173,7 +173,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any, opt
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return core.NewInternalError("http", "encoding request body failed").WithInner(err)
+			return errorx.NewInternalError("http", "encoding request body failed").WithInner(err)
 		}
 		bodyBytes = b
 	}
@@ -181,7 +181,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any, opt
 
 	// Fail fast when the breaker is open, before touching the network.
 	if c.breaker != nil && !c.breaker.allow() {
-		return core.NewInternalError("http", "upstream circuit breaker is open").WithParams("url", url)
+		return errorx.NewInternalError("http", "upstream circuit breaker is open").WithParams("url", url)
 	}
 
 	status, err := c.attempt(ctx, method, url, bodyBytes, body != nil, out, opts...)
@@ -244,7 +244,7 @@ func (c *Client) doOnce(ctx context.Context, method, url string, bodyBytes []byt
 
 	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
-		return 0, core.NewInternalError("http", "building request failed").WithInner(err)
+		return 0, errorx.NewInternalError("http", "building request failed").WithInner(err)
 	}
 	// Carry the trace across the wire (W3C traceparent; a no-op until otelx
 	// installs the global propagator).
@@ -266,21 +266,21 @@ func (c *Client) doOnce(ctx context.Context, method, url string, bodyBytes []byt
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return 0, core.NewInternalError("http", "request failed").
+		return 0, errorx.NewInternalError("http", "request failed").
 			WithParams("url", req.URL.String()).WithInner(err)
 	}
 	defer resp.Body.Close()
 
 	data, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return resp.StatusCode, core.NewInternalError("http", fmt.Sprintf("upstream returned %d", resp.StatusCode)).
+		return resp.StatusCode, errorx.NewInternalError("http", fmt.Sprintf("upstream returned %d", resp.StatusCode)).
 			WithParams("status", resp.StatusCode, "body", string(data), "url", req.URL.String())
 	}
 	if out == nil || len(data) == 0 {
 		return resp.StatusCode, nil
 	}
 	if err := json.Unmarshal(data, out); err != nil {
-		return resp.StatusCode, core.NewInternalError("http", "decoding response body failed").
+		return resp.StatusCode, errorx.NewInternalError("http", "decoding response body failed").
 			WithParams("body", string(data)).WithInner(err)
 	}
 	return resp.StatusCode, nil

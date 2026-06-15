@@ -1,4 +1,4 @@
-package core
+package config
 
 import (
 	"errors"
@@ -14,9 +14,9 @@ type viperConfigReader struct {
 	v *viper.Viper
 }
 
-// NewViperConfigReader creates a ConfigReader. Use this to hold a single reader across
+// NewViperConfigReader creates a Reader. Use this to hold a single reader across
 // multiple Configure calls (e.g. in App.configReader) so the config file is only read once.
-func NewViperConfigReader(envPrefix string) (ConfigReader, error) {
+func NewViperConfigReader(envPrefix string) (Reader, error) {
 	v, err := newViper(envPrefix)
 	if err != nil {
 		return nil, err

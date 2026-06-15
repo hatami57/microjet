@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // DefaultJWTContextKey is the gin context key under which verified claims are stored.
@@ -38,7 +38,7 @@ type JWTConfig struct {
 }
 
 // JWT returns a middleware that verifies a JWT on each request and stores the
-// claims on the context. On any failure it records core.ErrUnauthorized and
+// claims on the context. On any failure it records errorx.ErrUnauthorized and
 // aborts, leaving the response to the Error middleware.
 func JWT(cfg JWTConfig) gin.HandlerFunc {
 	keyfunc := cfg.Keyfunc
@@ -73,14 +73,14 @@ func JWT(cfg JWTConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := extract(c)
 		if tokenStr == "" {
-			c.Error(core.ErrUnauthorized.WithMessage("missing bearer token"))
+			c.Error(errorx.ErrUnauthorized.WithMessage("missing bearer token"))
 			c.Abort()
 			return
 		}
 		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(tokenStr, claims, keyfunc, parserOpts...)
 		if err != nil || !token.Valid {
-			c.Error(core.ErrUnauthorized.WithMessage("invalid or expired token"))
+			c.Error(errorx.ErrUnauthorized.WithMessage("invalid or expired token"))
 			c.Abort()
 			return
 		}

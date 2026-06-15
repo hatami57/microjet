@@ -4,6 +4,60 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-06-15
+
+### Changed
+
+- **Cache value API split** — `cache.Cache` now exposes byte-oriented
+  `GetBytes`/`SetBytes` (the previous `Get`/`Set` behaviour) alongside new
+  `Get`/`Set` that operate on `any`. `cache.New` and `cache.NewMemoryCache` take
+  a `core.TimeProvider` so expiry is driven by the injected clock.
+- **Foundation modules merged into `core`** — the `versioninfo`, `utils`,
+  `jsonx`, `types`, and `tenant` modules have been folded into the `core` module
+  as subpackages. They carried only light, ubiquitous dependencies and were
+  versioned in lockstep with `core`, so separate modules added release overhead
+  without an opt-out benefit. Heavyweight, swappable modules (`aws`, `cache`,
+  `httpx`, `otelx`, `messaging`/`messaging/nats`, the `gormx` driver tree,
+  `outbox`) remain separate so consumers only pull the dependencies they import.
+
+- **`core` split into focused subpackages** — the three largest concerns moved
+  out of the top-level `core` package into their own subpackages so the umbrella
+  package holds only cross-cutting primitives (time, correlation, lifecycle
+  interfaces):
+  - typed errors → `core/errorx`
+  - logging/slog setup → `core/logx`
+  - config loading → `core/config`
+
+  `core.TimeProvider`/`core.Clock`, correlation helpers, and the lifecycle
+  interfaces (`Closer`/`Starter`/…) stay in `core`.
+
+### Breaking
+
+- `cache.Cache.Get`/`Set` now take and return `any` rather than `[]byte`; the
+  byte-oriented behaviour moved to `GetBytes`/`SetBytes`. `cache.New` and
+  `cache.NewMemoryCache` gained a `core.TimeProvider` parameter.
+- The selectors for the split-out `core` APIs changed (the package qualifier,
+  not just the import path):
+  - `core.NewError`, `core.Err*`, `core.Is*Error`, `core.Error`, `core.ErrorType`,
+    `core.ErrorResponse`, `core.*ErrorType` → `errorx.*`
+    (`github.com/hatami57/microjet/core/errorx`)
+  - `core.NewLogger`, `core.LogConfig`, `core.LogOutputConfig` → `logx.*`
+    (`github.com/hatami57/microjet/core/logx`)
+  - `core.Configure`, `core.ConfigReader`, `core.Configurable`,
+    `core.NewViperConfigReader` → `config.*`
+    (`github.com/hatami57/microjet/core/config`)
+- Import paths changed. Update imports as follows:
+  - `github.com/hatami57/microjet/versioninfo` → `github.com/hatami57/microjet/core/version` (also renamed `versioninfo` → `version`)
+  - `github.com/hatami57/microjet/utils` → `github.com/hatami57/microjet/core/utils`
+  - `github.com/hatami57/microjet/jsonx` → `github.com/hatami57/microjet/core/jsonx`
+  - `github.com/hatami57/microjet/types` (and `types/money`) → `github.com/hatami57/microjet/core/types`
+  - `github.com/hatami57/microjet/tenant` → `github.com/hatami57/microjet/core/tenant`
+- Build-time version stamping must target the new package path, e.g.
+  `-X github.com/hatami57/microjet/core/version.Version=1.2.3`.
+- Remove the `require`/`replace` entries for the five removed modules from
+  consuming `go.mod` files; the packages now ship with
+  `github.com/hatami57/microjet/core`.
+
 ## [0.15.0] - 2026-06-14
 
 ### Added

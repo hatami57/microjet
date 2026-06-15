@@ -3,7 +3,7 @@ package money
 import (
 	"errors"
 
-	"github.com/hatami57/microjet/jsonx"
+	"github.com/hatami57/microjet/core/jsonx"
 	"github.com/shopspring/decimal"
 )
 

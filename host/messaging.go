@@ -18,7 +18,7 @@ type loggerAware interface {
 
 // WithMessaging registers a messaging.Client as the app's broker. The host
 // drives the full lifecycle: it loads the client's config (if it implements
-// core.Configurable), dials during init, and disconnects on shutdown. Pass any
+// config.Configurable), dials during init, and disconnects on shutdown. Pass any
 // implementation — the host has no built-in broker:
 //
 //	app.WithMessaging(nats.New())

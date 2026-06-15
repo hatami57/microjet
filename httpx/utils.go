@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
+	"github.com/hatami57/microjet/core/types"
 	"github.com/hatami57/microjet/httpx/middleware"
-	"github.com/hatami57/microjet/types"
 )
 
 // RequestID returns the correlation id for the current request (set by the
@@ -48,7 +48,7 @@ func GetTenantUserID(c *gin.Context) (uuid.UUID, uuid.UUID, error) {
 func GetParam(c *gin.Context, key string) (string, error) {
 	value := c.Param(key)
 	if value == "" {
-		return "", core.ErrNotFound.WithMessage(fmt.Sprintf("Param '%s' is not provided", key))
+		return "", errorx.ErrNotFound.WithMessage(fmt.Sprintf("Param '%s' is not provided", key))
 	}
 	return value, nil
 }
@@ -77,7 +77,7 @@ func GetInt32Param(c *gin.Context, key string) (int32, error) {
 func GetQuery(c *gin.Context, key string) (*string, error) {
 	value, ok := c.GetQuery(key)
 	if !ok {
-		return nil, core.ErrNotFound.WithMessage(fmt.Sprintf("Query param '%s' is not provided", key))
+		return nil, errorx.ErrNotFound.WithMessage(fmt.Sprintf("Query param '%s' is not provided", key))
 	}
 	return &value, nil
 }
@@ -110,7 +110,7 @@ func GetBoolQuery(c *gin.Context, key string) (bool, error) {
 	}
 	v, err := strconv.ParseBool(*value)
 	if err != nil {
-		return false, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid bool for '%s'", key))
+		return false, errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid bool for '%s'", key))
 	}
 	return v, nil
 }
@@ -119,7 +119,7 @@ func GetBoolQuery(c *gin.Context, key string) (bool, error) {
 // It returns the value directly (not a pointer): request bodies are value-shaped
 // data, and returning T avoids a nil-pointer footgun on the error path. A
 // binding or `validate`/`binding` tag failure is returned as a structured
-// BadRequest *core.Error with per-field details (see ValidationError), so the
+// BadRequest *errorx.Error with per-field details (see ValidationError), so the
 // error middleware renders a 400 listing exactly which fields were rejected.
 func Body[T any](c *gin.Context) (T, error) {
 	UseJSONFieldNames()
@@ -149,7 +149,7 @@ func PagedRequest(c *gin.Context) *types.PagedResultRequest {
 func parseInt64(value, key string) (int64, error) {
 	n, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return 0, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid integer for '%s'", key))
+		return 0, errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid integer for '%s'", key))
 	}
 	return n, nil
 }
@@ -157,7 +157,7 @@ func parseInt64(value, key string) (int64, error) {
 func parseUUID(value, key string) (uuid.UUID, error) {
 	v, err := uuid.Parse(value)
 	if err != nil {
-		return uuid.Nil, core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid UUID for '%s'", key))
+		return uuid.Nil, errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid UUID for '%s'", key))
 	}
 	return v, nil
 }

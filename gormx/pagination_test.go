@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hatami57/microjet/types"
+	"github.com/hatami57/microjet/core/types"
 )
 
 type pgUser struct {

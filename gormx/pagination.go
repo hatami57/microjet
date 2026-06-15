@@ -3,7 +3,7 @@ package gormx
 import (
 	"fmt"
 
-	"github.com/hatami57/microjet/types"
+	"github.com/hatami57/microjet/core/types"
 )
 
 type pageData[TValue any] struct {

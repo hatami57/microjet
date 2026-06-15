@@ -1,4 +1,4 @@
-package core
+package errorx
 
 import (
 	"errors"

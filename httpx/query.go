@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 type QueryParamBase struct {
@@ -59,7 +59,7 @@ func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) error {
 
 		fv, err := parseQueryField(field, value)
 		if err != nil {
-			return core.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid value for query param '%s'", queryTag))
+			return errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid value for query param '%s'", queryTag))
 		}
 		q.SetField(mapKey, fv)
 	}

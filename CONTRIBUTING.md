@@ -16,11 +16,11 @@ module with its own `go.mod`:
 | `gormx` | `github.com/hatami57/microjet/gormx` |
 | `messaging` | `github.com/hatami57/microjet/messaging` |
 | `aws` | `github.com/hatami57/microjet/aws` |
-| `types` | `github.com/hatami57/microjet/types` |
-| `utils` | `github.com/hatami57/microjet/utils` |
 
-This keeps the dependency footprint small: importing `utils` does not pull in
-gin, the AWS SDK, GORM, or NATS.
+The `core` module also ships the `jsonx`, `utils`, `types`, `tenant`, and
+`version` subpackages (light, ubiquitous dependencies kept together). This
+keeps the dependency footprint small: importing `core` does not pull in gin, the
+AWS SDK, GORM, or NATS.
 
 ## Local development
 
