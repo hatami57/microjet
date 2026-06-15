@@ -27,6 +27,14 @@ github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 h1:Xim43kblpZXfIBQsbu
 github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26/go.mod h1:dDKJzRmX4S37WGHujM7tX//fmj1uioxKzKxz3lo4HJo=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/hatami57/microjet/core v0.15.0 h1:kFtx3aHLzftjn2UFNUU5bg3sHkhXReC0eEDTY8Nc0ZI=
+github.com/hatami57/microjet/core v0.15.0/go.mod h1:tC9uhnGon6CYEk0Ds5yXRmbr145G9MxkNxmsxkJE/C0=
+github.com/hatami57/microjet/jsonx v0.15.0 h1:T4QcGYfPN2triaTFnVpWw5EQ5fqp1smm1W1HrGFyQK4=
+github.com/hatami57/microjet/jsonx v0.15.0/go.mod h1:gaZ2gd/vzSFvzVKb9HBhKEO4aQTqVbJE8dJuIWqk0q0=
+github.com/hatami57/microjet/messaging v0.15.0 h1:ZHsnIq+1HrfZkx6NTJLsayTEP4qQ2dwZ8Z4WMKD/YbQ=
+github.com/hatami57/microjet/messaging v0.15.0/go.mod h1:hzooPmjQkrsXRvT6XsB6XUZ+K2M0lSkND2bKCqYhpI8=
+github.com/hatami57/microjet/types v0.15.0 h1:sH13Huryaq1qiAaFJIDGWlyw6S286CzTonnngPox01o=
+github.com/hatami57/microjet/types v0.15.0/go.mod h1:s6mgSPO/Fuib6uQu+rviXPci0Ai8umT7ArXonopS+QE=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
