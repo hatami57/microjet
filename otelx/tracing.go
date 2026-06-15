@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	_ config.Configurable = (*Tracing)(nil)
+	_ configx.Configurable = (*Tracing)(nil)
 	_ core.Initer         = (*Tracing)(nil)
 	_ core.Closer         = (*Tracing)(nil)
 )
@@ -64,8 +64,8 @@ func (t *Tracing) SetServiceInfo(name, version string) {
 	t.serviceVersion = version
 }
 
-// ReadConfig implements config.Configurable, reading the [tracing] section.
-func (t *Tracing) ReadConfig(l config.Reader) error {
+// ReadConfig implements configx.Configurable, reading the [tracing] section.
+func (t *Tracing) ReadConfig(l configx.Reader) error {
 	l.SetDefault("tracing.enabled", true)
 	l.SetDefault("tracing.endpoint", "localhost:4318")
 	l.SetDefault("tracing.insecure", true)

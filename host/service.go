@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/core/errorx"
 )
 
@@ -143,7 +143,7 @@ func (a *App) initServices() error {
 			}
 			configured[key] = true
 			progressed = true
-			cfg, ok := item.(config.Configurable)
+			cfg, ok := item.(configx.Configurable)
 			if !ok {
 				return true
 			}

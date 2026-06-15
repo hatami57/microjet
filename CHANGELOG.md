@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-06-15
+
+### Breaking
+
+- **`core/config` renamed to `core/configx`** — the package was named `config`,
+  the same identifier most consumers use for their own application config
+  package, forcing an import alias whenever both were used together. It now
+  follows the project's `x`-suffix convention (`errorx`, `logx`, `jsonx`, …) so
+  the import resolves to `configx` and no longer collides. Update imports:
+  - `github.com/hatami57/microjet/core/config` →
+    `github.com/hatami57/microjet/core/configx`
+  - `config.Configure`, `config.Reader`, `config.Configurable`,
+    `config.NewViperConfigReader` → `configx.*`
+
 ## [0.16.0] - 2026-06-15
 
 ### Changed

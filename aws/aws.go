@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 )
 
 type AWS struct {
@@ -43,9 +43,9 @@ const (
 	DynamoDB Service = "aws-dynamodb"
 )
 
-// ReadConfig implements config.Configurable, reading the [aws] section into the
+// ReadConfig implements configx.Configurable, reading the [aws] section into the
 // AWS client's own config field.
-func (a *AWS) ReadConfig(l config.Reader) error {
+func (a *AWS) ReadConfig(l configx.Reader) error {
 	return l.Read("aws", &a.config)
 }
 

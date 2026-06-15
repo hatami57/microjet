@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/httpx/middleware"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -123,9 +123,9 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	return s
 }
 
-// ReadConfig implements config.Configurable, reading the [server] section so the
+// ReadConfig implements configx.Configurable, reading the [server] section so the
 // server owns its configuration independently of host.Config.
-func (s *Server) ReadConfig(l config.Reader) error {
+func (s *Server) ReadConfig(l configx.Reader) error {
 	l.SetDefault("server.host", "localhost")
 	l.SetDefault("server.port", 8080)
 	return l.Read("server", &s.config)

@@ -27,6 +27,6 @@ require (
 )
 
 require (
-	github.com/hatami57/microjet/core v0.16.0
+	github.com/hatami57/microjet/core v0.17.0
 	golang.org/x/sys v0.45.0 // indirect
 )

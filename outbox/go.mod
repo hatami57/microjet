@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/outbox
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.16.0
-	github.com/hatami57/microjet/messaging v0.16.0
+	github.com/hatami57/microjet/core v0.17.0
+	github.com/hatami57/microjet/messaging v0.17.0
 	gorm.io/gorm v1.31.1
 )
 

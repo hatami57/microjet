@@ -7,10 +7,10 @@ import (
 
 	"github.com/hatami57/microjet/cache"
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 )
 
-// cacheService implements config.Configurable, core.Initer, and core.Closer, and
+// cacheService implements configx.Configurable, core.Initer, and core.Closer, and
 // reports readiness via Healthy. A pre-injected client (WithCacheClient) skips
 // config loading and Init.
 type cacheService struct {
@@ -21,7 +21,7 @@ type cacheService struct {
 	configured bool // true = client/config already set, skip LoadConfig
 }
 
-func (s *cacheService) ReadConfig(l config.Reader) error {
+func (s *cacheService) ReadConfig(l configx.Reader) error {
 	if s.configured {
 		return nil
 	}

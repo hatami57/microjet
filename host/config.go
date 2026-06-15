@@ -3,7 +3,7 @@ package host
 import (
 	"strings"
 
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/core/logx"
 )
 
@@ -56,10 +56,10 @@ type Config struct {
 	Log *logx.LogConfig `mapstructure:"log"`
 }
 
-// ReadConfig implements config.Configurable, loading all standard host sections.
+// ReadConfig implements configx.Configurable, loading all standard host sections.
 // It sets app and server defaults before unmarshaling so they apply when no
 // config file is present.
-func (c *Config) ReadConfig(l config.Reader) error {
+func (c *Config) ReadConfig(l configx.Reader) error {
 	l.SetDefault("app.namespace", "App")
 	l.SetDefault("app.environment", "development")
 	l.SetDefault("app.name", "App")
@@ -78,7 +78,7 @@ func (c *Config) ReadConfig(l config.Reader) error {
 // ReadConfig reads the standard host configuration sections as a standalone call.
 func ReadConfig(envPrefix string) (*Config, error) {
 	cfg := &Config{}
-	if err := config.Configure(envPrefix, cfg); err != nil {
+	if err := configx.Configure(envPrefix, cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil

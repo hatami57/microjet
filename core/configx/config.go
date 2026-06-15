@@ -1,4 +1,4 @@
-package config
+package configx
 
 // Reader wraps a reader instance and exposes config-reading operations to
 // Configurable implementations.

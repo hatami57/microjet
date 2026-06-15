@@ -6,19 +6,19 @@ import (
 	"log/slog"
 
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 	"gorm.io/gorm"
 )
 
 var (
-	_ config.Configurable = (*Service)(nil)
+	_ configx.Configurable = (*Service)(nil)
 	_ core.Initer         = (*Service)(nil)
 	_ core.Closer         = (*Service)(nil)
 	_ core.HealthChecker  = (*Service)(nil)
 )
 
 // Service manages the lifecycle of a single *gorm.DB connection. It implements
-// config.Configurable, core.Initer, core.Closer, and core.HealthChecker, so the
+// configx.Configurable, core.Initer, core.Closer, and core.HealthChecker, so the
 // host drives config loading, dialing, and shutdown automatically. When a
 // connection is provided up front (NewServiceFromDB), config loading and Init are
 // no-ops, but Close and health checks still run.
@@ -60,8 +60,8 @@ func (s *Service) SetLogger(l *slog.Logger) {
 // DB returns the underlying *gorm.DB, nil until Init is called.
 func (s *Service) DB() *gorm.DB { return s.db }
 
-// ReadConfig implements config.Configurable. It is a no-op for injected connections.
-func (s *Service) ReadConfig(l config.Reader) error {
+// ReadConfig implements configx.Configurable. It is a no-op for injected connections.
+func (s *Service) ReadConfig(l configx.Reader) error {
 	if s.db != nil {
 		return nil
 	}

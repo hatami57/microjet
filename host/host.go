@@ -12,7 +12,7 @@ import (
 
 	"github.com/hatami57/microjet/aws"
 	"github.com/hatami57/microjet/core"
-	"github.com/hatami57/microjet/core/config"
+	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/core/logx"
 	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/messaging"
@@ -29,7 +29,7 @@ type App struct {
 	HTTPServer *httpx.Server
 
 	envPrefix            string
-	configReader         config.Reader
+	configReader         configx.Reader
 	shutdownTimeout      time.Duration
 	container            sync.Map
 	modules              sync.Map
@@ -79,7 +79,7 @@ func New(opts ...Option) (*App, error) {
 	if a.Clock == nil {
 		a.Clock = core.UTC
 	}
-	reader, err := config.NewViperConfigReader(a.envPrefix)
+	reader, err := configx.NewViperConfigReader(a.envPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("creating config loader: %w", err)
 	}
@@ -105,7 +105,7 @@ func MustNew(opts ...Option) *App {
 // Configure calls ReadConfig on each Configurable using the app's shared config
 // reader, so the config file is only parsed once. Call this right after New()
 // to populate service-specific config structs before starting services.
-func (a *App) Configure(cfgs ...config.Configurable) *App {
+func (a *App) Configure(cfgs ...configx.Configurable) *App {
 	if a.err != nil {
 		return a
 	}
