@@ -1,4 +1,4 @@
-// Command features demonstrates microjet's HTTP feature set: the built-in
+// Command features demonstrates MicroJet's HTTP feature set: the built-in
 // request-id / metrics / readiness endpoints, plus opt-in CORS, rate limiting,
 // JWT auth, a request-scoped logger, the cache module, and the JSON client with
 // retries.

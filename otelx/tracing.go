@@ -1,5 +1,5 @@
-// Package otelx wires OpenTelemetry tracing into a microjet application. It
-// owns the global tracer provider and W3C propagator; the other microjet
+// Package otelx wires OpenTelemetry tracing into a MicroJet application. It
+// owns the global tracer provider and W3C propagator; the other MicroJet
 // modules (httpx, gormx, messaging/nats) instrument themselves through the
 // otel globals, so they trace automatically once a Tracing service is
 // registered — and stay zero-overhead no-ops when it is not.

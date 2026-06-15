@@ -1,4 +1,4 @@
-// Command minimal is the smallest possible microjet service: it loads config,
+// Command minimal is the smallest possible MicroJet service: it loads config,
 // sets up the logger, and waits for a termination signal.
 package main
 
@@ -8,6 +8,6 @@ func main() {
 	app := host.MustNew()
 	defer app.Close()
 
-	app.Logger.Info("minimal microjet service started")
+	app.Logger.Info("minimal MicroJet service started")
 	host.WaitForExitSignal()
 }

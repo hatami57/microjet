@@ -79,7 +79,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Internal dependencies pinned to v0.15.0** — every module now requires its
-  microjet siblings at the matching v0.15.0 release and no longer carries local
+  MicroJet siblings at the matching v0.15.0 release and no longer carries local
   `replace` directives (used only for in-repo development via `go.work`). All
   modules, including the new `otelx`, `outbox`, `testx`, and `gormx/migrate`,
   resolve their dependencies from the module proxy and install with a plain

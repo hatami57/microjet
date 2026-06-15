@@ -1,6 +1,6 @@
 package aws
 
-// Config is microjet's AWS configuration, read from the [aws] section of the
+// Config is MicroJet's AWS configuration, read from the [aws] section of the
 // application config (with APP_AWS_* environment overrides). It lives in the aws
 // module rather than in core so the core module stays vendor-neutral.
 type Config struct {

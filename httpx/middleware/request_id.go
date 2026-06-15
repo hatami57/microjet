@@ -10,7 +10,7 @@ import (
 )
 
 // DefaultRequestIDHeader is the header read and echoed by RequestID. It is the
-// canonical correlation-id header shared across microjet layers.
+// canonical correlation-id header shared across MicroJet layers.
 const DefaultRequestIDHeader = core.CorrelationIDHeader
 
 // GinRequestIDKey is the gin context key under which the request id is stored.

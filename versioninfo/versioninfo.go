@@ -53,3 +53,7 @@ func (i Info) Print(w io.Writer) {
 
 // PrintToStdout writes version fields as key=value lines to stdout.
 func (i Info) PrintToStdout() { i.Print(os.Stdout) }
+
+func Print() {
+	fmt.Printf("\nversion=%s\ncommit=%s\nbuild_time=%s\ngo_version=%s\n\n", Version, CommitHash, BuildTime, GoVersion())
+}

@@ -27,7 +27,7 @@ type CORSConfig struct {
 }
 
 // DefaultCORSConfig returns a permissive-but-sane configuration: any origin, the
-// common methods, and the headers microjet handlers typically need.
+// common methods, and the headers MicroJet handlers typically need.
 func DefaultCORSConfig() CORSConfig {
 	return CORSConfig{
 		AllowOrigins:  []string{"*"},

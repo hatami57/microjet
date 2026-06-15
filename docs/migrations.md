@@ -1,6 +1,6 @@
 # Database migrations
 
-microjet's core does **not** ship a migration engine. The examples call GORM's
+MicroJet's core does **not** ship a migration engine. The examples call GORM's
 `AutoMigrate` for brevity, which is fine for prototyping and tests but is **not
 recommended for production**: it never drops or renames columns, can't express
 data backfills, and gives you no versioned, reviewable history of schema change.

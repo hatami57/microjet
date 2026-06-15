@@ -12,7 +12,7 @@ type correlationIDKey struct{}
 
 // ContextWithCorrelationID returns a copy of ctx carrying the correlation id.
 // It is the single source of truth for the correlation-id context key, shared
-// by every microjet layer so the id survives across http and messaging hops.
+// by every MicroJet layer so the id survives across http and messaging hops.
 func ContextWithCorrelationID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, correlationIDKey{}, id)
 }
