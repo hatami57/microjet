@@ -75,6 +75,17 @@ func (r *PageRequest[TEntity, TValue]) PageSize() int {
 	return int(r.PagedResultRequest.PageSize)
 }
 
+// Offset reports the row offset for page-number pagination. ok is false when no
+// Page is set, in which case Table.List uses cursor pagination instead. Page is
+// 1-based; values below 1 are clamped to the first page.
+func (r *PageRequest[TEntity, TValue]) Offset() (offset int, ok bool) {
+	if r.Page == nil {
+		return 0, false
+	}
+	page := max(int(*r.Page), 1)
+	return (page - 1) * r.PageSize(), true
+}
+
 func (r *PageRequest[TEntity, TValue]) CurrentPageData() ([]any, error) {
 	data, err := types.DecodePageToken[pageData[TValue]](r.NextPageToken)
 	if err != nil {

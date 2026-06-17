@@ -35,7 +35,7 @@ import "github.com/hatami57/microjet/host"
 | `host` | `github.com/hatami57/microjet/host` | Application orchestrator, DI container, lifecycle |
 | `core` | `github.com/hatami57/microjet/core` | Time, correlation, lifecycle interfaces; with subpackages `errorx` (typed errors), `logx` (slog setup), `configx` (config loading), plus `jsonx`, `utils`, `types`, `tenant`, `version` |
 | `httpx` | `github.com/hatami57/microjet/httpx` | Gin HTTP server, middleware, request helpers, JSON client, web helpers |
-| `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor pagination (works with any `*gorm.DB`, incl. SQLite) |
+| `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor & offset pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
 | `cache` | `github.com/hatami57/microjet/cache` | Cache interface with Redis and in-memory implementations |
 | `otelx` | `github.com/hatami57/microjet/otelx` | OpenTelemetry tracing setup (OTLP exporter, W3C propagation) |

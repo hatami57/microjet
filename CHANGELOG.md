@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-06-17
+
+### Added
+
+- **Offset pagination for `gormx`** — `types.PagedResultRequest` gains an optional
+  1-based `Page` field. When set, `gormx.Table.List` switches from forward-only
+  cursor pagination to offset pagination: it ignores the cursor token, skips
+  `(Page-1)*PageSize` rows, and computes `TotalCount` so callers can render
+  "page X of Y" and jump to an arbitrary page. When `Page` is nil the existing
+  cursor behaviour is unchanged. `httpx.PagedRequest` reads the `page` query
+  param to opt in; a malformed `page` falls back to cursor mode.
+  - New optional `gormx.OffsetPager` interface (`Offset() (offset int, ok bool)`),
+    alongside `Scoper`/`CursorScoper`. `PageRequest` implements it.
+  - Offset pagination is SQL-only. Cursor-only backends (DynamoDB) do not honor
+    `Page`.
+
 ## [0.17.0] - 2026-06-15
 
 ### Breaking

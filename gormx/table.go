@@ -106,6 +106,14 @@ type CursorScoper interface {
 	CursorScope() (func(*gorm.DB) *gorm.DB, error)
 }
 
+// OffsetPager is an optional interface for ListRequest. If implemented and Offset
+// returns ok, Table.List uses offset pagination instead of cursor pagination:
+// it skips offset rows, ignores the cursor entirely, and computes TotalCount so
+// callers can render "page X of Y". Use this for user-driven page-number jumps.
+type OffsetPager interface {
+	Offset() (offset int, ok bool)
+}
+
 // BaseListRequest provides default no-op implementations of all ListRequest methods.
 // Embed it in your own request struct and override only the methods you need.
 //
@@ -392,12 +400,15 @@ func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity
 func (t *Table[TEntity]) List(ctx context.Context, req ListRequest[TEntity]) (*types.PagedResult[TEntity], error) {
 	pageSize := req.PageSize()
 
-	q := t.applyPreloads(t.db(ctx)).Order(req.OrderBy()).Limit(pageSize + 1)
-	if sr, ok := any(req).(Scoper); ok {
-		q = q.Scopes(sr.Scope())
-	} else if where := req.Where(); len(where) > 0 {
-		q = q.Where(where[0], where[1:]...)
+	// Offset mode takes precedence when the request opts in via OffsetPager: it
+	// bypasses the forward-only cursor and computes a total count for page jumps.
+	if op, ok := any(req).(OffsetPager); ok {
+		if offset, isOffset := op.Offset(); isOffset {
+			return t.listByOffset(ctx, req, pageSize, offset)
+		}
 	}
+
+	q := t.applyFilter(t.applyPreloads(t.db(ctx)).Order(req.OrderBy()).Limit(pageSize+1), req)
 	if cs, ok := any(req).(CursorScoper); ok {
 		scope, err := cs.CursorScope()
 		if err != nil {
@@ -436,6 +447,43 @@ func (t *Table[TEntity]) List(ctx context.Context, req ListRequest[TEntity]) (*t
 		PageSize:      int32(pageSize),
 		TotalCount:    -1,
 		NextPageToken: nextPageToken,
+	}, nil
+}
+
+// applyFilter applies the request's Scoper scope, or its Where clause when no
+// Scoper is implemented, mirroring the precedence used by List.
+func (t *Table[TEntity]) applyFilter(q *gorm.DB, req ListRequest[TEntity]) *gorm.DB {
+	if sr, ok := any(req).(Scoper); ok {
+		return q.Scopes(sr.Scope())
+	}
+	if where := req.Where(); len(where) > 0 {
+		return q.Where(where[0], where[1:]...)
+	}
+	return q
+}
+
+// listByOffset implements offset pagination: it counts all matching rows for
+// TotalCount, then returns the page at offset. The cursor is intentionally not
+// applied. Two independent queries are built from t.db(ctx) so the count and the
+// page fetch do not share statement state.
+func (t *Table[TEntity]) listByOffset(ctx context.Context, req ListRequest[TEntity], pageSize, offset int) (*types.PagedResult[TEntity], error) {
+	var totalCount int64
+	countQ := t.applyFilter(t.db(ctx).Model(t.entity), req)
+	if err := countQ.Count(&totalCount).Error; err != nil {
+		return nil, err
+	}
+
+	q := t.applyFilter(t.applyPreloads(t.db(ctx)).Order(req.OrderBy()).Offset(offset).Limit(pageSize), req)
+	var items []TEntity
+	if err := q.Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	return &types.PagedResult[TEntity]{
+		Items:         items,
+		PageSize:      int32(pageSize),
+		TotalCount:    totalCount,
+		NextPageToken: nil,
 	}, nil
 }
 

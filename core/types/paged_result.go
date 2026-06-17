@@ -13,9 +13,18 @@ type PagedResult[T any] struct {
 	NextPageToken *string `json:"nextPageToken"`
 }
 
+// PagedResultRequest carries pagination parameters for a list query.
+//
+// It supports two mutually exclusive modes:
+//   - Cursor (default): leave Page nil and pass NextPageToken. Forward-only,
+//     TotalCount is not computed. Works with any backend.
+//   - Offset: set Page (1-based) for arbitrary page jumps. NextPageToken is
+//     ignored and TotalCount is populated. Only offset-capable backends (SQL via
+//     gormx) honor it; others reject an offset request.
 type PagedResultRequest struct {
 	PageSize      int32   `json:"pageSize"`
 	NextPageToken *string `json:"nextPageToken"`
+	Page          *int32  `json:"page"`
 }
 
 func EncodePageToken[T any](v T) (*string, error) {

@@ -132,6 +132,37 @@ func TestPageRequest_TypedCursor(t *testing.T) {
 	}
 }
 
+func TestOffset_NoPageMeansCursorMode(t *testing.T) {
+	r := NewPageRequest[pgUser, int](&types.PagedResultRequest{PageSize: 10}, "id", func(u pgUser) int { return u.ID })
+	if offset, ok := r.Offset(); ok {
+		t.Fatalf("expected cursor mode (ok=false), got offset=%d ok=true", offset)
+	}
+}
+
+func TestOffset_PageNumberToOffset(t *testing.T) {
+	cases := []struct {
+		page int32
+		want int
+	}{
+		{page: 1, want: 0},
+		{page: 2, want: 20},
+		{page: 5, want: 80},
+		{page: 0, want: 0},  // clamped to first page
+		{page: -3, want: 0}, // clamped to first page
+	}
+	for _, c := range cases {
+		page := c.page
+		r := NewPageRequest[pgUser, int](&types.PagedResultRequest{PageSize: 20, Page: &page}, "id", func(u pgUser) int { return u.ID })
+		offset, ok := r.Offset()
+		if !ok {
+			t.Fatalf("page=%d: expected offset mode (ok=true)", c.page)
+		}
+		if offset != c.want {
+			t.Errorf("page=%d: offset = %d, want %d", c.page, offset, c.want)
+		}
+	}
+}
+
 func TestPageRequest_DescOrder(t *testing.T) {
 	r := NewPageRequest[pgUser, time.Time](
 		&types.PagedResultRequest{PageSize: 5},
