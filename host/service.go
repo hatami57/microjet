@@ -3,6 +3,7 @@ package host
 import (
 	"errors"
 	"reflect"
+	"sort"
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
@@ -284,25 +285,76 @@ func (a *App) startServices() error {
 	return nil
 }
 
+// Shutdown ordering bands. Services are closed in ascending order, so inbound
+// "edges" stop accepting work and drain before the "backends" they depend on are
+// torn down — e.g. an HTTP server finishes serving in-flight requests while its
+// database is still open. Services that do not implement ShutdownOrderer close at
+// ShutdownDefault. The values are plain ints, so a service needing finer control
+// can return any value between or beyond these (lower = earlier).
+const (
+	// ShutdownEdge closes first: inbound traffic sources that must stop accepting
+	// and drain, such as HTTP servers and message subscribers.
+	ShutdownEdge = 0
+	// ShutdownDefault is the order for services that do not implement
+	// ShutdownOrderer — ordinary application services.
+	ShutdownDefault = 50
+	// ShutdownBackend closes last: shared resources others depend on during their
+	// own shutdown, such as databases, caches, the message broker, and tracing.
+	ShutdownBackend = 100
+)
+
+// ShutdownOrderer lets a service control when Close is called relative to other
+// services. Lower values close earlier; use the ShutdownEdge/Default/Backend
+// constants. Services that do not implement it close at ShutdownDefault.
+type ShutdownOrderer interface {
+	ShutdownOrder() int
+}
+
+// shutdownOrder reports a service's close order, defaulting to ShutdownDefault.
+func shutdownOrder(svc any) int {
+	if so, ok := svc.(ShutdownOrderer); ok {
+		return so.ShutdownOrder()
+	}
+	return ShutdownDefault
+}
+
+// closeServices closes every registered service in ascending ShutdownOrder so
+// edges drain before the backends they rely on. Closing is sequential: a band
+// fully completes before the next begins, so an HTTP server's in-flight requests
+// are done before the database closes. The whole sequence is still bounded by the
+// shutdown timeout in close(). Errors are collected, not fatal.
 func (a *App) closeServices() error {
-	var errs error
-	a.Logger.Debug("closing services")
+	type entry struct {
+		svc   any
+		order int
+	}
+	var entries []entry
 	a.container.Range(func(_, item any) bool {
-		name := reflect.TypeOf(item).String()
-		a.Logger.Debug("closing service", "type", name)
+		entries = append(entries, entry{svc: item, order: shutdownOrder(item)})
+		return true
+	})
+	// Stable so equal-order services keep a reproducible relative sequence.
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].order < entries[j].order })
+
+	a.Logger.Debug("closing services", "count", len(entries))
+	var errs error
+	for _, e := range entries {
+		name := reflect.TypeOf(e.svc).String()
 		var err error
-		if svc, ok := item.(ServiceCloser); ok {
+		switch svc := e.svc.(type) {
+		case ServiceCloser:
+			a.Logger.Debug("closing service", "type", name, "order", e.order)
 			err = svc.Close(a)
-		} else if svc, ok := item.(core.Closer); ok {
+		case core.Closer:
+			a.Logger.Debug("closing service", "type", name, "order", e.order)
 			err = svc.Close()
-		} else {
-			return true
+		default:
+			continue
 		}
 		if err != nil {
 			a.Logger.Error("failed to close service", "type", name, "error", err)
 			errs = errors.Join(errs, err)
 		}
-		return true
-	})
+	}
 	return errs
 }

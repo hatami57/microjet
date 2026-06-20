@@ -102,6 +102,10 @@ func ModuleWithClient(c Cache, name ...string) host.Module {
 	})
 }
 
+// ShutdownOrder closes the cache late (as a backend), after the edges that use it
+// have drained.
+func (s *service) ShutdownOrder() int { return host.ShutdownBackend }
+
 // Of returns the cache installed by Module/ModuleWithClient under the optional
 // name, or nil if none was installed. It is available after services are
 // initialized.

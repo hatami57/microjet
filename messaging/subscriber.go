@@ -57,6 +57,11 @@ func (s *consumerService) Start(app *host.App) error {
 	return nil
 }
 
+// ShutdownOrder closes the subscriber early (as an edge): it unsubscribes and
+// drains in-flight handlers before the broker and the backends those handlers use
+// are torn down.
+func (s *consumerService) ShutdownOrder() int { return host.ShutdownEdge }
+
 // Close implements host.ServiceCloser. It cancels the shutdown context and
 // unsubscribes each subscription. Unsubscribe errors are logged rather than
 // returned: during shutdown the broker may already be draining (its own Close

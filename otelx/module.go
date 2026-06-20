@@ -24,6 +24,10 @@ func Module(name ...string) host.Module {
 	})
 }
 
+// ShutdownOrder closes tracing late (as a backend) so spans emitted while other
+// services shut down still have a live exporter; the final flush happens last.
+func (t *Tracing) ShutdownOrder() int { return host.ShutdownBackend }
+
 // Of returns the tracing service installed by Module under the optional name,
 // panicking if none was installed.
 func Of(app *host.App, name ...string) *Tracing {

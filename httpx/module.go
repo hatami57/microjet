@@ -53,6 +53,11 @@ func Module(name ...string) host.Module {
 	})
 }
 
+// ShutdownOrder closes the HTTP server early (as an edge), so it stops accepting
+// connections and drains in-flight requests before the backends those handlers
+// use (database, cache, broker) are torn down.
+func (s *Server) ShutdownOrder() int { return host.ShutdownEdge }
+
 // Of returns the HTTP server installed by Module under the optional name,
 // panicking if none was installed. Use it from Setup hooks and handlers to reach
 // the router, e.g. httpx.Of(app).Router or httpx.Of(app, "admin").Router.

@@ -57,6 +57,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the unnamed form are unchanged; the empty name is the default instance.
   `host.ProvideService`/`ResolveService`/`MustResolveService` gain a trailing
   `name ...string`.
+- **Ordered graceful shutdown** — services now close in dependency-safe order
+  instead of the previous unspecified `sync.Map` order. Inbound edges (HTTP
+  servers, message subscribers) close first so they stop accepting work and drain
+  in-flight requests, then ordinary services, then backends (database, cache,
+  broker, tracing) — so a draining HTTP handler still has its database. Closing is
+  sequential across bands and remains bounded by the shutdown timeout. A service
+  can opt into a band by implementing the new optional `host.ShutdownOrderer`
+  (`ShutdownOrder() int`); use the `host.ShutdownEdge`/`ShutdownDefault`/
+  `ShutdownBackend` constants. Services that don't implement it close at
+  `ShutdownDefault`.
 - **`host.App.RangeServices`** — iterate registered services without access to
   container internals, so satellite packages can aggregate health checks, etc.
 - **`host.ErrSource`** — optional `ErrCh() <-chan error` interface; `Run` now
