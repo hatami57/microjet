@@ -12,7 +12,7 @@
 //	    return outbox.EnqueueJSON(tx, "orders.created", order)
 //	})
 //
-// Run a relay (see Relay, or host.WithOutbox) to drain the table to the broker.
+// Run a relay (see Relay, or outbox.Module) to drain the table to the broker.
 package outbox
 
 import (

@@ -32,8 +32,8 @@ var (
 const shutdownTimeout = 5 * time.Second
 
 // Tracing is the lifecycle service that configures the global OpenTelemetry
-// tracer provider. Hand it to host.WithTracing (or register it yourself with
-// ProvideService); the host loads its config, installs the provider during
+// tracer provider. Installed via otelx.Module (or register it yourself with
+// host.ProvideService); the host loads its config, installs the provider during
 // init, and flushes pending spans on shutdown.
 type Tracing struct {
 	Config Config

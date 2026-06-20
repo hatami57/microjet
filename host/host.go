@@ -10,23 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hatami57/microjet/aws"
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/core/logx"
-	"github.com/hatami57/microjet/httpx"
-	"github.com/hatami57/microjet/messaging"
 )
 
 // App is the central runtime object for a service. Build it with the fluent
 // New().With*() chain at service startup.
 type App struct {
-	Config     *Config
-	Logger     *slog.Logger
-	Clock      core.TimeProvider
-	Messaging  messaging.Client
-	AWS        *aws.AWS
-	HTTPServer *httpx.Server
+	Config *Config
+	Logger *slog.Logger
+	Clock  core.TimeProvider
 
 	envPrefix            string
 	configReader         configx.Reader
@@ -49,7 +43,7 @@ type HandlerFunc func(app *App) error
 type Option func(*App)
 
 // WithEnvPrefix overrides the environment-variable prefix used for config
-// overrides (defaults to "APP", e.g. APP_SERVER_PORT).
+// overrides (defaults to "APP", e.g. APP_HTTP_PORT).
 func WithEnvPrefix(prefix string) Option {
 	return func(a *App) { a.envPrefix = prefix }
 }
@@ -130,8 +124,9 @@ func (a *App) fail(err error) *App {
 }
 
 // Setup queues a setup handler (e.g. migrations or route registration). Handlers
-// run after services are initialized — so a.DB() and other connected resources
-// are available — but before the HTTP server starts serving. Within the chain
+// run after services are initialized — so connected resources (databases,
+// caches, brokers) are available — but before the HTTP server starts serving.
+// Within the chain
 // they run in registration order. If services are already initialized (the
 // manual InitServices path) the handler runs immediately. Errors are deferred
 // and surfaced by Run/MustRun/Err.
@@ -195,23 +190,21 @@ func (a *App) Run() error {
 
 	quit := notifySignals()
 
-	// startServices started the listener goroutine; ErrCh receives its outcome so
-	// Run can react to unexpected server failures.
-	var httpErrCh <-chan error
-	if a.HTTPServer != nil {
-		httpErrCh = a.HTTPServer.ErrCh()
-	}
+	// startServices started any background listeners (e.g. the HTTP server's
+	// goroutine); their ErrSource channels are merged so Run reacts to any such
+	// service exiting the same way it reacts to a shutdown signal.
+	fatalCh := a.fatalErrCh()
 
 	var runErr error
 	select {
 	case sig := <-quit:
 		a.Logger.Info("received shutdown signal", "signal", sig.String())
-	case err := <-httpErrCh:
+	case err := <-fatalCh:
 		if err != nil {
-			a.Logger.Error("HTTP server failed", "error", err)
+			a.Logger.Error("service exited with error", "error", err)
 			runErr = err
 		} else {
-			a.Logger.Warn("HTTP server stopped unexpectedly")
+			a.Logger.Warn("service stopped unexpectedly")
 		}
 	}
 
@@ -229,26 +222,26 @@ func (a *App) MustRun() {
 	}
 }
 
-// StartHTTP runs the init → setup → start sequence (each idempotent) and then
-// blocks until the HTTP server stops, returning its exit error. Kept for callers
-// that manage the lifecycle manually instead of calling Run.
-func (a *App) StartHTTP() error {
-	if a.HTTPServer == nil {
-		return fmt.Errorf("http server not configured; call WithHTTPServer first")
+// fatalErrCh fans every started service's ErrSource channel into one. A receive
+// on the returned channel means some service's background loop exited; the value
+// is its error (or nil for a clean but unexpected stop). It returns nil — which
+// blocks forever in a select — when no registered service exposes a channel.
+func (a *App) fatalErrCh() <-chan error {
+	var chans []<-chan error
+	a.RangeServices(func(v any) bool {
+		if src, ok := v.(ErrSource); ok {
+			chans = append(chans, src.ErrCh())
+		}
+		return true
+	})
+	if len(chans) == 0 {
+		return nil
 	}
-	if err := a.initServices(); err != nil {
-		return fmt.Errorf("initializing services: %w", err)
+	out := make(chan error, len(chans))
+	for _, ch := range chans {
+		go func(c <-chan error) { out <- <-c }(ch)
 	}
-	if err := a.setupServices(); err != nil {
-		return fmt.Errorf("setting up services: %w", err)
-	}
-	if err := a.runSetups(); err != nil {
-		return fmt.Errorf("running setup: %w", err)
-	}
-	if err := a.startServices(); err != nil {
-		return fmt.Errorf("starting services: %w", err)
-	}
-	return <-a.HTTPServer.ErrCh()
+	return out
 }
 
 // WaitForExitSignal blocks until the process receives SIGINT or SIGTERM.

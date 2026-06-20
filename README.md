@@ -12,17 +12,17 @@ import "github.com/hatami57/microjet/host"
 
 ## Features
 
-- **Application Orchestrator** — Fluent builder API (`MustNew().WithDatabase(postgres.Driver()).WithHTTPServer(...).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](#modules) for tree-structured feature wiring, and managed graceful shutdown.
+- **Application Orchestrator** — Fluent builder API (`MustNew().WithModules(gormx.Module(postgres.Driver()), httpx.Module()).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](#modules) for tree-structured feature wiring, and managed graceful shutdown. Every capability — database, HTTP, AWS, messaging, cache, tracing, outbox — is installed the same way, as a `host.Module`, so the `host` runtime itself depends on none of them: you pull in only the satellite modules you actually use.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, core.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
-- **SQL / GORM** — `WithDatabase(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading. `WithNamedDatabase` supports multiple databases side by side.
+- **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, cursor-based pagination (by ID or created_at), transactions, batch inserts, and eager loading. `gormx.NamedModule` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
-- **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain. `WithSubscriber` ties subscriptions to the app lifecycle (subscribe on start, drain on shutdown); `messaging.HandleJSON` / `HandleEnvelope` give typed handlers (`func(ctx, T) error`) with automatic decoding, and `WithQueueGroup` load-balances a subject across replicas.
-- **Transactional Outbox** — `outbox.Enqueue`/`EnqueueJSON` record an event in the same DB transaction as your domain write; `WithOutbox()` migrates the table and runs a periodic relay that publishes pending events to the broker with at-least-once delivery, so events are never lost on a crash between commit and publish.
+- **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain. `messaging.Subscribe` ties subscriptions to the app lifecycle (subscribe on start, drain on shutdown); `messaging.HandleJSON` / `HandleEnvelope` give typed handlers (`func(ctx, T) error`) with automatic decoding, and `messaging.WithQueueGroup` load-balances a subject across replicas.
+- **Transactional Outbox** — `outbox.Enqueue`/`EnqueueJSON` record an event in the same DB transaction as your domain write; `outbox.Module()` migrates the table and runs a periodic relay that publishes pending events to the broker with at-least-once delivery, so events are never lost on a crash between commit and publish.
 - **Idempotency** — `middleware.Idempotency` replays the stored response for a repeated non-safe request carrying the same `Idempotency-Key`, so client retries don't act twice. Keys are scoped by method+route; backed by any store satisfying a small Get/Set interface (the app cache fits directly).
-- **Distributed Tracing** — Opt-in OpenTelemetry via `WithTracing()`: the `otelx` module installs an OTLP exporter and the W3C propagator, and the instrumented layers — HTTP server and client, GORM, NATS — emit and propagate spans automatically (no-ops while tracing is off). Request logs carry `trace_id` for log/trace correlation.
+- **Distributed Tracing** — Opt-in OpenTelemetry via `otelx.Module()`: it installs an OTLP exporter and the W3C propagator, and the instrumented layers — HTTP server and client, GORM, NATS — emit and propagate spans automatically (no-ops while tracing is off). Request logs carry `trace_id` for log/trace correlation.
 - **Money Type** — Currency-aware decimal arithmetic (`Add`, `Sub`, `Multiply`) with currency validation, plus integer minor-unit conversion (`FromMinorUnits`/`MinorUnits`) with a zero/two/three-decimal currency registry.
 - **Time Utilities** — `TimeProvider` interface for testability, sortable timestamp formats.
 - **Type Converters** — Generic JSON, struct-to-map, and pointer coalescing utilities.
@@ -121,13 +121,14 @@ type User struct {
 func main() {
  app := host.MustNew()
 
- app.WithDatabase(postgres.Driver()).
+ app.WithModule(gormx.Module(postgres.Driver())).
+  WithModule(httpx.Module()).
   Setup(func(a *host.App) error {
-   return a.DB().AutoMigrate(&User{})
+   return gormx.Of(a).AutoMigrate(&User{})
   }).
-  WithHTTPServer(func(a *host.App) error {
-   users := gormx.NewTable[User](a.DB())
-   a.HTTPServer.Router.GET("/users", func(c *gin.Context) {
+  Setup(func(a *host.App) error {
+   users := gormx.NewTable[User](gormx.Of(a))
+   httpx.Of(a).Router.GET("/users", func(c *gin.Context) {
     req := gormx.NewPageRequest[User, uint](httpx.PagedRequest(c), "id", func(u User) uint { return u.ID })
     items, _ := users.List(c.Request.Context(), req)
     c.JSON(http.StatusOK, items)
@@ -142,26 +143,27 @@ func main() {
 services, start the HTTP server, block until SIGINT/SIGTERM (or a fatal server
 error), and then perform a graceful shutdown — so you don't need a separate
 `defer app.Close()`. Use `Setup(...)` for one-off startup steps like migrations.
-For manual control, use `app.StartHTTP()` + `host.WaitForExitSignal()` with
+For manual control, use `app.InitServices()` + `host.WaitForExitSignal()` with
 `defer app.Close()` instead.
 
 ### Database drivers
 
-`WithDatabase(driver)` reads the `[database]` config section, opens the
+`gormx.Module(driver)` reads the `[database]` config section, opens the
 connection during init, and registers it as the default database (retrieve with
-`app.DB()`). Two built-in drivers are available as separate opt-in modules:
+`gormx.Of(app)`). Two built-in drivers are available as separate opt-in modules:
 
 ```go
+import "github.com/hatami57/microjet/gormx"
 import "github.com/hatami57/microjet/gormx/postgres"
-app.WithDatabase(postgres.Driver())
+app.WithModule(gormx.Module(postgres.Driver()))
 
 import "github.com/hatami57/microjet/gormx/sqlite"
-app.WithDatabase(sqlite.Driver()) // pure-Go, no cgo; set database.name = ":memory:" for in-memory
+app.WithModule(gormx.Module(sqlite.Driver())) // pure-Go, no cgo; set database.name = ":memory:" for in-memory
 ```
 
-To run multiple databases side by side, use `WithNamedDatabase(name, driver)`;
-retrieve each with `app.NamedDB(name)`. Each named database reads its config
-from `[database.<name>]`.
+To run multiple databases side by side, use `gormx.NamedModule(name, driver)`;
+retrieve each with `gormx.NamedDB(app, name)`. Each named database reads its
+config from `[database.<name>]`.
 
 ### Cached tenant lookups
 
@@ -188,7 +190,7 @@ name = "My Service"
 version = "1.0.0"
 debug = false
 
-[server]
+[http]
 host = "0.0.0.0"
 port = 8080
 
@@ -216,7 +218,7 @@ level = "info"
 format = "json"
 ```
 
-Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_SERVER_PORT=443` (prefix defaults to `APP`, configurable via `host.WithEnvPrefix`).
+Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_HTTP_PORT=443` (prefix defaults to `APP`, configurable via `host.WithEnvPrefix`).
 
 ### Extra Config
 
@@ -364,7 +366,7 @@ func (UsersModule) Register(app *host.App) error {
 
 func main() {
     host.MustNew().
-        WithHTTPServer().
+        WithModule(httpx.Module()).
         WithModule(UsersModule{}). // brings EmailModule with it
         MustRun()
 }

@@ -7,16 +7,19 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hatami57/microjet/cache"
+	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/host"
+	"github.com/hatami57/microjet/httpx"
 	"github.com/hatami57/microjet/messaging"
 )
 
 func TestNewAppDefaults(t *testing.T) {
 	app := NewApp(t)
-	if app.DB() == nil {
+	if gormx.Of(app.App) == nil {
 		t.Error("expected an in-memory database")
 	}
-	if app.Cache() == nil {
+	if cache.Of(app.App) == nil {
 		t.Error("expected an in-memory cache")
 	}
 	if got := app.Clock.Now(); !got.Equal(DefaultFixedTime) {
@@ -26,7 +29,7 @@ func TestNewAppDefaults(t *testing.T) {
 
 func TestNewAppWithoutDatabase(t *testing.T) {
 	app := NewApp(t, WithoutDatabase())
-	if app.DB() != nil {
+	if gormx.Of(app.App) != nil {
 		t.Error("expected no database when WithoutDatabase is set")
 	}
 }
@@ -113,7 +116,7 @@ func TestBrokerUnsubscribe(t *testing.T) {
 
 func TestHTTPHelpersAgainstApp(t *testing.T) {
 	app := NewApp(t, WithHTTPServer(), WithSetup(func(a *host.App) error {
-		a.HTTPServer.Router.POST("/echo", func(c *gin.Context) {
+		httpx.Of(a).Router.POST("/echo", func(c *gin.Context) {
 			var body map[string]string
 			_ = c.ShouldBindJSON(&body)
 			c.JSON(http.StatusCreated, gin.H{"echo": body["msg"]})
@@ -121,7 +124,7 @@ func TestHTTPHelpersAgainstApp(t *testing.T) {
 		return nil
 	}))
 
-	w := Request(t, app.HTTPServer.Router, http.MethodPost, "/echo", map[string]string{"msg": "hi"})
+	w := Request(t, httpx.Of(app.App).Router, http.MethodPost, "/echo", map[string]string{"msg": "hi"})
 	AssertStatus(t, w, http.StatusCreated)
 
 	var out struct {
@@ -136,13 +139,13 @@ func TestHTTPHelpersAgainstApp(t *testing.T) {
 func TestAppWithBroker(t *testing.T) {
 	b := NewBroker()
 	app := NewApp(t, WithBroker(b))
-	if app.Messaging == nil {
+	if messaging.Of(app.App) == nil {
 		t.Fatal("expected messaging client to be wired")
 	}
 	if app.Broker != b {
 		t.Error("App.Broker should expose the injected broker")
 	}
-	_ = app.Messaging.Publish(context.Background(), messaging.Message{Subject: "evt", Data: []byte("1")})
+	_ = messaging.Of(app.App).Publish(context.Background(), messaging.Message{Subject: "evt", Data: []byte("1")})
 	if len(b.Published()) != 1 {
 		t.Errorf("published = %d, want 1", len(b.Published()))
 	}

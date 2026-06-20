@@ -28,13 +28,14 @@ import (
 )
 
 func main() {
-	// WithCache registers the cache as a managed service: it loads the [cache]
+	// cache.Module registers the cache as a managed service: it loads the [cache]
 	// section, connects at startup, and is closed on shutdown. Defaults to an
 	// in-memory cache; set [cache] driver = "redis" to share entries across
 	// replicas — no code change.
 	app := host.MustNew(host.WithClock(core.UTC)).
-		WithCache().
-		WithHTTPServer(func(a *host.App) error {
+		WithModule(cache.Module()).
+		WithModule(httpx.Module()).
+		Setup(func(a *host.App) error {
 			registerRoutes(a)
 			return nil
 		})
@@ -43,9 +44,9 @@ func main() {
 }
 
 func registerRoutes(a *host.App) {
-	r := a.HTTPServer.Router
+	r := httpx.Of(a).Router
 	// Setup handlers run after services are initialized, so the cache is ready.
-	c := a.Cache()
+	c := cache.Of(a)
 
 	// Cross-origin + per-client rate limiting applied to every app route.
 	// (RequestID, metrics, logging and error handling are installed by NewServer.)

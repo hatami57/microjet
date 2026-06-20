@@ -27,25 +27,53 @@ type ServiceCloser interface {
 	Close(app *App) error
 }
 
-type ProvidedItem[T, V any] struct {
-	Key   T
-	Value V
+// ErrSource is an optional interface for services that run a background loop and
+// report its fatal outcome on a channel (e.g. the HTTP server's listener). Run
+// merges every started service's channel and treats a delivery like a shutdown
+// trigger, so a crashing long-running service brings the app down cleanly.
+type ErrSource interface {
+	ErrCh() <-chan error
 }
 
-func ResolveType[T any]() reflect.Type {
-	return reflect.TypeFor[T]()
+// RangeServices calls fn for each registered service until fn returns false;
+// iteration order is unspecified. It lets satellite packages and modules inspect
+// the container — e.g. aggregate health checks across services — without needing
+// access to its internals.
+func (a *App) RangeServices(fn func(service any) bool) {
+	a.container.Range(func(_, v any) bool { return fn(v) })
 }
 
-func ProvideType[T any](service T) *ProvidedItem[reflect.Type, any] {
-	return &ProvidedItem[reflect.Type, any]{Key: ResolveType[T](), Value: service}
+// serviceKey identifies a service in the container by its Go type and an optional
+// name. Naming lets several instances of the same type coexist — a public and an
+// admin HTTP server, a "sessions" and a "pages" cache, a primary and an
+// "analytics" database — each resolved by passing its name. The zero value (empty
+// name) is the default instance, so unnamed Provide/Resolve calls are unaffected.
+type serviceKey struct {
+	typ  reflect.Type
+	name string
 }
 
-func ProvideService[T any](a *App, service T) {
-	a.container.Store(ResolveType[T](), service)
+// keyFor builds the container key for type T and an optional name. Only the first
+// name is significant; an absent name selects the default ("") instance.
+func keyFor[T any](name []string) serviceKey {
+	n := ""
+	if len(name) > 0 {
+		n = name[0]
+	}
+	return serviceKey{typ: reflect.TypeFor[T](), name: n}
 }
 
-func ResolveService[T any](a *App) (T, bool) {
-	raw, ok := a.container.Load(ResolveType[T]())
+// ProvideService registers service in the container under its type T and an
+// optional name. Re-providing the same (type, name) replaces the earlier value;
+// distinct names register side by side.
+func ProvideService[T any](a *App, service T, name ...string) {
+	a.container.Store(keyFor[T](name), service)
+}
+
+// ResolveService returns the service registered for type T and the optional name,
+// reporting whether one was found.
+func ResolveService[T any](a *App, name ...string) (T, bool) {
+	raw, ok := a.container.Load(keyFor[T](name))
 	if !ok {
 		var zero T
 		return zero, false
@@ -53,25 +81,21 @@ func ResolveService[T any](a *App) (T, bool) {
 	return raw.(T), true
 }
 
-func MustResolveService[T any](a *App) T {
-	if svc, ok := ResolveService[T](a); ok {
+// MustResolveService returns the service for type T (and optional name),
+// panicking if none is registered.
+func MustResolveService[T any](a *App, name ...string) T {
+	if svc, ok := ResolveService[T](a, name...); ok {
 		return svc
 	}
-	panic(ErrServiceNotRegistered.WithSubject(ResolveType[T]().String()))
-}
-
-func (a *App) ProvideService(item *ProvidedItem[reflect.Type, any]) *App {
-	a.container.Store(item.Key, item.Value)
-	return a
-}
-
-func (a *App) ProvideServices(items ...*ProvidedItem[reflect.Type, any]) *App {
-	for _, item := range items {
-		a.container.Store(item.Key, item.Value)
+	subject := reflect.TypeFor[T]().String()
+	if len(name) > 0 && name[0] != "" {
+		subject += " (name " + name[0] + ")"
 	}
-	return a
+	panic(ErrServiceNotRegistered.WithSubject(subject))
 }
 
+// WithProvider runs fn to register services imperatively within the fluent chain,
+// deferring any error to Run/MustRun/Err.
 func (a *App) WithProvider(fn HandlerFunc) *App {
 	if a.err != nil {
 		return a
@@ -79,29 +103,16 @@ func (a *App) WithProvider(fn HandlerFunc) *App {
 	return a.fail(fn(a))
 }
 
+// ProvideKey stores an arbitrary value under a string key — an escape hatch for
+// values not identified by Go type. Prefer ProvideService for services.
 func (a *App) ProvideKey(key string, value any) *App {
 	a.container.Store(key, value)
 	return a
 }
 
+// ResolveKey returns the value stored under a string key by ProvideKey.
 func (a *App) ResolveKey(key string) (any, bool) {
 	return a.container.Load(key)
-}
-
-func (a *App) ResolveService(key reflect.Type) (any, bool) {
-	raw, ok := a.container.Load(key)
-	if !ok {
-		zero := reflect.New(key).Elem().Interface()
-		return zero, false
-	}
-	return raw, true
-}
-
-func (a *App) MustResolveService(key reflect.Type) any {
-	if svc, ok := a.ResolveService(key); ok {
-		return svc
-	}
-	panic(ErrServiceNotRegistered.WithParams("name", key.String()))
 }
 
 func (a *App) InitServices() *App {

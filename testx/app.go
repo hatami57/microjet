@@ -15,6 +15,8 @@ import (
 	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/gormx/sqlite"
 	"github.com/hatami57/microjet/host"
+	"github.com/hatami57/microjet/httpx"
+	"github.com/hatami57/microjet/messaging"
 	"gorm.io/gorm"
 )
 
@@ -61,16 +63,16 @@ func WithBroker(b *Broker) AppOption {
 	return func(c *appConfig) { c.broker = b }
 }
 
-// WithHTTPServer registers an HTTP server so app.HTTPServer (and its Router) are
+// WithHTTPServer registers an HTTP server so httpx.Of(app) (and its Router) is
 // available after NewApp returns. The server is initialized but never starts
-// listening — drive it in tests through testx.Request(app.HTTPServer.Router,
+// listening — drive it in tests through testx.Request(httpx.Of(app).Router,
 // ...). Register routes in a WithSetup hook, which runs once the router exists.
 func WithHTTPServer() AppOption {
 	return func(c *appConfig) { c.withHTTP = true }
 }
 
-// WithSetup registers a hook run after services are initialized (so app.DB(),
-// app.Cache(), app.HTTPServer, and DI are ready) — use it to provide services or
+// WithSetup registers a hook run after services are initialized (so gormx.Of(app),
+// cache.Of(app), httpx.Of(app), and DI are ready) — use it to provide services or
 // register HTTP routes. A hook returning an error fails the test.
 func WithSetup(fn func(*host.App) error) AppOption {
 	return func(c *appConfig) { c.setups = append(c.setups, fn) }
@@ -85,7 +87,7 @@ type App struct {
 
 // NewApp builds a host.App with deterministic in-memory defaults: a FixedClock,
 // an in-memory SQLite database, and an in-memory cache. It initializes services
-// (so app.DB() and app.Cache() are ready), runs any WithSetup hooks, and
+// (so gormx.Of(app) and cache.Of(app) are ready), runs any WithSetup hooks, and
 // registers cleanup with t. Use options to trim or extend the wiring.
 func NewApp(t testing.TB, opts ...AppOption) *App {
 	t.Helper()
@@ -99,16 +101,16 @@ func NewApp(t testing.TB, opts ...AppOption) *App {
 		t.Fatalf("testx: host.New: %v", err)
 	}
 	if cfg.withDB {
-		app.InjectDatabase(NewDB(t))
+		app.WithModule(gormx.Inject(NewDB(t)))
 	}
 	if cfg.withCache {
-		app.WithCacheClient(cache.NewMemoryCache(cfg.clock))
+		app.WithModule(cache.ModuleWithClient(cache.NewMemoryCache(cfg.clock)))
 	}
 	if cfg.broker != nil {
-		app.WithMessaging(cfg.broker)
+		app.WithModule(messaging.Module(cfg.broker))
 	}
 	if cfg.withHTTP {
-		app.WithHTTPServer()
+		app.WithModule(httpx.Module())
 	}
 	app.InitServices()
 	if err := app.Err(); err != nil {

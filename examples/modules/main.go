@@ -33,6 +33,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/host"
+	"github.com/hatami57/microjet/httpx"
 )
 
 func main() {
@@ -40,7 +41,7 @@ func main() {
 	// the host then drives config → init → start → close for every service any
 	// module provided, regardless of how deeply nested.
 	host.MustNew().
-		WithHTTPServer().
+		WithModule(httpx.Module()).
 		WithModule(AppModule{}).
 		MustRun()
 }
@@ -99,7 +100,7 @@ func (UsersModule) Register(app *host.App) error {
 	// exists and every service this module needs is connected.
 	return app.Setup(func(a *host.App) error {
 		svc := host.MustResolveService[*UserService](a)
-		a.HTTPServer.Router.GET("/users/:id", func(c *gin.Context) {
+		httpx.Of(a).Router.GET("/users/:id", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"user": svc.Describe(c.Param("id"))})
 		})
 		return nil
@@ -140,7 +141,7 @@ func (BillingModule) Register(app *host.App) error {
 
 	return app.Setup(func(a *host.App) error {
 		svc := host.MustResolveService[*BillingService](a)
-		a.HTTPServer.Router.GET("/billing/:id/invoice", func(c *gin.Context) {
+		httpx.Of(a).Router.GET("/billing/:id/invoice", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"invoice": svc.Invoice(c.Param("id"))})
 		})
 		return nil
@@ -169,7 +170,7 @@ func (ReportsModule) Register(app *host.App) error {
 
 	return app.Setup(func(a *host.App) error {
 		email := host.MustResolveService[*EmailSender](a)
-		a.HTTPServer.Router.GET("/reports/daily", func(c *gin.Context) {
+		httpx.Of(a).Router.GET("/reports/daily", func(c *gin.Context) {
 			email.Send("ops@example.com", "daily report")
 			c.JSON(http.StatusOK, gin.H{"report": "sent", "total_emails": email.sent.Load()})
 		})

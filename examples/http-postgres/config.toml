@@ -3,7 +3,7 @@ name = "user-service"
 environment = "development"
 debug = true
 
-[server]
+[http]
 host = "0.0.0.0"
 port = 8080
 

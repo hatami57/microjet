@@ -19,8 +19,8 @@ type postgresDriver struct{}
 // read from the config section the host resolves (host, port, user, password,
 // name, sslMode):
 //
-//	app.WithDatabase(postgres.Driver())
-//	app.WithNamedDatabase("analytics", postgres.Driver())
+//	app.WithModule(gormx.Module(postgres.Driver()))
+//	app.WithModule(gormx.Module(postgres.Driver(), "analytics"))
 func Driver() gormx.Driver { return postgresDriver{} }
 
 func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
