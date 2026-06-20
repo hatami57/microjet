@@ -63,10 +63,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in-flight requests, then ordinary services, then backends (database, cache,
   broker, tracing) — so a draining HTTP handler still has its database. Closing is
   sequential across bands and remains bounded by the shutdown timeout. A service
-  can opt into a band by implementing the new optional `host.ShutdownOrderer`
-  (`ShutdownOrder() int`); use the `host.ShutdownEdge`/`ShutdownDefault`/
-  `ShutdownBackend` constants. Services that don't implement it close at
-  `ShutdownDefault`.
+  can opt into a band by implementing the new optional `host.CloseOrderer`
+  (`CloseOrder() int`); use the `host.CloseEdge`/`CloseDefault`/`CloseBackend`
+  constants. Services that don't implement it close at `CloseDefault`.
 - **`host.App.RangeServices`** — iterate registered services without access to
   container internals, so satellite packages can aggregate health checks, etc.
 - **`host.ErrSource`** — optional `ErrCh() <-chan error` interface; `Run` now

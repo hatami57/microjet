@@ -12,7 +12,7 @@ type orderedCloser struct {
 	log   *[]string
 }
 
-func (c *orderedCloser) ShutdownOrder() int { return c.order }
+func (c *orderedCloser) CloseOrder() int { return c.order }
 func (c *orderedCloser) Close(*App) error {
 	*c.log = append(*c.log, c.name)
 	return nil
@@ -26,11 +26,11 @@ func TestCloseServicesOrdersEdgesBeforeBackends(t *testing.T) {
 
 	var closed []string
 	// Register out of order under distinct names (same type), so the container
-	// holds all three; it iterates unordered, so only ShutdownOrder decides the
-	// close sequence.
-	backend := &orderedCloser{name: "backend", order: ShutdownBackend, log: &closed}
-	edge := &orderedCloser{name: "edge", order: ShutdownEdge, log: &closed}
-	mid := &orderedCloser{name: "mid", order: ShutdownDefault, log: &closed}
+	// holds all three; it iterates unordered, so only CloseOrder decides the close
+	// sequence.
+	backend := &orderedCloser{name: "backend", order: CloseBackend, log: &closed}
+	edge := &orderedCloser{name: "edge", order: CloseEdge, log: &closed}
+	mid := &orderedCloser{name: "mid", order: CloseDefault, log: &closed}
 	ProvideService(app, backend, "backend")
 	ProvideService(app, edge, "edge")
 	ProvideService(app, mid, "mid")
@@ -50,13 +50,13 @@ func TestCloseServicesOrdersEdgesBeforeBackends(t *testing.T) {
 	}
 }
 
-// plainCloser implements only ServiceCloser, not ShutdownOrderer.
+// plainCloser implements only ServiceCloser, not CloseOrderer.
 type plainCloser struct{}
 
 func (plainCloser) Close(*App) error { return nil }
 
 func TestUnmarkedServiceClosesAtDefault(t *testing.T) {
-	if got := shutdownOrder(plainCloser{}); got != ShutdownDefault {
-		t.Errorf("shutdownOrder(unmarked) = %d, want %d", got, ShutdownDefault)
+	if got := closeOrder(plainCloser{}); got != CloseDefault {
+		t.Errorf("closeOrder(unmarked) = %d, want %d", got, CloseDefault)
 	}
 }

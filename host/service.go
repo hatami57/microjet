@@ -285,43 +285,43 @@ func (a *App) startServices() error {
 	return nil
 }
 
-// Shutdown ordering bands. Services are closed in ascending order, so inbound
+// Close ordering bands. Services are closed in ascending order, so inbound
 // "edges" stop accepting work and drain before the "backends" they depend on are
 // torn down — e.g. an HTTP server finishes serving in-flight requests while its
-// database is still open. Services that do not implement ShutdownOrderer close at
-// ShutdownDefault. The values are plain ints, so a service needing finer control
-// can return any value between or beyond these (lower = earlier).
+// database is still open. Services that do not implement CloseOrderer close at
+// CloseDefault. The values are plain ints, so a service needing finer control can
+// return any value between or beyond these (lower = earlier).
 const (
-	// ShutdownEdge closes first: inbound traffic sources that must stop accepting
-	// and drain, such as HTTP servers and message subscribers.
-	ShutdownEdge = 0
-	// ShutdownDefault is the order for services that do not implement
-	// ShutdownOrderer — ordinary application services.
-	ShutdownDefault = 50
-	// ShutdownBackend closes last: shared resources others depend on during their
-	// own shutdown, such as databases, caches, the message broker, and tracing.
-	ShutdownBackend = 100
+	// CloseEdge closes first: inbound traffic sources that must stop accepting and
+	// drain, such as HTTP servers and message subscribers.
+	CloseEdge = 0
+	// CloseDefault is the order for services that do not implement CloseOrderer —
+	// ordinary application services.
+	CloseDefault = 50
+	// CloseBackend closes last: shared resources others depend on during their own
+	// shutdown, such as databases, caches, the message broker, and tracing.
+	CloseBackend = 100
 )
 
-// ShutdownOrderer lets a service control when Close is called relative to other
-// services. Lower values close earlier; use the ShutdownEdge/Default/Backend
-// constants. Services that do not implement it close at ShutdownDefault.
-type ShutdownOrderer interface {
-	ShutdownOrder() int
+// CloseOrderer lets a service control when Close is called relative to other
+// services. Lower values close earlier; use the CloseEdge/Default/Backend
+// constants. Services that do not implement it close at CloseDefault.
+type CloseOrderer interface {
+	CloseOrder() int
 }
 
-// shutdownOrder reports a service's close order, defaulting to ShutdownDefault.
-func shutdownOrder(svc any) int {
-	if so, ok := svc.(ShutdownOrderer); ok {
-		return so.ShutdownOrder()
+// closeOrder reports a service's close order, defaulting to CloseDefault.
+func closeOrder(svc any) int {
+	if co, ok := svc.(CloseOrderer); ok {
+		return co.CloseOrder()
 	}
-	return ShutdownDefault
+	return CloseDefault
 }
 
-// closeServices closes every registered service in ascending ShutdownOrder so
-// edges drain before the backends they rely on. Closing is sequential: a band
-// fully completes before the next begins, so an HTTP server's in-flight requests
-// are done before the database closes. The whole sequence is still bounded by the
+// closeServices closes every registered service in ascending CloseOrder so edges
+// drain before the backends they rely on. Closing is sequential: a band fully
+// completes before the next begins, so an HTTP server's in-flight requests are
+// done before the database closes. The whole sequence is still bounded by the
 // shutdown timeout in close(). Errors are collected, not fatal.
 func (a *App) closeServices() error {
 	type entry struct {
@@ -330,7 +330,7 @@ func (a *App) closeServices() error {
 	}
 	var entries []entry
 	a.container.Range(func(_, item any) bool {
-		entries = append(entries, entry{svc: item, order: shutdownOrder(item)})
+		entries = append(entries, entry{svc: item, order: closeOrder(item)})
 		return true
 	})
 	// Stable so equal-order services keep a reproducible relative sequence.

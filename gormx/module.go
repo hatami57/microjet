@@ -71,9 +71,9 @@ func Inject(db *gorm.DB, name ...string) host.Module {
 	})
 }
 
-// ShutdownOrder closes the database late (as a backend), after the edges that use
-// it (HTTP servers, subscribers) have drained.
-func (s *Service) ShutdownOrder() int { return host.ShutdownBackend }
+// CloseOrder closes the database late (as a backend), after the edges that use it
+// (HTTP servers, subscribers) have drained.
+func (s *Service) CloseOrder() int { return host.CloseBackend }
 
 // Of returns the database connection registered under the optional name, or nil
 // if none is registered.
