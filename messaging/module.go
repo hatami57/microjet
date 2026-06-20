@@ -26,7 +26,8 @@ type loggerAware interface {
 // name to register several brokers side by side, each retrieved with
 // messaging.Of(app, name).
 func Module(client Client, name ...string) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
+	n := first(name)
+	return host.KeyedModuleFunc(moduleKey("messaging.Client", n), func(app *host.App) error {
 		if client == nil {
 			return fmt.Errorf("messaging: nil client")
 		}
@@ -45,4 +46,20 @@ func Of(app *host.App, name ...string) Client {
 		return c
 	}
 	return nil
+}
+
+// first returns the first name or "" — the default instance.
+func first(name []string) string {
+	if len(name) > 0 {
+		return name[0]
+	}
+	return ""
+}
+
+// moduleKey builds a module dedup key for a slot and instance name.
+func moduleKey(slot, name string) string {
+	if name == "" {
+		return slot
+	}
+	return slot + "[" + name + "]"
 }

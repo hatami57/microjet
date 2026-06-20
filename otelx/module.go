@@ -15,13 +15,25 @@ import (
 // singleton; the optional name exists only for API symmetry with the other
 // modules and to retrieve the service via otelx.Of(app, name).
 func Module(name ...string) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
+	key := "otelx.Tracing"
+	if n := first(name); n != "" {
+		key += "[" + n + "]"
+	}
+	return host.KeyedModuleFunc(key, func(app *host.App) error {
 		t := New()
 		t.SetLogger(app.Logger)
 		t.SetServiceInfo(app.Config.App.Name, app.Config.App.Version)
 		host.ProvideService(app, t, name...)
 		return nil
 	})
+}
+
+// first returns the first name or "" — the default instance.
+func first(name []string) string {
+	if len(name) > 0 {
+		return name[0]
+	}
+	return ""
 }
 
 // CloseOrder closes tracing late (as a backend) so spans emitted while other

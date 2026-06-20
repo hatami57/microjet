@@ -29,9 +29,10 @@ import (
 // reads its own [http.<name>] config section (so it can bind a different port)
 // and is retrieved with httpx.Of(app, name).
 func Module(name ...string) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
+	n := first(name)
+	return host.KeyedModuleFunc(moduleKey("httpx.Server", n), func(app *host.App) error {
 		srv := NewServer(ServerConfig{Debug: app.Config.App.Debug}, app.Logger)
-		if n := first(name); n != "" {
+		if n != "" {
 			srv.SetConfigSection("http." + n)
 		}
 
@@ -71,4 +72,13 @@ func first(name []string) string {
 		return name[0]
 	}
 	return ""
+}
+
+// moduleKey builds a module dedup key for a slot and instance name, so two
+// installs of the same named slot deduplicate while distinct names coexist.
+func moduleKey(slot, name string) string {
+	if name == "" {
+		return slot
+	}
+	return slot + "[" + name + "]"
 }

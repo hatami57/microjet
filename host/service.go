@@ -212,7 +212,23 @@ func (a *App) initServices() error {
 
 	a.isServiceInitialized = true
 	a.Logger.Info("all services initialized", "configs", configCallCount, "inits", initCallCount)
+	a.warnUnusedConfigSections()
 	return nil
+}
+
+// warnUnusedConfigSections logs a warning for each config-file section that no
+// component read, which usually signals a typo or a renamed section (e.g. a
+// stale [server] after the rename to [http]) that silently has no effect. It is
+// best-effort: readers that don't track usage report nothing.
+func (a *App) warnUnusedConfigSections() {
+	auditor, ok := a.configReader.(interface{ UnusedSections() []string })
+	if !ok {
+		return
+	}
+	for _, section := range auditor.UnusedSections() {
+		a.Logger.Warn("config section is present but unused; check for a typo or renamed section",
+			"section", section)
+	}
 }
 
 // setupServices runs the Setup phase for services: every service that implements

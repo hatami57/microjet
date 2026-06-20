@@ -64,12 +64,14 @@ func Database(name string) Option {
 //	    outbox.Module(outbox.Interval(2*time.Second)),
 //	)
 func Module(opts ...Option) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
-		cfg := config{interval: DefaultInterval, batchSize: DefaultBatchSize, dbName: gormx.DefaultDatabase}
-		for _, opt := range opts {
-			opt(&cfg)
-		}
-
+	cfg := config{interval: DefaultInterval, batchSize: DefaultBatchSize, dbName: gormx.DefaultDatabase}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	// Keyed by target database so two relays for the same DB deduplicate (avoiding
+	// duplicate migrations and double-publishing) while relays for distinct named
+	// databases coexist.
+	return host.KeyedModuleFunc("outbox.Relay["+cfg.dbName+"]", func(app *host.App) error {
 		// Migrate the outbox table once resources are connected, before serving.
 		app.Setup(func(a *host.App) error { return migrateTable(a, cfg.dbName) })
 

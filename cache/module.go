@@ -81,9 +81,10 @@ func (s *service) Healthy(ctx context.Context) error {
 // reads its own [cache.<name>] config section and is retrieved with
 // cache.Of(app, name). Reach the default cache with cache.Of(app).
 func Module(name ...string) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
+	n := first(name)
+	return host.KeyedModuleFunc(moduleKey("cache.Cache", n), func(app *host.App) error {
 		section := "cache"
-		if n := first(name); n != "" {
+		if n != "" {
 			section = "cache." + n
 		}
 		host.ProvideService(app, &service{logger: app.Logger, clock: app.Clock, section: section}, name...)
@@ -96,7 +97,8 @@ func Module(name ...string) host.Module {
 // by the lifecycle on shutdown. Pass an optional name to register it as a named
 // instance.
 func ModuleWithClient(c Cache, name ...string) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
+	n := first(name)
+	return host.KeyedModuleFunc(moduleKey("cache.Cache", n), func(app *host.App) error {
 		host.ProvideService(app, &service{logger: app.Logger, cache: c, configured: true}, name...)
 		return nil
 	})
@@ -122,4 +124,12 @@ func first(name []string) string {
 		return name[0]
 	}
 	return ""
+}
+
+// moduleKey builds a module dedup key for a slot and instance name.
+func moduleKey(slot, name string) string {
+	if name == "" {
+		return slot
+	}
+	return slot + "[" + name + "]"
 }

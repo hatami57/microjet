@@ -22,11 +22,34 @@ type Module interface {
 }
 
 // ModuleFunc adapts a plain function into a Module for small, inline modules
-// that do not need their own type.
+// that do not need their own type. ModuleFunc values are anonymous and never
+// deduplicated — install them at most once, or use KeyedModuleFunc when the
+// module fills a single slot and double-installation should be a no-op.
 type ModuleFunc func(app *App) error
 
 // Register implements Module.
 func (f ModuleFunc) Register(app *App) error { return f(app) }
+
+// keyedFunc is a function-backed Module that deduplicates by an explicit key.
+type keyedFunc struct {
+	key string
+	fn  func(*App) error
+}
+
+func (k keyedFunc) Register(app *App) error { return k.fn(app) }
+func (k keyedFunc) ModuleKey() string       { return k.key }
+func (k keyedFunc) ModuleName() string      { return k.key }
+
+// KeyedModuleFunc adapts fn into a Module that deduplicates by key: installing
+// two modules with the same key runs Register only once (first wins), exactly
+// like the struct-module diamond dedup. Satellite Module constructors use it so
+// that installing, say, httpx.Module() twice yields one server instead of
+// silently registering a second that clobbers the first. The key also names the
+// module in logs, so make it readable and unique per slot (e.g. include the
+// instance name).
+func KeyedModuleFunc(key string, fn func(*App) error) Module {
+	return keyedFunc{key: key, fn: fn}
+}
 
 // NamedModule is an optional interface; when a module implements it, the returned
 // name is used in logs and error messages instead of the Go type name.
@@ -53,6 +76,7 @@ func (a *App) WithModule(m Module) *App {
 	}
 	if key := moduleKey(m); key != "" {
 		if _, loaded := a.modules.LoadOrStore(key, struct{}{}); loaded {
+			a.Logger.Debug("module already installed; skipping", "module", moduleName(m))
 			return a
 		}
 	}

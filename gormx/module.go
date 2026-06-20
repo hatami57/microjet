@@ -43,7 +43,7 @@ func dbSection(name string) string {
 // with gormx.Of(app, name). Reach the default with gormx.Of(app).
 func Module(driver Driver, name ...string) host.Module {
 	n := first(name)
-	return host.ModuleFunc(func(app *host.App) error {
+	return host.KeyedModuleFunc(moduleKey("gormx.DB", canonicalName(n)), func(app *host.App) error {
 		if driver == nil {
 			return fmt.Errorf("database %q: nil driver", n)
 		}
@@ -60,7 +60,7 @@ func Module(driver Driver, name ...string) host.Module {
 // includes it in health checks. Pass an optional name for a named database.
 func Inject(db *gorm.DB, name ...string) host.Module {
 	n := first(name)
-	return host.ModuleFunc(func(app *host.App) error {
+	return host.KeyedModuleFunc(moduleKey("gormx.DB", canonicalName(n)), func(app *host.App) error {
 		if db == nil {
 			return fmt.Errorf("database %q: nil *gorm.DB", n)
 		}
@@ -91,6 +91,14 @@ func first(name []string) string {
 		return name[0]
 	}
 	return ""
+}
+
+// moduleKey builds a module dedup key for a slot and instance name.
+func moduleKey(slot, name string) string {
+	if name == "" {
+		return slot
+	}
+	return slot + "[" + name + "]"
 }
 
 // displayName is the human-readable name used in logs; the default database's

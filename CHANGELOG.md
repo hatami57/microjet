@@ -66,6 +66,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   can opt into a band by implementing the new optional `host.CloseOrderer`
   (`CloseOrder() int`); use the `host.CloseEdge`/`CloseDefault`/`CloseBackend`
   constants. Services that don't implement it close at `CloseDefault`.
+- **Module de-duplication for infrastructure** — satellite `Module` constructors
+  now deduplicate by `(slot, name)`, so installing e.g. `httpx.Module()` twice
+  registers one server instead of silently creating a second that clobbers the
+  first. Distinct names still coexist; `messaging.Subscribe` stays additive (each
+  call adds a binding). Backed by the new `host.KeyedModuleFunc(key, fn)` helper.
+- **Unused config-section warnings** — at the end of service initialization the
+  host logs a warning for each config-file top-level section that nothing read,
+  catching typos and renamed sections (e.g. a stale `[server]` after the rename to
+  `[http]`) that otherwise silently have no effect. Exposed via the reader's
+  `UnusedSections() []string`.
 - **`host.App.RangeServices`** — iterate registered services without access to
   container internals, so satellite packages can aggregate health checks, etc.
 - **`host.ErrSource`** — optional `ErrCh() <-chan error` interface; `Run` now

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -12,6 +13,14 @@ import (
 
 type viperConfigReader struct {
 	v *viper.Viper
+
+	// fileSections are the top-level tables that came from the config file(s),
+	// captured before any defaults were registered. claimed records which were
+	// actually read; the difference is reported by UnusedSections to catch typos
+	// and renamed sections that silently have no effect.
+	fileSections map[string]bool
+	claimed      map[string]bool
+	claimedAll   bool
 }
 
 // NewViperConfigReader creates a Reader. Use this to hold a single reader across
@@ -21,7 +30,13 @@ func NewViperConfigReader(envPrefix string) (Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &viperConfigReader{v: v}, nil
+	// Capture the file's top-level sections now, before any SetDefault call adds
+	// synthetic keys — so unused-section detection reflects the file alone.
+	fileSections := make(map[string]bool)
+	for _, key := range v.AllKeys() {
+		fileSections[topSection(key)] = true
+	}
+	return &viperConfigReader{v: v, fileSections: fileSections, claimed: make(map[string]bool)}, nil
 }
 
 // SetDefault registers a default value for a config key. Configurables call
@@ -30,19 +45,48 @@ func (r *viperConfigReader) SetDefault(key string, value any) {
 	r.v.SetDefault(key, value)
 }
 
-// Read unmarshals the named config key into dest.
+// Read unmarshals the named config key into dest, recording the key's top-level
+// section as claimed.
 func (r *viperConfigReader) Read(key string, dest any) error {
+	r.claimed[topSection(key)] = true
 	return r.v.UnmarshalKey(key, dest)
 }
 
 // ReadMap returns all keys and their values under a config key.
 // Sub-tables appear as map[string]any values, scalars as their native types.
 func (r *viperConfigReader) ReadMap(key string) map[string]any {
+	r.claimed[topSection(key)] = true
 	return r.v.GetStringMap(key)
 }
 
 func (r *viperConfigReader) ReadAll(dest any) error {
+	r.claimedAll = true
 	return r.v.Unmarshal(dest)
+}
+
+// UnusedSections returns the config-file top-level sections that no Read/ReadMap
+// call consumed, sorted. A non-empty result usually means a typo or a renamed
+// section (e.g. a stale [server] after it became [http]) that silently has no
+// effect. ReadAll claims everything, so this is empty once ReadAll is used.
+func (r *viperConfigReader) UnusedSections() []string {
+	if r.claimedAll {
+		return nil
+	}
+	var unused []string
+	for section := range r.fileSections {
+		if !r.claimed[section] {
+			unused = append(unused, section)
+		}
+	}
+	sort.Strings(unused)
+	return unused
+}
+
+// topSection returns the first dotted segment of a config key — its top-level
+// table. Viper lowercases keys, so comparisons are case-insensitive.
+func topSection(key string) string {
+	top, _, _ := strings.Cut(key, ".")
+	return top
 }
 
 func newViper(envPrefix string) (*viper.Viper, error) {

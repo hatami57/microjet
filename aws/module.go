@@ -21,7 +21,11 @@ func Module(services ...Service) host.Module {
 // (retrieved with aws.Of(app, name)). Because Module already uses a variadic
 // service list, naming gets its own constructor.
 func NamedModule(name string, services ...Service) host.Module {
-	return host.ModuleFunc(func(app *host.App) error {
+	key := "aws.Client"
+	if name != "" {
+		key += "[" + name + "]"
+	}
+	return host.KeyedModuleFunc(key, func(app *host.App) error {
 		host.ProvideService(app, NewAWS(app.Logger, services...), name)
 		return nil
 	})
