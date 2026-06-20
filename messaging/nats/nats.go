@@ -30,10 +30,10 @@ func spanAttrs(subject string) trace.SpanStartOption {
 }
 
 var (
-	_ messaging.Client    = (*Client)(nil)
+	_ messaging.Client     = (*Client)(nil)
 	_ configx.Configurable = (*Client)(nil)
-	_ core.Initer         = (*Client)(nil)
-	_ core.Closer         = (*Client)(nil)
+	_ core.Initer          = (*Client)(nil)
+	_ core.Closer          = (*Client)(nil)
 )
 
 // Client is the NATS-backed implementation of messaging.Client. It implements

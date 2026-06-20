@@ -135,7 +135,7 @@ func parseKeyFormat(pattern, selfName string, t reflect.Type) (*keyFormat, error
 // fieldMeta holds parsed dynamo tag metadata for one struct field.
 type fieldMeta struct {
 	structIndex int
-	attrName    string  // dynamodbav attribute name (empty if dynamodbav:"-")
+	attrName    string // dynamodbav attribute name (empty if dynamodbav:"-")
 	keyRole     keyRole
 	format      *keyFormat // non-nil for pk/sk fields
 	autoCreate  bool       // set to time.Now() on Put if the field is zero

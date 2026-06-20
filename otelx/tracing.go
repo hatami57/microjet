@@ -23,8 +23,8 @@ import (
 
 var (
 	_ configx.Configurable = (*Tracing)(nil)
-	_ core.Initer         = (*Tracing)(nil)
-	_ core.Closer         = (*Tracing)(nil)
+	_ core.Initer          = (*Tracing)(nil)
+	_ core.Closer          = (*Tracing)(nil)
 )
 
 // shutdownTimeout bounds how long Close waits for the final span flush so a
