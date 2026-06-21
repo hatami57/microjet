@@ -395,13 +395,23 @@ See [`examples/modules`](examples/modules) for a runnable three-level tree.
 
 ## Examples
 
-Runnable example services live in [`examples/`](examples/):
+Runnable examples live in [`examples/`](examples/) — see the
+[examples index](examples/README.md) for the full list. There is a focused,
+single-feature example for each capability (errors, config, money, time,
+converters, logging, cache, HTTP client, idempotency, tracing, migrations,
+messaging, AWS) plus compound services that combine several:
 
 - [`examples/minimal`](examples/minimal) — smallest possible app.
 - [`examples/http-postgres`](examples/http-postgres) — HTTP CRUD backed by PostgreSQL.
 - [`examples/sqlite`](examples/sqlite) — HTTP CRUD backed by SQLite; runs with no external database.
 - [`examples/features`](examples/features) — middleware (CORS, rate limit, JWT), request-scoped logging, the cache, and the JSON client with retries.
 - [`examples/modules`](examples/modules) — composable modules: a three-level dependency tree with shared-module deduplication.
+- [`examples/outbox`](examples/outbox) — transactional outbox: enqueue an event in the same DB tx as the write, relayed to NATS.
+- [`examples/compound-orders`](examples/compound-orders) — gormx + cache + idempotency + money + structured errors + pagination in one service.
+
+The single-feature library examples (errors, money, time, converters, logging,
+cache, HTTP client) are plain programs that print what they do and exit, so they
+run offline with no setup.
 
 For database migrations in production, see [`docs/migrations.md`](docs/migrations.md).
 

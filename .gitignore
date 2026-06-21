@@ -28,12 +28,29 @@ go.work.sum
 
 .idea/
 
-# Compiled example binaries — in their own directory or built into the repo root
-examples/http-postgres/http-postgres
-examples/minimal/minimal
-examples/sqlite/sqlite
-examples/features/features
-examples/modules/modules
+# Compiled example binaries — each example builds to a binary named after its
+# directory (e.g. examples/errors/errors). Ignore that pattern for every example
+# so a stray `go build` in an example dir is never committed.
+examples/*/aws
+examples/*/cache
+examples/*/compound-orders
+examples/*/config
+examples/*/converters
+examples/*/errors
+examples/*/features
+examples/*/http-client
+examples/*/http-postgres
+examples/*/idempotency
+examples/*/logging
+examples/*/messaging
+examples/*/migrations
+examples/*/minimal
+examples/*/modules
+examples/*/money
+examples/*/outbox
+examples/*/sqlite
+examples/*/time
+examples/*/tracing
 /http-postgres
 /minimal
 /sqlite

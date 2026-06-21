@@ -1,0 +1,22 @@
+[app]
+name = "aws-demo"
+environment = "development"
+debug = true
+
+[log]
+level = "info"
+format = "text"
+
+[aws]
+region = "us-east-1"
+# Provide credentials here, or rely on the default AWS credential chain
+# (environment, shared config, IAM role).
+# accessKey = "..."
+# secretKey = "..."
+#
+# Point at real (or local) infrastructure to make the example perform calls:
+# s3BucketName = "my-bucket"
+# sqsQueueURL  = "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
+#
+# For a local stack (e.g. LocalStack) set an override endpoint:
+# endpointURL = "http://localhost:4566"

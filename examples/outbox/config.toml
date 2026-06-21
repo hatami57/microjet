@@ -1,0 +1,21 @@
+[app]
+name = "outbox-demo"
+environment = "development"
+debug = true
+
+[http]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+driver = "sqlite"
+# A file (not :memory:) so the HTTP handler and the relay goroutine share the
+# same database through the connection pool. Created at runtime.
+name = "outbox.db"
+
+[log]
+level = "info"
+format = "text"
+
+[messaging]
+url = "nats://localhost:4222"

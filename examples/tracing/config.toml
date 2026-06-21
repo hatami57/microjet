@@ -1,0 +1,22 @@
+[app]
+name = "tracing-demo"
+environment = "development"
+debug = true
+
+[http]
+host = "0.0.0.0"
+port = 8080
+
+[log]
+level = "info"
+format = "text"
+
+[tracing]
+# Turn span export on. With enabled = false the whole module is a no-op.
+enabled = true
+# OTLP/HTTP collector endpoint (host:port, no scheme). Insecure = plain HTTP,
+# which is what local collectors usually speak.
+endpoint = "localhost:4318"
+insecure = true
+# Sample every trace (0.0–1.0). Lower this in production.
+sampleRatio = 1.0

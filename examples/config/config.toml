@@ -1,0 +1,15 @@
+[app]
+name = "config-demo"
+environment = "development"
+debug = false
+
+[log]
+level = "info"
+format = "text"
+
+# A feature-owned section, read by PaymentsConfig.ReadConfig. Override any value
+# per environment by adding the same key to an uncommitted config.local.toml.
+[payments]
+currency = "USD"
+maxRetries = 5
+sandbox = true
