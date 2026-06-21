@@ -1,3 +1,6 @@
+// Package core provides foundational primitives shared across MicroJet: an
+// injectable time/clock abstraction, correlation-ID propagation, and the
+// service lifecycle interfaces (Initer, Starter, Closer, HealthChecker).
 package core
 
 import "context"

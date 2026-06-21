@@ -1,0 +1,11 @@
+[app]
+name = "messaging-demo"
+environment = "development"
+debug = true
+
+[log]
+level = "info"
+format = "text"
+
+[messaging]
+url = "nats://localhost:4222"

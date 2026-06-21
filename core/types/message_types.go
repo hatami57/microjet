@@ -1,3 +1,5 @@
+// Package types defines shared data types used across MicroJet, including the
+// message envelope and cursor-paginated result containers.
 package types
 
 import "github.com/hatami57/microjet/core/jsonx"

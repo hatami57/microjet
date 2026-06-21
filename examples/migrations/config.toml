@@ -1,0 +1,12 @@
+[app]
+name = "migrations-demo"
+environment = "development"
+debug = true
+
+[database]
+driver = "sqlite"
+name = ":memory:"
+
+[log]
+level = "info"
+format = "text"

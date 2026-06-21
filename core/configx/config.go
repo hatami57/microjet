@@ -1,3 +1,5 @@
+// Package configx loads layered configuration — TOML files, an optional local
+// overlay, environment-variable overrides, and defaults — into typed structs.
 package configx
 
 // Reader wraps a reader instance and exposes config-reading operations to

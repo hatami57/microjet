@@ -1,3 +1,5 @@
+// Package tenant provides multi-tenant primitives: a tenant store abstraction
+// and a TTL-cached store that fronts it.
 package tenant
 
 import (

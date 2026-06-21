@@ -19,12 +19,13 @@ const DefaultIdempotencyTTL = 24 * time.Hour
 // ReplayedHeader is set to "true" on responses served from a stored result.
 const ReplayedHeader = "Idempotent-Replayed"
 
-// IdempotencyStore persists responses keyed by idempotency key. It is a subset
-// of cache.Cache, so an app's cache (app.Cache()) satisfies it directly — no
-// dependency on the cache module is imposed here.
+// IdempotencyStore persists responses keyed by idempotency key. Its method set
+// is a subset of cache.Cache, so the app cache — cache.Of(app) — satisfies it
+// directly with no adapter, and this package imposes no dependency on the cache
+// module.
 type IdempotencyStore interface {
-	Get(ctx context.Context, key string) (value []byte, found bool, err error)
-	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	GetBytes(ctx context.Context, key string) (value []byte, found bool, err error)
+	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 }
 
 type idempotencyConfig struct {
@@ -105,7 +106,7 @@ func Idempotency(store IdempotencyStore, opts ...IdempotencyOption) gin.HandlerF
 		ctx := c.Request.Context()
 		storeKey := idempotencyKey(c, key)
 
-		if data, found, err := store.Get(ctx, storeKey); err == nil && found {
+		if data, found, err := store.GetBytes(ctx, storeKey); err == nil && found {
 			var stored storedResponse
 			if json.Unmarshal(data, &stored) == nil {
 				c.Header(ReplayedHeader, "true")
@@ -130,7 +131,7 @@ func Idempotency(store IdempotencyStore, opts ...IdempotencyOption) gin.HandlerF
 		}
 		if data, err := json.Marshal(stored); err == nil {
 			// Best-effort: a store failure must not fail the already-served request.
-			_ = store.Set(ctx, storeKey, data, cfg.ttl)
+			_ = store.SetBytes(ctx, storeKey, data, cfg.ttl)
 		}
 	}
 }

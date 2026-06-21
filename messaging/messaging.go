@@ -1,3 +1,5 @@
+// Package messaging provides a broker-agnostic pub/sub abstraction with typed
+// JSON handlers and lifecycle-managed subscriptions.
 package messaging
 
 import (

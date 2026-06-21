@@ -1,3 +1,6 @@
+// Package host is MicroJet's application orchestrator: a fluent builder with a
+// dependency-injection container, composable modules, background workers, and a
+// managed lifecycle with graceful shutdown.
 package host
 
 import (

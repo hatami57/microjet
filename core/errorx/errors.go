@@ -1,3 +1,5 @@
+// Package errorx provides a structured, categorized error type with
+// builder-style enrichment, sentinel matching, and HTTP status mapping.
 package errorx
 
 import (

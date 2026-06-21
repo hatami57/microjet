@@ -54,6 +54,41 @@ func TestUnusedSectionsEmptyWhenAllRead(t *testing.T) {
 	}
 }
 
+func TestEnvOverridesFileAndDefault(t *testing.T) {
+	r := readerWithConfig(t, "[payments]\ncurrency = \"USD\"\nmaxRetries = 3\n")
+
+	// Env overrides a file value, supplies an env-only value (no file/default),
+	// and overrides a nested value; an unset field keeps its file value.
+	t.Setenv("APP_PAYMENTS_CURRENCY", "EUR")     // overrides file
+	t.Setenv("APP_PAYMENTS_SANDBOX", "true")     // env-only (absent from file)
+	t.Setenv("APP_PAYMENTS_NESTED_MODE", "live") // nested env
+
+	var cfg struct {
+		Currency   string `mapstructure:"currency"`
+		MaxRetries int    `mapstructure:"maxRetries"`
+		Sandbox    bool   `mapstructure:"sandbox"`
+		Nested     struct {
+			Mode string `mapstructure:"mode"`
+		} `mapstructure:"nested"`
+	}
+	if err := r.Read("payments", &cfg); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	if cfg.Currency != "EUR" {
+		t.Errorf("Currency = %q, want EUR (env should override file)", cfg.Currency)
+	}
+	if !cfg.Sandbox {
+		t.Error("Sandbox = false, want true (env-only value should apply)")
+	}
+	if cfg.Nested.Mode != "live" {
+		t.Errorf("Nested.Mode = %q, want live (nested env should apply)", cfg.Nested.Mode)
+	}
+	if cfg.MaxRetries != 3 {
+		t.Errorf("MaxRetries = %d, want 3 (file value should survive)", cfg.MaxRetries)
+	}
+}
+
 func TestReadAllClaimsEverything(t *testing.T) {
 	r := readerWithConfig(t, "[anything]\nx = 1\n")
 	var dst map[string]any

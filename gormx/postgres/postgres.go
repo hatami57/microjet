@@ -1,3 +1,4 @@
+// Package postgres provides the PostgreSQL driver for gormx.Module.
 package postgres
 
 import (

@@ -1,3 +1,5 @@
+// Package aws provides initialized AWS service clients (S3, SQS, DynamoDB),
+// wired into the host as a module that reads the [aws] config section.
 package aws
 
 import (

@@ -1,3 +1,4 @@
+// Package sqlite provides the pure-Go (cgo-free) SQLite driver for gormx.Module.
 package sqlite
 
 import (

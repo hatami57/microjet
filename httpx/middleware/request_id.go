@@ -1,3 +1,6 @@
+// Package middleware provides Gin middleware for MicroJet's HTTP server:
+// request IDs, structured logging, error translation, metrics, CORS, rate
+// limiting, JWT auth, idempotency, tracing, and multi-tenant resolution.
 package middleware
 
 import (

@@ -1,0 +1,19 @@
+[app]
+name = "orders-service"
+environment = "development"
+debug = true
+
+[http]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+driver = "sqlite"
+name = "orders.db"
+
+[cache]
+driver = "memory"
+
+[log]
+level = "info"
+format = "text"
