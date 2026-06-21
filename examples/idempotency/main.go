@@ -2,7 +2,7 @@
 // (httpx/middleware.Idempotency): a client that retries a non-safe request with
 // the same key gets the original stored response replayed instead of the
 // handler running twice. Keys are scoped by method+route and stored in any
-// Get/Set byte store — here the app cache, via a tiny adapter.
+// IdempotencyStore — the app cache (cache.Of) satisfies that interface directly.
 //
 // Run it, then replay a request:
 //
@@ -16,7 +16,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -28,17 +27,6 @@ import (
 	"github.com/hatami57/microjet/httpx/middleware"
 )
 
-// cacheStore adapts cache.Cache (GetBytes/SetBytes) to the middleware's
-// IdempotencyStore (Get/Set), so the in-memory or Redis cache backs replay.
-type cacheStore struct{ c cache.Cache }
-
-func (s cacheStore) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	return s.c.GetBytes(ctx, key)
-}
-func (s cacheStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	return s.c.SetBytes(ctx, key, value, ttl)
-}
-
 // chargeCounter stands in for a side effect (charging a card). We can tell the
 // handler ran by whether this advances — a replayed response must NOT advance it.
 var chargeCounter atomic.Int64
@@ -48,12 +36,12 @@ func main() {
 		WithModule(cache.Module()).
 		WithModule(httpx.Module()).
 		Setup(func(a *host.App) error {
-			store := cacheStore{c: cache.Of(a)}
 			r := httpx.Of(a).Router
 
-			// Replay POST/PUT/PATCH/DELETE for 10 minutes per key.
+			// The app cache is an IdempotencyStore as-is. Replay POST/PUT/PATCH/
+			// DELETE for 10 minutes per key.
 			r.POST("/charges",
-				middleware.Idempotency(store, middleware.WithIdempotencyTTL(10*time.Minute)),
+				middleware.Idempotency(cache.Of(a), middleware.WithIdempotencyTTL(10*time.Minute)),
 				func(c *gin.Context) {
 					id := chargeCounter.Add(1) // the "side effect" we must not repeat
 					c.JSON(http.StatusCreated, gin.H{

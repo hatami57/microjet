@@ -20,14 +20,14 @@ type memStore struct {
 
 func newMemStore() *memStore { return &memStore{m: map[string][]byte{}} }
 
-func (s *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
+func (s *memStore) GetBytes(_ context.Context, key string) ([]byte, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.m[key]
 	return v, ok, nil
 }
 
-func (s *memStore) Set(_ context.Context, key string, value []byte, _ time.Duration) error {
+func (s *memStore) SetBytes(_ context.Context, key string, value []byte, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.m[key] = value

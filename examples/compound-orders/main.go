@@ -25,7 +25,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -65,16 +64,6 @@ type Order struct {
 type createOrderRequest struct {
 	ProductID uint `json:"productID" binding:"required"`
 	Qty       int  `json:"qty" binding:"required,min=1"`
-}
-
-// cacheStore adapts cache.Cache to the idempotency middleware's Get/Set store.
-type cacheStore struct{ c cache.Cache }
-
-func (s cacheStore) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	return s.c.GetBytes(ctx, key)
-}
-func (s cacheStore) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	return s.c.SetBytes(ctx, key, value, ttl)
 }
 
 func main() {
@@ -144,7 +133,7 @@ func registerRoutes(a *host.App) error {
 	// and persists it as minor units. A retry with the same Idempotency-Key
 	// replays the original response without creating a second order.
 	r.POST("/orders",
-		middleware.Idempotency(cacheStore{c: c}, middleware.WithIdempotencyTTL(10*time.Minute)),
+		middleware.Idempotency(c, middleware.WithIdempotencyTTL(10*time.Minute)),
 		func(ctx *gin.Context) {
 			body, err := httpx.Body[createOrderRequest](ctx)
 			if err != nil {
