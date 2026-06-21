@@ -8,7 +8,7 @@ level = "info"
 format = "text"
 
 # A feature-owned section, read by PaymentsConfig.ReadConfig. Override any value
-# per environment by adding the same key to an uncommitted config.local.toml.
+# at runtime with APP_PAYMENTS_<KEY>, e.g. APP_PAYMENTS_CURRENCY=EUR.
 [payments]
 currency = "USD"
 maxRetries = 5

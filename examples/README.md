@@ -22,7 +22,7 @@ so in the table below.
 | Example | Feature | Needs | Notes |
 |---|---|---|---|
 | [`errors`](errors) | Structured errors (`core/errorx`) | — | 6 categories, builder enrichment, JSON shape, `errors.Is` by category |
-| [`config`](config) | Configuration (`configx`) | — | TOML + defaults + typed sections; `config.local.toml` overlay |
+| [`config`](config) | Configuration (`configx`) | — | TOML + defaults + typed sections; `APP_*` env overrides; `config.local.toml` overlay |
 | [`money`](money) | Money type (`core/types/money`) | — | currency-safe arithmetic, minor-unit conversion |
 | [`time`](time) | Time utilities (`core`) | — | `TimeProvider`, `FixedClock`, sortable timestamps |
 | [`converters`](converters) | Type converters (`jsonx`, `utils`) | — | JSON, struct↔map, pointer coalescing |

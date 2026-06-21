@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -46,9 +48,11 @@ func (r *viperConfigReader) SetDefault(key string, value any) {
 }
 
 // Read unmarshals the named config key into dest, recording the key's top-level
-// section as claimed.
+// section as claimed. Environment variables override file and default values
+// (see applyEnvOverrides).
 func (r *viperConfigReader) Read(key string, dest any) error {
 	r.claimed[topSection(key)] = true
+	r.applyEnvOverrides(key, reflect.TypeOf(dest))
 	return r.v.UnmarshalKey(key, dest)
 }
 
@@ -61,7 +65,67 @@ func (r *viperConfigReader) ReadMap(key string) map[string]any {
 
 func (r *viperConfigReader) ReadAll(dest any) error {
 	r.claimedAll = true
+	r.applyEnvOverrides("", reflect.TypeOf(dest))
 	return r.v.Unmarshal(dest)
+}
+
+// applyEnvOverrides makes Unmarshal/UnmarshalKey honor environment variables.
+// Viper consults AutomaticEnv when Get is called on a leaf key, but Unmarshal
+// assembles a section from the config-file and default layers only — so env vars
+// silently have no effect on a struct unmarshal. To fix that we bind an env var
+// for every leaf field of dest, then promote each known key's resolved value
+// (env > file > default) into viper's override layer, which Unmarshal does read.
+//
+// section is the dotted config key dest maps to ("" when dest is the whole
+// config, as in ReadAll).
+func (r *viperConfigReader) applyEnvOverrides(section string, t reflect.Type) {
+	bindEnvLeaves(r.v, section, t)
+	prefix := section + "."
+	for _, k := range r.v.AllKeys() {
+		if section != "" && k != section && !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		if r.v.IsSet(k) {
+			r.v.Set(k, r.v.Get(k))
+		}
+	}
+}
+
+// bindEnvLeaves walks struct type t and binds an environment variable for every
+// leaf field, building dotted keys from mapstructure tags (falling back to the
+// lowercased field name) under prefix. Binding registers env-only keys with
+// viper so their values are picked up even when absent from the config file.
+func bindEnvLeaves(v *viper.Viper, prefix string, t reflect.Type) {
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t == nil {
+		return
+	}
+	if t.Kind() != reflect.Struct || t == reflect.TypeFor[time.Time]() {
+		if prefix != "" {
+			_ = v.BindEnv(prefix)
+		}
+		return
+	}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		tag, _, _ := strings.Cut(f.Tag.Get("mapstructure"), ",")
+		if tag == "-" {
+			continue
+		}
+		if tag == "" {
+			tag = strings.ToLower(f.Name)
+		}
+		key := tag
+		if prefix != "" {
+			key = prefix + "." + tag
+		}
+		bindEnvLeaves(v, key, f.Type)
+	}
 }
 
 // UnusedSections returns the config-file top-level sections that no Read/ReadMap

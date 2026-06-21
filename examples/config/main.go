@@ -1,5 +1,5 @@
 // Command config demonstrates MicroJet's configuration system: TOML files,
-// a local overlay file for environment-specific overrides, sane defaults, and
+// environment-variable overrides, a local overlay file, sane defaults, and
 // generic typed access to your own config sections.
 //
 // The host reads the standard [app] and [log] sections for you. Your feature
@@ -8,14 +8,13 @@
 //
 // Try it:
 //
-//	go run .   # values from config.toml
+//	go run .                              # values from config.toml
+//	APP_PAYMENTS_CURRENCY=EUR go run .    # env override wins (APP_<SECTION>_<KEY>)
+//	APP_APP_NAME=svc-2 go run .           # env override of a host section
 //
-// Then create config.local.toml containing:
-//
-//	[payments]
-//	currency = "EUR"
-//
-// and re-run: the local overlay now wins over config.toml.
+// Env vars override the file, which overrides the SetDefault values. For
+// environment-specific overrides kept in a file instead, create an uncommitted
+// config.local.toml — it is merged on top of config.toml.
 //
 // config.toml is the committed baseline; config.local.toml is an optional,
 // uncommitted overlay merged on top — the idiomatic way to override values per
@@ -64,8 +63,8 @@ func main() {
 		"debug", app.Config.App.Debug,
 	)
 
-	// Our feature config — config.local.toml (if present) overrides config.toml,
-	// which in turn overrides the SetDefault values.
+	// Our feature config — env vars (APP_PAYMENTS_*) override config.toml, which
+	// in turn overrides the SetDefault values.
 	app.Logger.Info("feature config (from [payments])",
 		"currency", payments.Currency,
 		"maxRetries", payments.MaxRetries,
