@@ -1,3 +1,5 @@
+// Package nats provides a NATS-backed implementation of the messaging.Client
+// broker interface.
 package nats
 
 import (

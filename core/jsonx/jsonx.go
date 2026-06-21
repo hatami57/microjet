@@ -1,3 +1,5 @@
+// Package jsonx provides generic helpers for JSON encoding/decoding and
+// conversion between structs and maps.
 package jsonx
 
 import jsoniter "github.com/json-iterator/go"

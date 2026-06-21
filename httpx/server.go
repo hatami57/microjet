@@ -1,3 +1,6 @@
+// Package httpx provides a Gin-based HTTP server with built-in middleware, a
+// health/readiness/metrics surface, typed request helpers, a JSON client with
+// retries and a circuit breaker, and web/callback helpers.
 package httpx
 
 import (

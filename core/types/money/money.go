@@ -1,3 +1,5 @@
+// Package money provides a currency-aware decimal money type with arithmetic
+// that refuses to mix currencies and integer minor-unit conversion.
 package money
 
 import (

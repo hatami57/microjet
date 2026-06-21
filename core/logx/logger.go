@@ -1,3 +1,5 @@
+// Package logx builds a configured log/slog logger (level and text/json format,
+// with optional console and file outputs).
 package logx
 
 import (
