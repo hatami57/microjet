@@ -34,6 +34,7 @@ type namedReadinessCheck struct {
 type Server struct {
 	Router     *gin.Engine
 	config     ServerConfig
+	section    string
 	logger     *slog.Logger
 	metrics    *middleware.Metrics
 	httpServer *http.Server
@@ -123,12 +124,22 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	return s
 }
 
-// ReadConfig implements configx.Configurable, reading the [server] section so the
-// server owns its configuration independently of host.Config.
+// SetConfigSection overrides the config section the server reads (default
+// "http"). Named servers use it to read their own [http.<name>] section so
+// several servers can bind different ports.
+func (s *Server) SetConfigSection(section string) { s.section = section }
+
+// ReadConfig implements configx.Configurable, reading the server's config section
+// (default "http") so the server owns its configuration independently of
+// host.Config.
 func (s *Server) ReadConfig(l configx.Reader) error {
-	l.SetDefault("server.host", "localhost")
-	l.SetDefault("server.port", 8080)
-	return l.Read("server", &s.config)
+	section := s.section
+	if section == "" {
+		section = "http"
+	}
+	l.SetDefault(section+".host", "localhost")
+	l.SetDefault(section+".port", 8080)
+	return l.Read(section, &s.config)
 }
 
 // Init implements core.Initer. It builds the underlying http.Server but does not

@@ -9,6 +9,7 @@ require (
 	github.com/hatami57/microjet/gormx v0.18.0
 	github.com/hatami57/microjet/gormx/sqlite v0.18.0
 	github.com/hatami57/microjet/host v0.18.0
+	github.com/hatami57/microjet/httpx v0.18.0
 	github.com/hatami57/microjet/messaging v0.18.0
 	gorm.io/gorm v1.31.1
 )
@@ -68,7 +69,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hatami57/microjet/aws v0.18.0 // indirect
-	github.com/hatami57/microjet/httpx v0.18.0 // indirect
 	github.com/hatami57/microjet/otelx v0.18.0 // indirect
 	github.com/hatami57/microjet/outbox v0.18.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

@@ -7,31 +7,48 @@ on:
     branches: [main]
 
 jobs:
+  # discover lists every Go module (any directory with a go.mod) so the test
+  # matrix tracks the repo automatically — adding or removing a module needs no
+  # workflow edit, and examples are covered like any other module.
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      modules: ${{ steps.find.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        run: |
+          modules=$(find . -name go.mod -not -path '*/vendor/*' -exec dirname {} \; \
+            | sed 's|^\./||' | sort \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "Discovered modules: $modules"
+
+  # fmt fails the build if any file is not gofmt-clean. staticcheck does not
+  # cover formatting, so this is a separate gate.
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-clean; run 'gofmt -w':"
+            echo "$unformatted"
+            exit 1
+          fi
+
   test:
+    needs: discover
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - core
-          - types
-          - utils
-          - aws
-          - messaging
-          - messaging/nats
-          - gormx
-          - gormx/migrate
-          - gormx/postgres
-          - gormx/sqlite
-          - httpx
-          - host
-          - cache
-          - jsonx
-          - otelx
-          - outbox
-          - testx
-          - tenant
-          - versioninfo
+        module: ${{ fromJson(needs.discover.outputs.modules) }}
     steps:
       - uses: actions/checkout@v4
 

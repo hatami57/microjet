@@ -3,6 +3,7 @@ package host
 import (
 	"errors"
 	"reflect"
+	"sort"
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
@@ -27,25 +28,53 @@ type ServiceCloser interface {
 	Close(app *App) error
 }
 
-type ProvidedItem[T, V any] struct {
-	Key   T
-	Value V
+// ErrSource is an optional interface for services that run a background loop and
+// report its fatal outcome on a channel (e.g. the HTTP server's listener). Run
+// merges every started service's channel and treats a delivery like a shutdown
+// trigger, so a crashing long-running service brings the app down cleanly.
+type ErrSource interface {
+	ErrCh() <-chan error
 }
 
-func ResolveType[T any]() reflect.Type {
-	return reflect.TypeFor[T]()
+// RangeServices calls fn for each registered service until fn returns false;
+// iteration order is unspecified. It lets satellite packages and modules inspect
+// the container — e.g. aggregate health checks across services — without needing
+// access to its internals.
+func (a *App) RangeServices(fn func(service any) bool) {
+	a.container.Range(func(_, v any) bool { return fn(v) })
 }
 
-func ProvideType[T any](service T) *ProvidedItem[reflect.Type, any] {
-	return &ProvidedItem[reflect.Type, any]{Key: ResolveType[T](), Value: service}
+// serviceKey identifies a service in the container by its Go type and an optional
+// name. Naming lets several instances of the same type coexist — a public and an
+// admin HTTP server, a "sessions" and a "pages" cache, a primary and an
+// "analytics" database — each resolved by passing its name. The zero value (empty
+// name) is the default instance, so unnamed Provide/Resolve calls are unaffected.
+type serviceKey struct {
+	typ  reflect.Type
+	name string
 }
 
-func ProvideService[T any](a *App, service T) {
-	a.container.Store(ResolveType[T](), service)
+// keyFor builds the container key for type T and an optional name. Only the first
+// name is significant; an absent name selects the default ("") instance.
+func keyFor[T any](name []string) serviceKey {
+	n := ""
+	if len(name) > 0 {
+		n = name[0]
+	}
+	return serviceKey{typ: reflect.TypeFor[T](), name: n}
 }
 
-func ResolveService[T any](a *App) (T, bool) {
-	raw, ok := a.container.Load(ResolveType[T]())
+// ProvideService registers service in the container under its type T and an
+// optional name. Re-providing the same (type, name) replaces the earlier value;
+// distinct names register side by side.
+func ProvideService[T any](a *App, service T, name ...string) {
+	a.container.Store(keyFor[T](name), service)
+}
+
+// ResolveService returns the service registered for type T and the optional name,
+// reporting whether one was found.
+func ResolveService[T any](a *App, name ...string) (T, bool) {
+	raw, ok := a.container.Load(keyFor[T](name))
 	if !ok {
 		var zero T
 		return zero, false
@@ -53,25 +82,21 @@ func ResolveService[T any](a *App) (T, bool) {
 	return raw.(T), true
 }
 
-func MustResolveService[T any](a *App) T {
-	if svc, ok := ResolveService[T](a); ok {
+// MustResolveService returns the service for type T (and optional name),
+// panicking if none is registered.
+func MustResolveService[T any](a *App, name ...string) T {
+	if svc, ok := ResolveService[T](a, name...); ok {
 		return svc
 	}
-	panic(ErrServiceNotRegistered.WithSubject(ResolveType[T]().String()))
-}
-
-func (a *App) ProvideService(item *ProvidedItem[reflect.Type, any]) *App {
-	a.container.Store(item.Key, item.Value)
-	return a
-}
-
-func (a *App) ProvideServices(items ...*ProvidedItem[reflect.Type, any]) *App {
-	for _, item := range items {
-		a.container.Store(item.Key, item.Value)
+	subject := reflect.TypeFor[T]().String()
+	if len(name) > 0 && name[0] != "" {
+		subject += " (name " + name[0] + ")"
 	}
-	return a
+	panic(ErrServiceNotRegistered.WithSubject(subject))
 }
 
+// WithProvider runs fn to register services imperatively within the fluent chain,
+// deferring any error to Run/MustRun/Err.
 func (a *App) WithProvider(fn HandlerFunc) *App {
 	if a.err != nil {
 		return a
@@ -79,29 +104,16 @@ func (a *App) WithProvider(fn HandlerFunc) *App {
 	return a.fail(fn(a))
 }
 
+// ProvideKey stores an arbitrary value under a string key — an escape hatch for
+// values not identified by Go type. Prefer ProvideService for services.
 func (a *App) ProvideKey(key string, value any) *App {
 	a.container.Store(key, value)
 	return a
 }
 
+// ResolveKey returns the value stored under a string key by ProvideKey.
 func (a *App) ResolveKey(key string) (any, bool) {
 	return a.container.Load(key)
-}
-
-func (a *App) ResolveService(key reflect.Type) (any, bool) {
-	raw, ok := a.container.Load(key)
-	if !ok {
-		zero := reflect.New(key).Elem().Interface()
-		return zero, false
-	}
-	return raw, true
-}
-
-func (a *App) MustResolveService(key reflect.Type) any {
-	if svc, ok := a.ResolveService(key); ok {
-		return svc
-	}
-	panic(ErrServiceNotRegistered.WithParams("name", key.String()))
 }
 
 func (a *App) InitServices() *App {
@@ -200,7 +212,23 @@ func (a *App) initServices() error {
 
 	a.isServiceInitialized = true
 	a.Logger.Info("all services initialized", "configs", configCallCount, "inits", initCallCount)
+	a.warnUnusedConfigSections()
 	return nil
+}
+
+// warnUnusedConfigSections logs a warning for each config-file section that no
+// component read, which usually signals a typo or a renamed section (e.g. a
+// stale [server] after the rename to [http]) that silently has no effect. It is
+// best-effort: readers that don't track usage report nothing.
+func (a *App) warnUnusedConfigSections() {
+	auditor, ok := a.configReader.(interface{ UnusedSections() []string })
+	if !ok {
+		return
+	}
+	for _, section := range auditor.UnusedSections() {
+		a.Logger.Warn("config section is present but unused; check for a typo or renamed section",
+			"section", section)
+	}
 }
 
 // setupServices runs the Setup phase for services: every service that implements
@@ -273,25 +301,76 @@ func (a *App) startServices() error {
 	return nil
 }
 
+// Close ordering bands. Services are closed in ascending order, so inbound
+// "edges" stop accepting work and drain before the "backends" they depend on are
+// torn down — e.g. an HTTP server finishes serving in-flight requests while its
+// database is still open. Services that do not implement CloseOrderer close at
+// CloseDefault. The values are plain ints, so a service needing finer control can
+// return any value between or beyond these (lower = earlier).
+const (
+	// CloseEdge closes first: inbound traffic sources that must stop accepting and
+	// drain, such as HTTP servers and message subscribers.
+	CloseEdge = 0
+	// CloseDefault is the order for services that do not implement CloseOrderer —
+	// ordinary application services.
+	CloseDefault = 50
+	// CloseBackend closes last: shared resources others depend on during their own
+	// shutdown, such as databases, caches, the message broker, and tracing.
+	CloseBackend = 100
+)
+
+// CloseOrderer lets a service control when Close is called relative to other
+// services. Lower values close earlier; use the CloseEdge/Default/Backend
+// constants. Services that do not implement it close at CloseDefault.
+type CloseOrderer interface {
+	CloseOrder() int
+}
+
+// closeOrder reports a service's close order, defaulting to CloseDefault.
+func closeOrder(svc any) int {
+	if co, ok := svc.(CloseOrderer); ok {
+		return co.CloseOrder()
+	}
+	return CloseDefault
+}
+
+// closeServices closes every registered service in ascending CloseOrder so edges
+// drain before the backends they rely on. Closing is sequential: a band fully
+// completes before the next begins, so an HTTP server's in-flight requests are
+// done before the database closes. The whole sequence is still bounded by the
+// shutdown timeout in close(). Errors are collected, not fatal.
 func (a *App) closeServices() error {
-	var errs error
-	a.Logger.Debug("closing services")
+	type entry struct {
+		svc   any
+		order int
+	}
+	var entries []entry
 	a.container.Range(func(_, item any) bool {
-		name := reflect.TypeOf(item).String()
-		a.Logger.Debug("closing service", "type", name)
+		entries = append(entries, entry{svc: item, order: closeOrder(item)})
+		return true
+	})
+	// Stable so equal-order services keep a reproducible relative sequence.
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].order < entries[j].order })
+
+	a.Logger.Debug("closing services", "count", len(entries))
+	var errs error
+	for _, e := range entries {
+		name := reflect.TypeOf(e.svc).String()
 		var err error
-		if svc, ok := item.(ServiceCloser); ok {
+		switch svc := e.svc.(type) {
+		case ServiceCloser:
+			a.Logger.Debug("closing service", "type", name, "order", e.order)
 			err = svc.Close(a)
-		} else if svc, ok := item.(core.Closer); ok {
+		case core.Closer:
+			a.Logger.Debug("closing service", "type", name, "order", e.order)
 			err = svc.Close()
-		} else {
-			return true
+		default:
+			continue
 		}
 		if err != nil {
 			a.Logger.Error("failed to close service", "type", name, "error", err)
 			errs = errors.Join(errs, err)
 		}
-		return true
-	})
+	}
 	return errs
 }

@@ -8,9 +8,9 @@
 //	//go:embed migrations/*.sql
 //	var migrationsFS embed.FS
 //
-//	app.WithDatabase(postgres.Driver()).
+//	app.WithModule(gormx.Module(postgres.Driver())).
 //	    Setup(func(a *host.App) error {
-//	        return migrate.Up(context.Background(), a.DB(), migrationsFS)
+//	        return migrate.Up(context.Background(), gormx.Of(a), migrationsFS)
 //	    })
 package migrate
 

@@ -1,26 +1,26 @@
-package host
+package messaging
 
 import (
 	"context"
 	"sync"
 	"testing"
 
-	"github.com/hatami57/microjet/messaging"
+	"github.com/hatami57/microjet/host"
 )
 
-// fakeBroker is a minimal in-memory messaging.Client for lifecycle tests. It
-// records subscriptions and can deliver a message to the handler registered for
-// a subject.
+// fakeBroker is a minimal in-memory Client for lifecycle tests. It records
+// subscriptions and can deliver a message to the handler registered for a
+// subject.
 type fakeBroker struct {
 	mu           sync.Mutex
-	handlers     map[string]messaging.Handler
+	handlers     map[string]Handler
 	queues       map[string]string
 	unsubscribed []string
-	published    []messaging.Message
+	published    []Message
 }
 
 func newFakeBroker() *fakeBroker {
-	return &fakeBroker{handlers: map[string]messaging.Handler{}, queues: map[string]string{}}
+	return &fakeBroker{handlers: map[string]Handler{}, queues: map[string]string{}}
 }
 
 type fakeSub struct {
@@ -36,14 +36,14 @@ func (s *fakeSub) Unsubscribe() error {
 }
 func (s *fakeSub) Subject() string { return s.subject }
 
-func (b *fakeBroker) Subscribe(_ context.Context, subject string, h messaging.Handler) (messaging.Subscription, error) {
+func (b *fakeBroker) Subscribe(_ context.Context, subject string, h Handler) (Subscription, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.handlers[subject] = h
 	return &fakeSub{broker: b, subject: subject}, nil
 }
 
-func (b *fakeBroker) QueueSubscribe(_ context.Context, subject, queue string, h messaging.Handler) (messaging.Subscription, error) {
+func (b *fakeBroker) QueueSubscribe(_ context.Context, subject, queue string, h Handler) (Subscription, error) {
 	b.mu.Lock()
 	b.queues[subject] = queue
 	b.mu.Unlock()
@@ -58,12 +58,12 @@ func (b *fakeBroker) deliver(t *testing.T, subject string, data []byte) {
 	if h == nil {
 		t.Fatalf("no handler registered for %q", subject)
 	}
-	if err := h(context.Background(), &messaging.Message{Subject: subject, Data: data}); err != nil {
+	if err := h(context.Background(), &Message{Subject: subject, Data: data}); err != nil {
 		t.Fatalf("handler for %q: %v", subject, err)
 	}
 }
 
-func (b *fakeBroker) Publish(_ context.Context, msg messaging.Message) error {
+func (b *fakeBroker) Publish(_ context.Context, msg Message) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.published = append(b.published, msg)
@@ -71,13 +71,9 @@ func (b *fakeBroker) Publish(_ context.Context, msg messaging.Message) error {
 }
 
 // Unused interface methods.
-func (b *fakeBroker) Request(context.Context, messaging.Request) (*messaging.Response, error) {
-	return nil, nil
-}
-func (b *fakeBroker) Respond(string, messaging.RequestHandler) (messaging.Subscription, error) {
-	return nil, nil
-}
-func (b *fakeBroker) QueueRespond(string, string, messaging.RequestHandler) (messaging.Subscription, error) {
+func (b *fakeBroker) Request(context.Context, Request) (*Response, error)  { return nil, nil }
+func (b *fakeBroker) Respond(string, RequestHandler) (Subscription, error) { return nil, nil }
+func (b *fakeBroker) QueueRespond(string, string, RequestHandler) (Subscription, error) {
 	return nil, nil
 }
 func (b *fakeBroker) Healthy(context.Context) error { return nil }
@@ -85,20 +81,20 @@ func (b *fakeBroker) Connect() error                { return nil }
 func (b *fakeBroker) Disconnect() error             { return nil }
 func (b *fakeBroker) IsConnected() bool             { return true }
 
-func newAppWithBroker(t *testing.T, broker messaging.Client) *App {
+func newAppWithBroker(t *testing.T, broker Client) *host.App {
 	t.Helper()
-	app, err := New()
+	app, err := host.New()
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("host.New: %v", err)
 	}
-	app.WithMessaging(broker)
+	app.WithModule(Module(broker))
 	if app.Err() != nil {
-		t.Fatalf("WithMessaging: %v", app.Err())
+		t.Fatalf("Module: %v", app.Err())
 	}
 	return app
 }
 
-func TestWithSubscriberDispatchesTypedPayload(t *testing.T) {
+func TestSubscribeDispatchesTypedPayload(t *testing.T) {
 	broker := newFakeBroker()
 	app := newAppWithBroker(t, broker)
 
@@ -106,15 +102,15 @@ func TestWithSubscriberDispatchesTypedPayload(t *testing.T) {
 		Name string `json:"name"`
 	}
 	var got string
-	app.WithSubscriber("greetings", "greet", messaging.HandleJSON(func(_ context.Context, e evt) error {
+	app.WithModule(Subscribe("greetings", "greet", HandleJSON(func(_ context.Context, e evt) error {
 		got = e.Name
 		return nil
-	}))
+	})))
 	if app.Err() != nil {
-		t.Fatalf("WithSubscriber: %v", app.Err())
+		t.Fatalf("Subscribe: %v", app.Err())
 	}
 
-	svc, ok := ResolveService[*consumerService](app)
+	svc, ok := host.ResolveService[*consumerService](app)
 	if !ok {
 		t.Fatal("consumer service not registered")
 	}
@@ -135,14 +131,14 @@ func TestWithSubscriberDispatchesTypedPayload(t *testing.T) {
 	}
 }
 
-func TestWithSubscriberQueueGroup(t *testing.T) {
+func TestSubscribeQueueGroup(t *testing.T) {
 	broker := newFakeBroker()
 	app := newAppWithBroker(t, broker)
 
-	app.WithSubscriber("workers", "jobs", func(context.Context, *messaging.Message) error { return nil },
-		WithQueueGroup("pool"))
+	app.WithModule(Subscribe("workers", "jobs", func(context.Context, *Message) error { return nil },
+		WithQueueGroup("pool")))
 
-	svc, _ := ResolveService[*consumerService](app)
+	svc, _ := host.ResolveService[*consumerService](app)
 	if err := svc.Start(app); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -155,10 +151,10 @@ func TestMultipleSubscribersShareOneConsumer(t *testing.T) {
 	broker := newFakeBroker()
 	app := newAppWithBroker(t, broker)
 
-	noop := func(context.Context, *messaging.Message) error { return nil }
-	app.WithSubscriber("a", "subj.a", noop).WithSubscriber("b", "subj.b", noop)
+	noop := func(context.Context, *Message) error { return nil }
+	app.WithModules(Subscribe("a", "subj.a", noop), Subscribe("b", "subj.b", noop))
 
-	svc, ok := ResolveService[*consumerService](app)
+	svc, ok := host.ResolveService[*consumerService](app)
 	if !ok {
 		t.Fatal("consumer service not registered")
 	}
@@ -173,18 +169,18 @@ func TestMultipleSubscribersShareOneConsumer(t *testing.T) {
 	}
 }
 
-func TestWithSubscriberNilHandlerFails(t *testing.T) {
+func TestSubscribeNilHandlerFails(t *testing.T) {
 	app := newAppWithBroker(t, newFakeBroker())
-	app.WithSubscriber("bad", "subj", nil)
+	app.WithModule(Subscribe("bad", "subj", nil))
 	if app.Err() == nil {
 		t.Error("expected a deferred error for a nil handler")
 	}
 }
 
 func TestConsumerStartWithoutMessagingFails(t *testing.T) {
-	app, err := New()
+	app, err := host.New()
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("host.New: %v", err)
 	}
 	svc := &consumerService{logger: app.Logger}
 	if err := svc.Start(app); err == nil {

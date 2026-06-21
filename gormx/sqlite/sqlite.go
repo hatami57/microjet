@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatami57/microjet/gormx"
 	glebarez "github.com/glebarez/sqlite"
+	"github.com/hatami57/microjet/gormx"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
 )
@@ -18,8 +18,8 @@ type sqliteDriver struct{}
 // Driver returns the built-in SQLite driver (pure-Go, no cgo). The database
 // file path is taken from cfg.Name; use ":memory:" for an in-memory database:
 //
-//	app.WithDatabase(sqlite.Driver())
-//	app.WithNamedDatabase("bot", sqlite.Driver())
+//	app.WithModule(gormx.Module(sqlite.Driver()))
+//	app.WithModule(gormx.Module(sqlite.Driver(), "bot"))
 func Driver() gormx.Driver { return sqliteDriver{} }
 
 func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {

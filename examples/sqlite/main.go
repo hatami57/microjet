@@ -1,5 +1,5 @@
 // Command sqlite is a small CRUD service backed by SQLite, showing
-// WithDatabase(sqlite.Driver()) (the pure-Go, no-cgo driver), AutoMigrate, and
+// gormx.Module(sqlite.Driver()) (the pure-Go, no-cgo driver), AutoMigrate, and
 // structured error handling.
 //
 // Unlike the http-postgres example it needs no external database server: the
@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core/errorx"
+	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/gormx/sqlite"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/httpx"
@@ -26,11 +27,12 @@ type Note struct {
 func main() {
 	app := host.MustNew()
 
-	app.WithDatabase(sqlite.Driver()).
+	app.WithModule(gormx.Module(sqlite.Driver())).
+		WithModule(httpx.Module()).
 		Setup(func(a *host.App) error {
-			return a.DB().AutoMigrate(&Note{})
+			return gormx.Of(a).AutoMigrate(&Note{})
 		}).
-		WithHTTPServer(func(a *host.App) error {
+		Setup(func(a *host.App) error {
 			registerRoutes(a)
 			return nil
 		}).
@@ -38,8 +40,8 @@ func main() {
 }
 
 func registerRoutes(a *host.App) {
-	r := a.HTTPServer.Router
-	db := a.DB()
+	r := httpx.Of(a).Router
+	db := gormx.Of(a)
 
 	// List: GET /notes
 	r.GET("/notes", func(c *gin.Context) {

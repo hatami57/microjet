@@ -4,6 +4,91 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking
+
+- **Infrastructure wiring is now module-based** — every built-in capability is
+  installed uniformly through `WithModule(...)` instead of a dedicated `With*`
+  method, and the typed `App` fields/accessors are replaced by package-level
+  `Of(app)` helpers. The motivation is dependency hygiene: the `host` module no
+  longer imports `aws`, `cache`, `gormx`, `httpx`, `messaging`, `otelx`, or
+  `outbox`, so importing `host` no longer pulls in the AWS SDK, GORM, Gin, Redis,
+  and Mongo. You depend only on the satellite modules you actually install.
+
+  Migration:
+  - `app.WithHTTPServer(...)` → `app.WithModule(httpx.Module())` (register routes
+    in a `Setup` hook); `app.HTTPServer` → `httpx.Of(app)`
+  - `app.WithDatabase(d)` → `app.WithModule(gormx.Module(d))`;
+    `app.WithNamedDatabase(n, d)` → `gormx.Module(d, n)`;
+    `app.InjectDatabase(db)` → `gormx.Inject(db)`;
+    `app.DB()` → `gormx.Of(app)`; `app.NamedDB(n)` → `gormx.Of(app, n)`
+  - `app.WithMessaging(c)` → `app.WithModule(messaging.Module(c))`;
+    `app.WithSubscriber(...)` → `messaging.Subscribe(...)`;
+    `host.WithQueueGroup` → `messaging.WithQueueGroup`;
+    `app.Messaging` → `messaging.Of(app)`
+  - `app.WithCache()` → `app.WithModule(cache.Module())`;
+    `app.WithCacheClient(c)` → `cache.ModuleWithClient(c)`;
+    `app.Cache()` → `cache.Of(app)`
+  - `app.WithAWS(svcs...)` → `app.WithModule(aws.Module(svcs...))`;
+    `app.AWS` → `aws.Of(app)`
+  - `app.WithTracing()` → `app.WithModule(otelx.Module())`
+  - `app.WithOutbox(opts...)` → `app.WithModule(outbox.Module(opts...))`; the
+    `host.WithOutbox*` options become `outbox.Interval`/`BatchSize`/`Database`
+  - `app.StartHTTP()` is removed; use `Run`/`MustRun`, or drive the lifecycle
+    manually with `app.InitServices()` + `host.WaitForExitSignal()`
+
+- **HTTP config section renamed `[server]` → `[http]`** — the default config
+  section the HTTP server reads is now `[http]` (named servers read
+  `[http.<name>]`). Rename the `[server]` table in your config files and update
+  env overrides accordingly: `APP_SERVER_PORT` → `APP_HTTP_PORT`,
+  `APP_SERVER_HOST` → `APP_HTTP_HOST`. A leftover `[server]` section is silently
+  ignored, leaving the server on its defaults (`localhost:8080`).
+
+### Added
+
+- **Named service instances** — the DI container is now keyed by `(type, name)`
+  instead of type alone, so several instances of one type coexist. Every module
+  constructor and `Of` accessor takes an optional name: `httpx.Module("admin")` /
+  `httpx.Of(app, "admin")`, `cache.Module("sessions")`, `gormx.Module(d, "analytics")`,
+  `messaging.Module(c, "events")`, `aws.NamedModule("eu", ...)`. Named `httpx` and
+  `cache` instances read their own config section (`[http.<name>]`,
+  `[cache.<name>]`) so a second HTTP server can bind a different port. `Of(app)`
+  and the unnamed form are unchanged; the empty name is the default instance.
+  `host.ProvideService`/`ResolveService`/`MustResolveService` gain a trailing
+  `name ...string`.
+- **Ordered graceful shutdown** — services now close in dependency-safe order
+  instead of the previous unspecified `sync.Map` order. Inbound edges (HTTP
+  servers, message subscribers) close first so they stop accepting work and drain
+  in-flight requests, then ordinary services, then backends (database, cache,
+  broker, tracing) — so a draining HTTP handler still has its database. Closing is
+  sequential across bands and remains bounded by the shutdown timeout. A service
+  can opt into a band by implementing the new optional `host.CloseOrderer`
+  (`CloseOrder() int`); use the `host.CloseEdge`/`CloseDefault`/`CloseBackend`
+  constants. Services that don't implement it close at `CloseDefault`.
+- **Module de-duplication for infrastructure** — satellite `Module` constructors
+  now deduplicate by `(slot, name)`, so installing e.g. `httpx.Module()` twice
+  registers one server instead of silently creating a second that clobbers the
+  first. Distinct names still coexist; `messaging.Subscribe` stays additive (each
+  call adds a binding). Backed by the new `host.KeyedModuleFunc(key, fn)` helper.
+- **Unused config-section warnings** — at the end of service initialization the
+  host logs a warning for each config-file top-level section that nothing read,
+  catching typos and renamed sections (e.g. a stale `[server]` after the rename to
+  `[http]`) that otherwise silently have no effect. Exposed via the reader's
+  `UnusedSections() []string`.
+- **`host.App.RangeServices`** — iterate registered services without access to
+  container internals, so satellite packages can aggregate health checks, etc.
+- **`host.ErrSource`** — optional `ErrCh() <-chan error` interface; `Run` now
+  reacts to *any* started service's fatal channel (generalizing the old
+  HTTP-server-only handling).
+
+### Removed
+
+- Dead DI primitives that had no callers: `host.ProvideType`, `host.ResolveType`,
+  `host.ProvidedItem`, `App.ProvideService(*ProvidedItem)`, `App.ProvideServices`,
+  and the `reflect.Type`-keyed `App.ResolveService`/`App.MustResolveService`
+  methods. Use the generic `host.ProvideService`/`ResolveService` functions.
+
 ## [0.18.0] - 2026-06-17
 
 ### Added

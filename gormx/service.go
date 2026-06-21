@@ -12,9 +12,9 @@ import (
 
 var (
 	_ configx.Configurable = (*Service)(nil)
-	_ core.Initer         = (*Service)(nil)
-	_ core.Closer         = (*Service)(nil)
-	_ core.HealthChecker  = (*Service)(nil)
+	_ core.Initer          = (*Service)(nil)
+	_ core.Closer          = (*Service)(nil)
+	_ core.HealthChecker   = (*Service)(nil)
 )
 
 // Service manages the lifecycle of a single *gorm.DB connection. It implements

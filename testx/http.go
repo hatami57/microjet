@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Request issues an HTTP request against handler (typically app.HTTPServer.Router
+// Request issues an HTTP request against handler (typically httpx.Of(app).Router
 // or any http.Handler) and returns the recorder. body is JSON-encoded when
 // non-nil. It is the one-liner most handler tests need.
 func Request(t testing.TB, handler http.Handler, method, target string, body any) *httptest.ResponseRecorder {

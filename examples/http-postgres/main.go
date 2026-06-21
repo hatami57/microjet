@@ -28,19 +28,20 @@ type User struct {
 func main() {
 	app := host.MustNew()
 
-	app.WithDatabase(postgres.Driver()).
+	app.WithModule(gormx.Module(postgres.Driver())).
+		WithModule(httpx.Module()).
 		Setup(func(a *host.App) error {
-			return a.DB().AutoMigrate(&User{})
+			return gormx.Of(a).AutoMigrate(&User{})
 		}).
-		WithHTTPServer(func(a *host.App) error {
-			registerRoutes(a, gormx.NewTable[User](a.DB()))
+		Setup(func(a *host.App) error {
+			registerRoutes(a, gormx.NewTable[User](gormx.Of(a)))
 			return nil
 		}).
 		MustRun()
 }
 
 func registerRoutes(a *host.App, users *gormx.Table[User]) {
-	r := a.HTTPServer.Router
+	r := httpx.Of(a).Router
 
 	// List with cursor pagination: GET /users?pageSize=20&nextPageToken=...
 	r.GET("/users", func(c *gin.Context) {

@@ -30,10 +30,10 @@ func spanAttrs(subject string) trace.SpanStartOption {
 }
 
 var (
-	_ messaging.Client    = (*Client)(nil)
+	_ messaging.Client     = (*Client)(nil)
 	_ configx.Configurable = (*Client)(nil)
-	_ core.Initer         = (*Client)(nil)
-	_ core.Closer         = (*Client)(nil)
+	_ core.Initer          = (*Client)(nil)
+	_ core.Closer          = (*Client)(nil)
 )
 
 // Client is the NATS-backed implementation of messaging.Client. It implements
@@ -46,7 +46,7 @@ type Client struct {
 	opts   []nats.Option
 }
 
-// New returns a Client ready to be handed to host.WithMessaging, which wires
+// New returns a Client ready to be handed to messaging.Module, which wires
 // the host logger via SetLogger and drives the lifecycle. Sane production defaults
 // (connect timeout, infinite reconnect, error logging) are applied first; any
 // opts are appended afterwards and therefore override them.
@@ -57,7 +57,7 @@ func New(opts ...nats.Option) *Client {
 }
 
 // SetLogger sets the logger used for connection events and async errors. The
-// host calls it during WithMessaging; a nil logger is ignored so the default
+// host calls it during messaging.Module; a nil logger is ignored so the default
 // set in New is kept.
 func (c *Client) SetLogger(logger *slog.Logger) {
 	if logger != nil {
