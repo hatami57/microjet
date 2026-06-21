@@ -9,6 +9,7 @@ use (
 	./examples/compound-orders
 	./examples/config
 	./examples/converters
+	./examples/cors
 	./examples/errors
 	./examples/features
 	./examples/http-client

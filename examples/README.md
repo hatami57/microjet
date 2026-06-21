@@ -29,6 +29,7 @@ so in the table below.
 | [`logging`](logging) | Structured logging (`core/logx`) | — | levels, text/json, bound attributes |
 | [`cache`](cache) | Cache (`cache`) | — | typed get/set, TTL expiry (in-memory; Redis via config) |
 | [`http-client`](http-client) | HTTP client (`httpx.Client`) | — | retries + circuit breaker against an in-process test server |
+| [`cors`](cors) | CORS middleware | — | allow-all vs a specific-origin allowlist (with credentials) and preflight |
 | [`idempotency`](idempotency) | Idempotency middleware | — | `Idempotency-Key` replay backed by the cache |
 | [`tracing`](tracing) | Distributed tracing (`otelx`) | OTLP collector (optional) | spans + `trace_id` log correlation |
 | [`migrations`](migrations) | Versioned migrations (`gormx/migrate`) | — | embedded SQL Up/Down on SQLite |
