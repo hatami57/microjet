@@ -58,9 +58,9 @@ func WithClock(clock core.TimeProvider) Option {
 	return func(a *App) { a.Clock = clock }
 }
 
-// WithShutdownTimeout bounds how long Close waits for managed resources (HTTP
+// WithCloseTimeout bounds how long Close waits for managed resources (HTTP
 // server, databases, messaging, services) to stop. Defaults to 15s.
-func WithShutdownTimeout(d time.Duration) Option {
+func WithCloseTimeout(d time.Duration) Option {
 	return func(a *App) { a.shutdownTimeout = d }
 }
 
@@ -129,10 +129,9 @@ func (a *App) fail(err error) *App {
 // Setup queues a setup handler (e.g. migrations or route registration). Handlers
 // run after services are initialized — so connected resources (databases,
 // caches, brokers) are available — but before the HTTP server starts serving.
-// Within the chain
-// they run in registration order. If services are already initialized (the
-// manual InitServices path) the handler runs immediately. Errors are deferred
-// and surfaced by Run/MustRun/Err.
+// Within the chain they run in registration order.
+// If services are already initialized (the manual InitServices path) the handler runs immediately.
+// Errors are deferred and surfaced by Run/MustRun/Err.
 func (a *App) Setup(handler ...HandlerFunc) *App {
 	if a.err != nil || handler == nil {
 		return a

@@ -6,7 +6,6 @@ import (
 
 	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/core/jsonx"
-	"github.com/hatami57/microjet/core/types"
 )
 
 type order struct {
@@ -48,16 +47,16 @@ func TestHandleJSONBadPayloadReturnsBadRequest(t *testing.T) {
 }
 
 func TestHandleEnvelopeExtractsBody(t *testing.T) {
-	env := types.Message{Type: "order.created", ID: "evt-1", Body: order{ID: "b", Total: 9}}
+	env := Envelope{Type: "order.created", ID: "evt-1", Body: order{ID: "b", Total: 9}}
 	encoded, err := jsonx.ToJSON(env)
 	if err != nil {
 		t.Fatalf("encode envelope: %v", err)
 	}
 	data := []byte(encoded)
 
-	var gotEnv *types.Message
+	var gotEnv *Envelope
 	var gotBody order
-	h := HandleEnvelope(func(_ context.Context, e *types.Message, o order) error {
+	h := HandleEnvelope(func(_ context.Context, e *Envelope, o order) error {
 		gotEnv, gotBody = e, o
 		return nil
 	})

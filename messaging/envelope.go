@@ -1,10 +1,10 @@
-// Package types defines shared data types used across MicroJet, including the
-// message envelope and cursor-paginated result containers.
-package types
+package messaging
 
 import "github.com/hatami57/microjet/core/jsonx"
 
-type Message struct {
+// Envelope is a message envelope carrying metadata alongside an arbitrary Body.
+// Use ExtractBodyTo to decode Body into a concrete type.
+type Envelope struct {
 	Type      string         `json:"type"`
 	ID        string         `json:"id"`
 	Name      string         `json:"name"`
@@ -15,6 +15,6 @@ type Message struct {
 	CreatedAt int64          `json:"createdAt"`
 }
 
-func (b *Message) ExtractBodyTo(v any) error {
+func (b *Envelope) ExtractBodyTo(v any) error {
 	return jsonx.AnyToStruct(b.Body, v)
 }

@@ -1,3 +1,5 @@
+// Package types defines shared data types used across MicroJet, including the
+// cursor-paginated result containers.
 package types
 
 import (

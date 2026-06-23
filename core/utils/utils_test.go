@@ -4,7 +4,7 @@ import "testing"
 
 func TestCoalesce(t *testing.T) {
 	a, b := 1, 2
-	if got := Coalesce[int](nil, &a, &b); got == nil || *got != 1 {
+	if got := Coalesce(nil, &a, &b); got == nil || *got != 1 {
 		t.Errorf("Coalesce = %v, want 1", got)
 	}
 	if got := Coalesce[int](nil, nil); got != nil {

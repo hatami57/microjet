@@ -32,10 +32,6 @@ func (a *AppConfig) GetEnvironment() string {
 	}
 }
 
-func (a *AppConfig) GetName() string    { return a.Name }
-func (a *AppConfig) GetVersion() string { return a.Version }
-func (a *AppConfig) GetDebug() bool     { return a.Debug }
-
 func (a *AppConfig) IsProduction() bool {
 	env := strings.ToLower(a.Environment)
 	return env == "production" || env == "prod"

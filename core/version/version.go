@@ -47,7 +47,7 @@ func Get() Info {
 
 // Print writes version fields as key=value lines to w.
 func (i Info) Print(w io.Writer) {
-	fmt.Fprintf(w, "version=%s\ncommit=%s\nbuild_time=%s\ngo_version=%s\n",
+	fmt.Fprintf(w, "\nversion=%s\ncommit=%s\nbuild_time=%s\ngo_version=%s\n\n",
 		i.Version, i.CommitHash, i.BuildTime, i.GoVersion)
 }
 
@@ -55,5 +55,5 @@ func (i Info) Print(w io.Writer) {
 func (i Info) PrintToStdout() { i.Print(os.Stdout) }
 
 func Print() {
-	fmt.Printf("\nversion=%s\ncommit=%s\nbuild_time=%s\ngo_version=%s\n\n", Version, CommitHash, BuildTime, GoVersion())
+	Get().PrintToStdout()
 }

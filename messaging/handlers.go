@@ -5,7 +5,6 @@ import (
 
 	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/core/jsonx"
-	"github.com/hatami57/microjet/core/types"
 )
 
 // TypedHandler processes a message payload already decoded into T. Pair it with
@@ -30,17 +29,17 @@ func HandleJSON[T any](fn TypedHandler[T]) Handler {
 	}
 }
 
-// EnvelopeHandler processes a decoded types.Message envelope together with its
-// body extracted into T. Pair it with HandleEnvelope.
-type EnvelopeHandler[T any] func(ctx context.Context, env *types.Message, body T) error
+// EnvelopeHandler processes a decoded Envelope together with its body extracted
+// into T. Pair it with HandleEnvelope.
+type EnvelopeHandler[T any] func(ctx context.Context, env *Envelope, body T) error
 
 // HandleEnvelope adapts an EnvelopeHandler[T] into a raw Handler for messages
-// carrying a types.Message JSON envelope: it decodes the envelope, extracts its
+// carrying an Envelope JSON payload: it decodes the envelope, extracts its
 // body into T, and calls fn with both. Decode/extract failures are returned as
 // BadRequest *errorx.Error values and fn is not invoked.
 func HandleEnvelope[T any](fn EnvelopeHandler[T]) Handler {
 	return func(ctx context.Context, msg *Message) error {
-		var env types.Message
+		var env Envelope
 		if err := jsonx.FromJSON(string(msg.Data), &env); err != nil {
 			return errorx.NewBadRequestError("messaging", "decoding message envelope failed").
 				WithParams("subject", msg.Subject).WithInner(err)
