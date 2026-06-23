@@ -2,12 +2,12 @@ module github.com/hatami57/microjet/examples/minimal
 
 go 1.26.2
 
-require github.com/hatami57/microjet/host v0.18.0
+require github.com/hatami57/microjet/host v0.19.0
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/hatami57/microjet/core v0.18.0 // indirect
+	github.com/hatami57/microjet/core v0.19.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect

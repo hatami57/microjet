@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/gormx
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.18.0
-	github.com/hatami57/microjet/host v0.18.0
+	github.com/hatami57/microjet/core v0.19.0
+	github.com/hatami57/microjet/host v0.19.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	gorm.io/gorm v1.31.1
@@ -76,12 +76,12 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
-	github.com/hatami57/microjet/aws v0.18.0 // indirect
-	github.com/hatami57/microjet/cache v0.18.0 // indirect
-	github.com/hatami57/microjet/httpx v0.18.0 // indirect
-	github.com/hatami57/microjet/messaging v0.18.0 // indirect
-	github.com/hatami57/microjet/otelx v0.18.0 // indirect
-	github.com/hatami57/microjet/outbox v0.18.0 // indirect
+	github.com/hatami57/microjet/aws v0.19.0 // indirect
+	github.com/hatami57/microjet/cache v0.19.0 // indirect
+	github.com/hatami57/microjet/httpx v0.19.0 // indirect
+	github.com/hatami57/microjet/messaging v0.19.0 // indirect
+	github.com/hatami57/microjet/otelx v0.19.0 // indirect
+	github.com/hatami57/microjet/outbox v0.19.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

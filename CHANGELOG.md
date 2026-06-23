@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.19.0] - 2026-06-23
 
 ### Breaking
 
@@ -44,6 +44,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   env overrides accordingly: `APP_SERVER_PORT` → `APP_HTTP_PORT`,
   `APP_SERVER_HOST` → `APP_HTTP_HOST`. A leftover `[server]` section is silently
   ignored, leaving the server on its defaults (`localhost:8080`).
+
+- **`Message` moved to `messaging` and renamed `Envelope`** — the message
+  envelope type that lived in `core/types` is now `messaging.Envelope`, keeping
+  the broker payload type in the package that owns messaging. Update references
+  from `types.Message` to `messaging.Envelope`; message handlers now receive a
+  `*messaging.Envelope`.
+
+- **`host.WithShutdownTimeout` renamed to `host.WithCloseTimeout`** — the option
+  name now matches the lifecycle vocabulary (`Closer`/`CloseOrderer`/`CloseTimeout`)
+  used everywhere else. Replace `host.WithShutdownTimeout(d)` with
+  `host.WithCloseTimeout(d)`.
+
+- **`httpx/middleware` `IdempotencyStore` uses `GetBytes`/`SetBytes`** — the
+  interface declared `Get`/`Set`, but `cache.Cache` exposes byte-oriented
+  `GetBytes`/`SetBytes` (the `Get`/`Set` pair now operates on `any`). The store
+  interface is realigned so `cache.Of(app)` satisfies `IdempotencyStore` directly,
+  removing the adapter shim. Custom stores must rename their methods to
+  `GetBytes`/`SetBytes`.
 
 ### Added
 
@@ -88,6 +106,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `host.ProvidedItem`, `App.ProvideService(*ProvidedItem)`, `App.ProvideServices`,
   and the `reflect.Type`-keyed `App.ResolveService`/`App.MustResolveService`
   methods. Use the generic `host.ProvideService`/`ResolveService` functions.
+
+### Fixed
+
+- **`configx` now honors environment-variable overrides in struct unmarshal** —
+  viper's `Unmarshal`/`UnmarshalKey` assemble a section from the file and default
+  layers only and do not consult `AutomaticEnv`, so `APP_<SECTION>_<KEY>`
+  overrides silently had no effect. `Read`/`ReadAll` now reflect over the
+  destination struct, bind an env var for every leaf key, and promote each
+  resolved value (env > file > default) into viper's override layer, which
+  `Unmarshal` does read.
 
 ## [0.18.0] - 2026-06-17
 
