@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`gormx.Table[T]` chainable query builder** — new copy-on-write builder methods
+  that accumulate as scopes and apply to every read on the table: `Order`, `Limit`,
+  `Offset`, `Select`, `Distinct`, `Joins`, `Group`, `Having`, and `Unscoped`
+  (include soft-deleted rows / hard delete). They compose with the existing
+  `Where`/`WhereIf`/`Preload` and never mutate the original table, so a scoped
+  handle (`scoped := table.Where("tenant_id = ?", id)`) auto-applies to all reads
+  through it.
+- **`gormx.Table[T]` single-row getters** — `First`, `Last`, and `Take` return the
+  matching row or `nil` when none matches (no error); `Get` is like `First` but
+  returns an `errorx.ErrNotFound` (a NotFound-category error, subject set to the
+  entity type name, so the HTTP error middleware maps it to 404) when the row is
+  absent. `Exists` reports whether any row matches.
+
+### Breaking
+
+- **`gormx.Table[T].Find` removed — use `First`** — `Find` returned a single row,
+  which collided with GORM's own `Find` (it populates a slice). Single-row reads
+  now use `First`/`Last`/`Take`/`Get`; multi-row reads use `ListAll`/`List`/`ListPage`.
+  Migration: replace `table.Find(ctx, …)` with `table.First(ctx, …)`, or `table.Get(ctx, …)`
+  when a missing row should surface as a not-found error.
+- **`gormx.Table[T].ListAll` no longer takes an `orderBy` argument** — ordering now
+  comes from the chainable `Order` scope. Migration: `table.ListAll(ctx, "created_at DESC")`
+  → `table.Order("created_at DESC").ListAll(ctx)`.
+- **`gormx` pagination filtering unified on chaining** — `PageRequest.SetWhere`
+  (and its backing `Where()` method) and the `Where() []any` method on the
+  `ListRequest` interface and `BaseListRequest` are removed. Filter paginated
+  queries by chaining `Where`/`WhereIf` on the table, the same as every other read;
+  the optional `Scoper` interface remains for request-driven filtering and is now
+  applied on top of the table's scopes. Migration:
+  `NewPageRequest(...).SetWhere("tenant_id = ?", id)` then `table.List(ctx, req)`
+  → `table.Where("tenant_id = ?", id).List(ctx, req)`.
+
 ## [0.19.0] - 2026-06-23
 
 ### Breaking

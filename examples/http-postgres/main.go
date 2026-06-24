@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/gormx/postgres"
 	"github.com/hatami57/microjet/host"
@@ -61,13 +60,11 @@ func registerRoutes(a *host.App, users *gormx.Table[User]) {
 			c.Error(err)
 			return
 		}
-		user, err := users.Find(c.Request.Context(), "id = ?", id)
+		// Get returns an errorx.ErrNotFound (404) when no row matches, so the
+		// handler only needs to forward the error.
+		user, err := users.Get(c.Request.Context(), "id = ?", id)
 		if err != nil {
 			c.Error(err)
-			return
-		}
-		if user == nil {
-			c.Error(errorx.ErrNotFound.WithSubject("User"))
 			return
 		}
 		c.JSON(http.StatusOK, user)

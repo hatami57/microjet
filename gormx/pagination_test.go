@@ -79,28 +79,6 @@ func TestByCreatedAt_CreateThenConsumeToken(t *testing.T) {
 	}
 }
 
-func TestSetWhere(t *testing.T) {
-	r := NewPageRequest[pgUser, int](&types.PagedResultRequest{PageSize: 5}, "id", func(u pgUser) int { return u.ID }).
-		SetWhere("name ILIKE ?", "%bob%")
-	where := r.Where()
-	if len(where) != 2 || where[0] != "name ILIKE ?" || where[1] != "%bob%" {
-		t.Fatalf("Where = %v", where)
-	}
-}
-
-func TestSetWhereMap(t *testing.T) {
-	r := NewPageRequest[pgUser, int](&types.PagedResultRequest{PageSize: 5}, "id", func(u pgUser) int { return u.ID }).
-		SetWhere(map[string]any{"active": true})
-	where := r.Where()
-	if len(where) != 1 {
-		t.Fatalf("expected 1 element, got %v", where)
-	}
-	m, ok := where[0].(map[string]any)
-	if !ok || m["active"] != true {
-		t.Fatalf("WhereMap = %v", where[0])
-	}
-}
-
 func TestPageRequest_TypedCursor(t *testing.T) {
 	r := NewPageRequest[pgUser, int](
 		&types.PagedResultRequest{PageSize: 2},

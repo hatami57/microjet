@@ -20,12 +20,11 @@ type pageData[TValue any] struct {
 //	    pagedReq,                          // *types.PagedResultRequest from the HTTP handler
 //	    "created_at",                      // cursor column
 //	    func(e Order) time.Time { return e.CreatedAt },
-//	).SetWhere("tenant_id = ?", tenantID).OrderDesc()
+//	).OrderDesc()
 //
-//	result, err := orderTable.List(ctx, req)
+//	result, err := orderTable.Where("tenant_id = ?", tenantID).List(ctx, req)
 type PageRequest[TEntity any, TValue any] struct {
 	*types.PagedResultRequest
-	where     []any
 	cursorCol string
 	cursorFn  func(TEntity) TValue
 	desc      bool
@@ -46,22 +45,11 @@ func NewPageRequest[TEntity any, TValue any](
 	}
 }
 
-// SetWhere adds GORM-style filter conditions, e.g. SetWhere("tenant_id = ?", id).
-// Replaces any previously set conditions.
-func (r *PageRequest[TEntity, TValue]) SetWhere(where ...any) *PageRequest[TEntity, TValue] {
-	r.where = where
-	return r
-}
-
 // OrderDesc switches the sort order to descending and flips the cursor operator accordingly.
 // By default results are ordered ascending.
 func (r *PageRequest[TEntity, TValue]) OrderDesc() *PageRequest[TEntity, TValue] {
 	r.desc = true
 	return r
-}
-
-func (r *PageRequest[TEntity, TValue]) Where() []any {
-	return r.where
 }
 
 func (r *PageRequest[TEntity, TValue]) OrderBy() string {

@@ -116,7 +116,7 @@ func registerRoutes(a *host.App) error {
 			ctx.JSON(http.StatusOK, gin.H{"product": p, "cached": true})
 			return
 		}
-		p, err := products.Find(reqCtx, "id = ?", id)
+		p, err := products.First(reqCtx, "id = ?", id)
 		if err != nil {
 			ctx.Error(err)
 			return
@@ -142,7 +142,7 @@ func registerRoutes(a *host.App) error {
 			}
 			reqCtx := ctx.Request.Context()
 
-			product, err := products.Find(reqCtx, "id = ?", body.ProductID)
+			product, err := products.First(reqCtx, "id = ?", body.ProductID)
 			if err != nil {
 				ctx.Error(err)
 				return
@@ -191,7 +191,7 @@ func registerRoutes(a *host.App) error {
 			ctx.Error(err)
 			return
 		}
-		order, err := orders.Find(ctx.Request.Context(), "id = ?", id)
+		order, err := orders.First(ctx.Request.Context(), "id = ?", id)
 		if err != nil {
 			ctx.Error(err)
 			return
