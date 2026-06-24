@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`gormx.Table[T]` aggregates** — `Aggregate`, `Sum`, `Avg`, `Max`, and `Min` scan a
+  scalar aggregate into a caller-supplied dest pointer, e.g.
+  `table.Where("is_confirmed = ?", true).Sum(ctx, "amount", &total)`. They mirror
+  `Count`/`PluckDistinct`: accept optional GORM-style where conditions and compose with
+  accumulated `Where`/`WhereIf` scopes. `Sum`/`Avg`/`Max`/`Min` cover numeric columns and
+  return zero (via `COALESCE`) rather than NULL on an empty set, so dest is always written.
+  `Aggregate` is the general primitive behind them — pass any raw SQL aggregate expression
+  (e.g. `"MAX(price) - MIN(price)"`) for advanced cases without a dedicated helper.
+- **`gormx.Table[T].Project` / `ProjectFirst`** — run a Table's query but map the rows into a
+  caller-supplied dest instead of the entity, for read models / DTOs. They reuse all chained
+  scopes (`Select`/`Where`/`Order`/`Group`/`Joins`/…), so pair them with `Select` to pick or
+  compute columns, e.g.
+  `table.Select("color, COALESCE(SUM(price),0) AS total").Group("color").Project(ctx, &rows)`.
+  `Project` takes a `*[]Result` (or `*[]map[string]any` for ad-hoc shapes); `ProjectFirst`
+  takes a `*Result` and returns `(found bool, err error)`, leaving dest untouched and
+  reporting `false` when no row matches rather than treating it as an error.
+
 ## [0.20.0] - 2026-06-24
 
 ### Added

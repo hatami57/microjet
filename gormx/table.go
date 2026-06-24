@@ -358,6 +358,50 @@ func (t *Table[TEntity]) Count(ctx context.Context, where ...any) (int64, error)
 	return count, nil
 }
 
+// Aggregate runs an arbitrary SQL aggregate expression over the rows matching the
+// optional where conditions and scans the scalar result into dest (a pointer). It is the
+// general primitive behind Sum/Avg/Max/Min — reach for it directly for aggregates without
+// a dedicated helper, e.g.:
+//
+//	var spread int
+//	table.Aggregate(ctx, "MAX(price) - MIN(price)", &spread, "in_stock = ?", true)
+//
+// Accepts the same GORM-style where conditions as Count and composes with accumulated
+// Where/WhereIf scopes. The expression is raw SQL, so when it can be NULL (e.g. over an
+// empty set) wrap it in COALESCE to give dest a default rather than failing the scan.
+func (t *Table[TEntity]) Aggregate(ctx context.Context, expr string, dest any, where ...any) error {
+	q := t.db(ctx).Model(t.entity)
+	if len(where) > 0 {
+		q = q.Where(where[0], where[1:]...)
+	}
+	return q.Select(expr).Scan(dest).Error
+}
+
+// Sum totals the numeric column across rows matching the optional where conditions,
+// writing the result into dest (a pointer to a numeric type). No matching rows — or an
+// empty table — yields zero rather than NULL (via COALESCE), so dest is always set.
+func (t *Table[TEntity]) Sum(ctx context.Context, column string, dest any, where ...any) error {
+	return t.Aggregate(ctx, "COALESCE(SUM("+column+"), 0)", dest, where...)
+}
+
+// Avg averages the numeric column across matching rows into dest (typically a *float64).
+// An empty set yields zero rather than NULL (via COALESCE), so dest is always set.
+func (t *Table[TEntity]) Avg(ctx context.Context, column string, dest any, where ...any) error {
+	return t.Aggregate(ctx, "COALESCE(AVG("+column+"), 0)", dest, where...)
+}
+
+// Max writes the largest value of the numeric column across matching rows into dest.
+// An empty set yields zero rather than NULL (via COALESCE), so dest is always set.
+func (t *Table[TEntity]) Max(ctx context.Context, column string, dest any, where ...any) error {
+	return t.Aggregate(ctx, "COALESCE(MAX("+column+"), 0)", dest, where...)
+}
+
+// Min writes the smallest value of the numeric column across matching rows into dest.
+// An empty set yields zero rather than NULL (via COALESCE), so dest is always set.
+func (t *Table[TEntity]) Min(ctx context.Context, column string, dest any, where ...any) error {
+	return t.Aggregate(ctx, "COALESCE(MIN("+column+"), 0)", dest, where...)
+}
+
 // PluckDistinct collects unique values from column into dest (a pointer to a slice).
 // Accepts optional GORM-style where conditions to scope the query.
 func (t *Table[TEntity]) PluckDistinct(ctx context.Context, column string, dest any, where ...any) error {
@@ -645,4 +689,40 @@ func (t *Table[TEntity]) ListAll(ctx context.Context) ([]*TEntity, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+// Project runs the Table's query — including any chained Select/Where/Order/Group/Joins/etc
+// scopes — but maps the rows into dest instead of the entity type. dest is a pointer to a
+// slice of your result type. Use it for read models / DTOs that don't match the entity
+// struct: pair it with Select to pick or compute the columns, which map onto dest's fields
+// by name (or `gorm:"column:..."` tag). dest may also be a *[]map[string]any to receive
+// rows as column→value maps when the shape isn't known ahead of time. Preloads are
+// ignored — associations belong to the entity type, not the projection.
+//
+//	type tally struct {
+//	    CampaignID uint
+//	    Total      uint64
+//	}
+//	var rows []tally
+//	err := table.Select("campaign_id, COALESCE(SUM(amount), 0) AS total").
+//	    Where("is_confirmed = ?", true).
+//	    Group("campaign_id").
+//	    Project(ctx, &rows)
+func (t *Table[TEntity]) Project(ctx context.Context, dest any) error {
+	return t.db(ctx).Model(t.entity).Find(dest).Error
+}
+
+// ProjectFirst is the single-row form of Project: it maps the first matching row into dest
+// (a pointer to your result struct) and reports whether a row was found. No match leaves
+// dest untouched and returns (false, nil) — the missing row is not an error. Chain Order on
+// the Table to control which row "first" selects; otherwise it is the entity's primary key.
+func (t *Table[TEntity]) ProjectFirst(ctx context.Context, dest any) (bool, error) {
+	err := t.db(ctx).Model(t.entity).First(dest).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

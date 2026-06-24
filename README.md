@@ -17,7 +17,7 @@ import "github.com/hatami57/microjet/host"
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
-- **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), cursor- and offset-based pagination, transactions, batch inserts, and eager loading. `gormx.NamedModule` supports multiple databases side by side.
+- **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), aggregates (`Count`/`Sum`/`Avg`/`Max`/`Min`/`Aggregate`), struct or map projections (`Project`/`ProjectFirst`), cursor- and offset-based pagination, transactions, batch inserts, and eager loading. `gormx.NamedModule` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain. `messaging.Subscribe` ties subscriptions to the app lifecycle (subscribe on start, drain on shutdown); `messaging.HandleJSON` / `HandleEnvelope` give typed handlers (`func(ctx, T) error`) with automatic decoding, and `messaging.WithQueueGroup` load-balances a subject across replicas.
 - **Transactional Outbox** — `outbox.Enqueue`/`EnqueueJSON` record an event in the same DB transaction as your domain write; `outbox.Module()` migrates the table and runs a periodic relay that publishes pending events to the broker with at-least-once delivery, so events are never lost on a crash between commit and publish.
@@ -289,7 +289,7 @@ import (
 )
 
 // Cursor-based pagination by ID. Filter by chaining Where on the table — the same
-// Where/WhereIf/Order used by Find, First, Count, and ListAll.
+// Where/WhereIf/Order used by First, Count, and ListAll.
 req := gormx.NewPageRequest[User, uint](httpx.PagedRequest(c), "id", func(u User) uint { return u.ID })
 
 result, _ := userTable.Where("name ILIKE ?", "%john%").List(ctx, req)
@@ -297,6 +297,35 @@ for _, user := range result.Items {
     // ...
 }
 // result.NextPageToken is base64-encoded cursor for the next page
+```
+
+## Aggregates & projections
+
+```go
+// Aggregates scan a scalar into a dest pointer and compose with the chainable scopes.
+// Sum/Avg/Max/Min cover numeric columns (empty set → 0 via COALESCE); Aggregate takes
+// any raw SQL expression for the advanced cases.
+var total uint64
+orders.Where("is_confirmed = ?", true).Sum(ctx, "amount", &total)
+
+var spread int
+orders.Aggregate(ctx, "MAX(amount) - MIN(amount)", &spread, "is_confirmed = ?", true)
+
+// Project maps rows into a result type instead of the entity — pair it with Select to
+// pick or compute columns. dest is a *[]Result (or *[]map[string]any for ad-hoc shapes).
+type tally struct {
+    CampaignID uint
+    Total      uint64
+}
+var rows []tally
+orders.Select("campaign_id, COALESCE(SUM(amount), 0) AS total").
+    Where("is_confirmed = ?", true).
+    Group("campaign_id").
+    Project(ctx, &rows)
+
+// ProjectFirst is the single-row form; it reports whether a row was found.
+var one tally
+found, _ := orders.Select("campaign_id, amount AS total").Order("amount DESC").ProjectFirst(ctx, &one)
 ```
 
 ## Money
