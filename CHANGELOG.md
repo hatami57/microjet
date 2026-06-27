@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-06-27
+
+### Added
+
+- **`Lookup` accessors** — every module that exposes `Of` now also exposes a
+  `Lookup(app, name...) (T, bool)` companion that reports whether the service is
+  registered instead of panicking: `aws`, `cache`, `gormx`, `httpx`, `messaging`,
+  and `otelx`. Use `Lookup` where absence is an expected, recoverable condition
+  (e.g. a background worker); prefer `Of` when the service must exist.
+
+### Changed
+
+- **`Of` accessors now panic when the service is not registered** (breaking) —
+  `cache.Of`, `gormx.Of`, and `messaging.Of` previously returned `nil` (or a nil
+  `*gorm.DB`) when no service was installed, deferring the failure to a confusing
+  nil-pointer dereference far from the cause. They now fail fast via
+  `host.MustResolveService`, matching `aws.Of`, `httpx.Of`, and `otelx.Of`. A
+  missing registration is a wiring bug; callers that genuinely want the optional
+  behavior should use the new `Lookup` accessors.
+
 ## [0.22.0] - 2026-06-27
 
 ### Added
