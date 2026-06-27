@@ -85,8 +85,8 @@ func Module(opts ...Option) host.Module {
 // migrateTable creates the outbox table in the named database, failing clearly
 // if no such database is installed. Run during the host's setup phase.
 func migrateTable(app *host.App, dbName string) error {
-	db := gormx.Of(app, dbName)
-	if db == nil {
+	db, ok := gormx.Lookup(app, dbName)
+	if !ok {
 		return fmt.Errorf("outbox: no database %q; install gormx.Module first", dbName)
 	}
 	return Migrate(db)
@@ -96,12 +96,12 @@ func migrateTable(app *host.App, dbName string) error {
 // body of the periodic relay worker, factored out so its wiring (and the missing
 // database / messaging guards) can be exercised directly.
 func relayOnce(ctx context.Context, app *host.App, cfg config) error {
-	client := messaging.Of(app)
-	if client == nil {
+	client, ok := messaging.Lookup(app)
+	if !ok {
 		return fmt.Errorf("outbox: no messaging client; install messaging.Module first")
 	}
-	db := gormx.Of(app, cfg.dbName)
-	if db == nil {
+	db, ok := gormx.Lookup(app, cfg.dbName)
+	if !ok {
 		return fmt.Errorf("outbox: no database %q", cfg.dbName)
 	}
 	relay := NewRelay(db, client, WithBatchSize(cfg.batchSize), WithLogger(app.Logger))

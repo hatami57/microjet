@@ -32,8 +32,8 @@ type consumerService struct {
 // cancellation. Runs in the host start phase, after the messaging client is
 // connected.
 func (s *consumerService) Start(app *host.App) error {
-	client := Of(app)
-	if client == nil {
+	client, ok := Lookup(app)
+	if !ok {
 		return fmt.Errorf("subscriber: no messaging client configured; install messaging.Module")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

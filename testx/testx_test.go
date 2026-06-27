@@ -29,9 +29,12 @@ func TestNewAppDefaults(t *testing.T) {
 
 func TestNewAppWithoutDatabase(t *testing.T) {
 	app := NewApp(t, WithoutDatabase())
-	if gormx.Of(app.App) != nil {
-		t.Error("expected no database when WithoutDatabase is set")
-	}
+	defer func() {
+		if recover() == nil {
+			t.Error("expected gormx.Of to panic when WithoutDatabase is set")
+		}
+	}()
+	gormx.Of(app.App)
 }
 
 func TestNewDBUsable(t *testing.T) {

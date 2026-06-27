@@ -75,14 +75,21 @@ func Inject(db *gorm.DB, name ...string) host.Module {
 // (HTTP servers, subscribers) have drained.
 func (s *Service) CloseOrder() int { return host.CloseBackend }
 
-// Of returns the database connection registered under the optional name, or nil
-// if none is registered.
+// Of returns the database connection registered under the optional name,
+// panicking if none is registered.
 func Of(app *host.App, name ...string) *gorm.DB {
+	return host.MustResolveService[*Service](app, canonicalName(first(name))).DB()
+}
+
+// Lookup returns the database connection registered under the optional name and
+// whether one is registered. Use it where absence is an expected, recoverable
+// condition (e.g. a background worker); prefer Of when the database must exist.
+func Lookup(app *host.App, name ...string) (*gorm.DB, bool) {
 	svc, ok := host.ResolveService[*Service](app, canonicalName(first(name)))
 	if !ok {
-		return nil
+		return nil, false
 	}
-	return svc.DB()
+	return svc.DB(), true
 }
 
 // first returns the first name or "" — the default database.

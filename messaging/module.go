@@ -39,13 +39,17 @@ func Module(client Client, name ...string) host.Module {
 	})
 }
 
-// Of returns the messaging client installed by Module under the optional name, or
-// nil if none was installed.
+// Of returns the messaging client installed by Module under the optional name,
+// panicking if none was installed.
 func Of(app *host.App, name ...string) Client {
-	if c, ok := host.ResolveService[Client](app, name...); ok {
-		return c
-	}
-	return nil
+	return host.MustResolveService[Client](app, name...)
+}
+
+// Lookup returns the messaging client installed under the optional name and whether
+// one was installed. Use it where absence is an expected, recoverable condition;
+// prefer Of when the client must exist.
+func Lookup(app *host.App, name ...string) (Client, bool) {
+	return host.ResolveService[Client](app, name...)
 }
 
 // first returns the first name or "" — the default instance.

@@ -36,3 +36,10 @@ func NamedModule(name string, services ...Service) host.Module {
 func Of(app *host.App, name ...string) *AWS {
 	return host.MustResolveService[*AWS](app, name...)
 }
+
+// Lookup returns the AWS client installed under the optional name and whether one
+// was installed. Use it where absence is an expected, recoverable condition;
+// prefer Of when the client must exist.
+func Lookup(app *host.App, name ...string) (*AWS, bool) {
+	return host.ResolveService[*AWS](app, name...)
+}

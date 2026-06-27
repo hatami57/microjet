@@ -66,6 +66,13 @@ func Of(app *host.App, name ...string) *Server {
 	return host.MustResolveService[*Server](app, name...)
 }
 
+// Lookup returns the HTTP server installed under the optional name and whether one
+// was installed. Use it where absence is an expected, recoverable condition;
+// prefer Of when the server must exist.
+func Lookup(app *host.App, name ...string) (*Server, bool) {
+	return host.ResolveService[*Server](app, name...)
+}
+
 // first returns the first name or "" — the default instance.
 func first(name []string) string {
 	if len(name) > 0 {

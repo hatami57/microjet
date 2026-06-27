@@ -109,13 +109,21 @@ func ModuleWithClient(c Cache, name ...string) host.Module {
 func (s *service) CloseOrder() int { return host.CloseBackend }
 
 // Of returns the cache installed by Module/ModuleWithClient under the optional
-// name, or nil if none was installed. It is available after services are
+// name, panicking if none was installed. It is available after services are
 // initialized.
 func Of(app *host.App, name ...string) Cache {
-	if svc, ok := host.ResolveService[*service](app, name...); ok {
-		return svc.cache
+	return host.MustResolveService[*service](app, name...).cache
+}
+
+// Lookup returns the cache installed under the optional name and whether one was
+// installed. Use it where absence is an expected, recoverable condition; prefer Of
+// when the cache must exist.
+func Lookup(app *host.App, name ...string) (Cache, bool) {
+	svc, ok := host.ResolveService[*service](app, name...)
+	if !ok {
+		return nil, false
 	}
-	return nil
+	return svc.cache, true
 }
 
 // first returns the first name or "" — the default instance.

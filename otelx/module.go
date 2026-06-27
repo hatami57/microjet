@@ -45,3 +45,10 @@ func (t *Tracing) CloseOrder() int { return host.CloseBackend }
 func Of(app *host.App, name ...string) *Tracing {
 	return host.MustResolveService[*Tracing](app, name...)
 }
+
+// Lookup returns the tracing service installed under the optional name and whether
+// one was installed. Use it where absence is an expected, recoverable condition;
+// prefer Of when the service must exist.
+func Lookup(app *host.App, name ...string) (*Tracing, bool) {
+	return host.ResolveService[*Tracing](app, name...)
+}
