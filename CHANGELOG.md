@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-06-27
+
+### Added
+
+- **`tenant.CachedStore.Clear`** — drops every cached entry in one call, forcing
+  subsequent `FindTenant` lookups to consult the wrapped store. Complements the
+  existing per-entry `Invalidate(id)`. Safe for concurrent use.
+- **`middleware.GetTenant[T]`** — error-returning counterpart to `FindTenant[T]`.
+  Returns `errorx.ErrNotFound` when no tenant is in the context and
+  `errorx.ErrInternal` when the stored tenant is not a `T`, mirroring
+  `GetTenantID`'s semantics.
+
+### Changed
+
+- **`middleware.GetTenant[T]` → `middleware.FindTenant[T]`** (breaking) — renamed
+  the nil-returning accessor to the `Find*` convention, since it yields the zero
+  value rather than an error when no tenant is present. Its type parameter is now
+  constrained to `tenant.Tenant`, so it is instantiated with the pointer type and
+  returns it directly: `FindTenant[*MyTenant](c)` returns `*MyTenant` (previously
+  `FindTenant[MyTenant](c)` returned `*MyTenant`).
+- **`middleware.GetTenantBase` → `middleware.FindTenantBase`** (breaking) — renamed
+  for the same reason; it returns `*tenant.Base` or nil without an error.
+
 ## [0.21.0] - 2026-06-24
 
 ### Added

@@ -73,3 +73,9 @@ func (c *CachedStore) FindTenant(ctx context.Context, id uuid.UUID) (Tenant, err
 func (c *CachedStore) Invalidate(id uuid.UUID) {
 	c.cache.Delete(id)
 }
+
+// Clear drops every cached entry, forcing subsequent FindTenant calls to
+// consult the wrapped store. It is safe for concurrent use.
+func (c *CachedStore) Clear() {
+	c.cache.Clear()
+}

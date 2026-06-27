@@ -61,7 +61,9 @@ func extractTenantID(c *gin.Context) string {
 	return c.GetHeader(TenantIDHeaderKey)
 }
 
-func GetTenantBase(c *gin.Context) *tenant.Base {
+// FindTenantBase returns the *tenant.Base for the tenant stored by the Tenant
+// middleware, or nil if none is present in the context.
+func FindTenantBase(c *gin.Context) *tenant.Base {
 	v, exists := c.Get(TenantContextKey)
 	if !exists {
 		return nil
@@ -73,15 +75,40 @@ func GetTenantBase(c *gin.Context) *tenant.Base {
 	return t.AsBase()
 }
 
-func GetTenant[T any](c *gin.Context) *T {
+// FindTenant returns the tenant of type T stored by the Tenant middleware. It
+// returns the zero value of T (nil for pointer types) when no tenant is present
+// or the stored tenant is not a T. Use GetTenant when the absence or a type
+// mismatch should surface as an error.
+func FindTenant[T tenant.Tenant](c *gin.Context) T {
 	v, exists := c.Get(TenantContextKey)
 	if !exists {
-		return nil
+		var zero T
+		return zero
 	}
-	t, _ := v.(*T)
+	t, _ := v.(T)
 	return t
 }
 
+// GetTenant returns the tenant of type T stored by the Tenant middleware. It
+// returns errorx.ErrNotFound when no tenant is present and errorx.ErrInternal
+// when the stored tenant is not a T. Use FindTenant when a missing tenant
+// should yield the zero value instead of an error.
+func GetTenant[T tenant.Tenant](c *gin.Context) (T, error) {
+	var zero T
+	v, exists := c.Get(TenantContextKey)
+	if !exists {
+		return zero, errorx.ErrNotFound
+	}
+	t, ok := v.(T)
+	if !ok {
+		return zero, errorx.ErrInternal.WithMessage("tenant in context has unexpected type")
+	}
+	return t, nil
+}
+
+// GetTenantID returns the ID of the tenant stored by the Tenant middleware. It
+// returns errorx.ErrNotFound when no tenant ID is present and errorx.ErrInternal
+// when the stored value is not a uuid.UUID.
 func GetTenantID(c *gin.Context) (uuid.UUID, error) {
 	value, exists := c.Get(TenantIDContextKey)
 	if !exists {
