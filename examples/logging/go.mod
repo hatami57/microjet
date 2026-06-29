@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/logging
 
 go 1.26.2
 
-require github.com/hatami57/microjet/core v0.23.0
+require github.com/hatami57/microjet/core v0.24.0
 
 replace (
 	github.com/hatami57/microjet/aws => ../../aws
