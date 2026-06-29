@@ -3,6 +3,7 @@ package gormx
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	glebarez "github.com/glebarez/sqlite"
@@ -17,7 +18,7 @@ type widget struct {
 	Price int
 }
 
-func openWidgets(t *testing.T, seed ...widget) *Table[widget] {
+func newWidgetDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(glebarez.Open(":memory:"), &gorm.Config{})
 	if err != nil {
@@ -26,7 +27,12 @@ func openWidgets(t *testing.T, seed ...widget) *Table[widget] {
 	if err := db.AutoMigrate(&widget{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	table := NewTable[widget](db)
+	return db
+}
+
+func openWidgets(t *testing.T, seed ...widget) *Table[widget] {
+	t.Helper()
+	table := NewTable[widget](newWidgetDB(t))
 	for i := range seed {
 		w := seed[i]
 		if err := table.Create(context.Background(), &w); err != nil {
@@ -376,5 +382,293 @@ func TestScopesDoNotMutateOriginal(t *testing.T) {
 	}
 	if len(red) != 1 {
 		t.Fatalf("filtered table returned %d rows, want 1", len(red))
+	}
+}
+
+func TestPluckKeepsDuplicates(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1, Color: "red"},
+		widget{ID: 2, Color: "red"},
+		widget{ID: 3, Color: "blue"},
+	)
+	ctx := context.Background()
+
+	var colors []string
+	if err := table.Pluck(ctx, "color", &colors); err != nil {
+		t.Fatalf("Pluck: %v", err)
+	}
+	if len(colors) != 3 {
+		t.Fatalf("Pluck returned %v, want 3 values with duplicates", colors)
+	}
+
+	var distinct []string
+	if err := table.PluckDistinct(ctx, "color", &distinct); err != nil {
+		t.Fatalf("PluckDistinct: %v", err)
+	}
+	if len(distinct) != 2 {
+		t.Fatalf("PluckDistinct returned %v, want 2 unique values", distinct)
+	}
+
+	// where-arg form scopes the column.
+	var reds []string
+	if err := table.Pluck(ctx, "color", &reds, "color = ?", "red"); err != nil {
+		t.Fatalf("Pluck(where): %v", err)
+	}
+	if len(reds) != 2 {
+		t.Fatalf("Pluck(red) = %v, want 2", reds)
+	}
+}
+
+func TestUpdateMapReportsAffectedAndGuards(t *testing.T) {
+	table := openWidgets(t, widget{ID: 1, Name: "a", Price: 5})
+	ctx := context.Background()
+
+	// Guard passes: one row updated.
+	n, err := table.UpdateMap(ctx, map[string]any{"price": 8}, "id = ? AND price < ?", 1, 10)
+	if err != nil {
+		t.Fatalf("UpdateMap(pass): %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("UpdateMap(pass) affected = %d, want 1", n)
+	}
+
+	// Guard rejects: zero rows, no error.
+	n, err = table.UpdateMap(ctx, map[string]any{"price": 99}, "id = ? AND price < ?", 1, 5)
+	if err != nil {
+		t.Fatalf("UpdateMap(reject): %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("UpdateMap(reject) affected = %d, want 0", n)
+	}
+
+	got, _ := table.Get(ctx, "id = ?", 1)
+	if got.Price != 8 {
+		t.Fatalf("price = %d, want 8 (reject must not write)", got.Price)
+	}
+}
+
+func TestUpdateMapAtomicExpr(t *testing.T) {
+	table := openWidgets(t, widget{ID: 1, Price: 5})
+	ctx := context.Background()
+
+	// gormx.Expr increments in-place; guard bounds it at < 7.
+	n, err := table.UpdateMap(ctx, map[string]any{"price": Expr("price + 1")}, "id = ? AND price < ?", 1, 7)
+	if err != nil {
+		t.Fatalf("UpdateMap(expr pass): %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("UpdateMap(expr pass) affected = %d, want 1", n)
+	}
+
+	got, _ := table.Get(ctx, "id = ?", 1)
+	if got.Price != 6 {
+		t.Fatalf("price = %d, want 6", got.Price)
+	}
+
+	// price is now 6; the guard (< 7) still passes, reaching 7.
+	if _, err := table.UpdateMap(ctx, map[string]any{"price": Expr("price + 1")}, "id = ? AND price < ?", 1, 7); err != nil {
+		t.Fatalf("UpdateMap(expr second): %v", err)
+	}
+	// price is now 7; the guard rejects.
+	n, err = table.UpdateMap(ctx, map[string]any{"price": Expr("price + 1")}, "id = ? AND price < ?", 1, 7)
+	if err != nil {
+		t.Fatalf("UpdateMap(expr reject): %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("UpdateMap(expr reject) affected = %d, want 0", n)
+	}
+	got, _ = table.Get(ctx, "id = ?", 1)
+	if got.Price != 7 {
+		t.Fatalf("price = %d, want 7 (bounded)", got.Price)
+	}
+}
+
+func TestUpdateColumns(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1, Color: "red", Price: 5},
+		widget{ID: 2, Color: "red", Price: 7},
+		widget{ID: 3, Color: "blue", Price: 9},
+	)
+	ctx := context.Background()
+
+	n, err := table.UpdateColumns(ctx, map[string]any{"price": 0, "name": "cleared"}, "color = ?", "red")
+	if err != nil {
+		t.Fatalf("UpdateColumns: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("UpdateColumns affected = %d, want 2", n)
+	}
+
+	n, err = table.UpdateColumn(ctx, "price", 42, "id = ?", 3)
+	if err != nil {
+		t.Fatalf("UpdateColumn: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("UpdateColumn affected = %d, want 1", n)
+	}
+	got, _ := table.Get(ctx, "id = ?", 3)
+	if got.Price != 42 {
+		t.Fatalf("price = %d, want 42", got.Price)
+	}
+}
+
+// hooked exercises that UpdateColumn(s) bypass model hooks while UpdateMap runs them.
+type hooked struct {
+	ID    int `gorm:"primaryKey"`
+	Value int
+}
+
+var beforeUpdateCalls int
+
+func (hooked) BeforeUpdate(*gorm.DB) error {
+	beforeUpdateCalls++
+	return nil
+}
+
+func TestUpdateColumnsSkipHooks(t *testing.T) {
+	db := newWidgetDB(t)
+	if err := db.AutoMigrate(&hooked{}); err != nil {
+		t.Fatalf("migrate hooked: %v", err)
+	}
+	table := NewTable[hooked](db)
+	ctx := context.Background()
+	if err := table.Create(ctx, &hooked{ID: 1, Value: 1}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	beforeUpdateCalls = 0
+	if _, err := table.UpdateColumns(ctx, map[string]any{"value": 2}, "id = ?", 1); err != nil {
+		t.Fatalf("UpdateColumns: %v", err)
+	}
+	if beforeUpdateCalls != 0 {
+		t.Fatalf("UpdateColumns ran BeforeUpdate %d times, want 0", beforeUpdateCalls)
+	}
+
+	beforeUpdateCalls = 0
+	if _, err := table.UpdateMap(ctx, map[string]any{"value": 3}, "id = ?", 1); err != nil {
+		t.Fatalf("UpdateMap: %v", err)
+	}
+	if beforeUpdateCalls != 1 {
+		t.Fatalf("UpdateMap ran BeforeUpdate %d times, want 1", beforeUpdateCalls)
+	}
+}
+
+func TestRawScansScalarSliceAndStruct(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1, Name: "a", Price: 5},
+		widget{ID: 2, Name: "b", Price: 7},
+	)
+	ctx := context.Background()
+
+	var total int
+	if err := table.Raw(ctx, &total, "SELECT SUM(price) FROM widgets"); err != nil {
+		t.Fatalf("Raw(scalar): %v", err)
+	}
+	if total != 12 {
+		t.Fatalf("Raw scalar = %d, want 12", total)
+	}
+
+	var names []string
+	if err := table.Raw(ctx, &names, "SELECT name FROM widgets ORDER BY id"); err != nil {
+		t.Fatalf("Raw(slice): %v", err)
+	}
+	if len(names) != 2 || names[0] != "a" || names[1] != "b" {
+		t.Fatalf("Raw slice = %v, want [a b]", names)
+	}
+
+	var row widget
+	if err := table.Raw(ctx, &row, "SELECT * FROM widgets WHERE id = ?", 2); err != nil {
+		t.Fatalf("Raw(struct): %v", err)
+	}
+	if row.Name != "b" {
+		t.Fatalf("Raw struct = %+v, want name b", row)
+	}
+}
+
+func TestExecAffectsRows(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1, Color: "red", Price: 5},
+		widget{ID: 2, Color: "red", Price: 7},
+		widget{ID: 3, Color: "blue", Price: 9},
+	)
+	ctx := context.Background()
+
+	n, err := table.Exec(ctx, "UPDATE widgets SET price = price + ? WHERE color = ?", 10, "red")
+	if err != nil {
+		t.Fatalf("Exec: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("Exec affected = %d, want 2", n)
+	}
+	got, _ := table.Get(ctx, "id = ?", 1)
+	if got.Price != 15 {
+		t.Fatalf("price = %d, want 15", got.Price)
+	}
+}
+
+func TestFindInBatches(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1}, widget{ID: 2}, widget{ID: 3}, widget{ID: 4}, widget{ID: 5},
+	)
+	ctx := context.Background()
+
+	var batches [][]int
+	err := table.Order("id").FindInBatches(ctx, 2, func(batch []*widget) error {
+		ids := make([]int, len(batch))
+		for i, w := range batch {
+			ids[i] = w.ID
+		}
+		batches = append(batches, ids)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("FindInBatches: %v", err)
+	}
+	want := [][]int{{1, 2}, {3, 4}, {5}}
+	if !reflect.DeepEqual(batches, want) {
+		t.Fatalf("batches = %v, want %v", batches, want)
+	}
+
+	// An error from the callback stops iteration and surfaces.
+	stop := errors.New("stop")
+	var seen int
+	err = table.Order("id").FindInBatches(ctx, 2, func(batch []*widget) error {
+		seen += len(batch)
+		return stop
+	})
+	if !errors.Is(err, stop) {
+		t.Fatalf("FindInBatches err = %v, want stop", err)
+	}
+	if seen != 2 {
+		t.Fatalf("processed %d rows before stop, want 2", seen)
+	}
+}
+
+func TestLockForUpdateWithinTx(t *testing.T) {
+	db := newWidgetDB(t)
+	repo := NewBaseRepository(db)
+	table := NewTable[widget](db)
+	ctx := context.Background()
+	if err := table.Create(ctx, &widget{ID: 1, Name: "a", Price: 5}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// On SQLite the FOR UPDATE clause is dropped, so this verifies the read-modify-write
+	// still runs and commits inside RunTx without the locking clause breaking the query.
+	err := repo.RunTx(ctx, func(ctx context.Context) error {
+		w, err := table.LockForUpdate().Get(ctx, "id = ?", 1)
+		if err != nil {
+			return err
+		}
+		w.Price += 100
+		return table.Update(ctx, w)
+	})
+	if err != nil {
+		t.Fatalf("RunTx: %v", err)
+	}
+
+	got, _ := table.Get(ctx, "id = ?", 1)
+	if got.Price != 105 {
+		t.Fatalf("price = %d, want 105", got.Price)
 	}
 }

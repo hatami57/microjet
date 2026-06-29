@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`gormx.Table[T]` raw-SQL escape hatches** — `Raw(ctx, dest, sql, values...)` runs a
+  query and scans into a struct, slice, map, or scalar; `Exec(ctx, sql, values...)`
+  runs a no-result statement (INSERT/UPDATE/DELETE/DDL) and returns rows affected. Both
+  run on the transaction in `ctx` when present (see `RunTx`); the SQL is engine-specific
+  and the Table's builder scopes (`Where`/`Order`/`Preload`) do not apply.
+- **`gormx.Table[T].UpdateColumn` / `UpdateColumns`** — raw-column writes that report rows
+  affected but, unlike `UpdateMap`, skip model hooks and timestamp auto-updates (e.g.
+  `UpdatedAt`). Use them for bulk maintenance writes where those side effects are unwanted.
+- **`gormx.Table[T].Pluck`** — collects a single column into a slice keeping duplicates,
+  the non-deduplicating counterpart to `PluckDistinct`.
+- **`gormx.Table[T].FindInBatches`** — streams matching rows to a callback in fixed-size
+  batches so large result sets are processed without loading every row at once; honors
+  chained `Where`/`Order`/`Preload` and stops on the first error the callback returns.
+- **`gormx.Table[T].LockForUpdate`** — chainable scope emitting `SELECT … FOR UPDATE` for
+  pessimistic read-modify-write inside `RunTx`. A Postgres/MySQL feature: the SQLite driver
+  silently drops the locking clause (write safety there comes from transaction-level
+  serialization), and outside a transaction it is a no-op on every engine.
+- **`gormx` GORM re-exports** — `Expr` (alias for `gorm.Expr`), `DB` (`gorm.DB`),
+  `OrderByColumn` (`clause.OrderByColumn`), and `Associations` (`clause.Associations`), so
+  callers can use the symbols that appear in `gormx`'s own API without importing
+  `gorm.io/gorm` directly. Notably, pass `gormx.Expr("count + 1")` as an `UpdateMap` value
+  for lock-free atomic, in-place updates.
+
+### Changed
+
+- **`gormx.Table[T].UpdateMap` now returns `(int64, error)`** (breaking) — it reports how
+  many rows were updated in addition to the error. The count matters for capacity- or
+  version-guarded updates whose `WHERE` clause may match no rows (e.g. an atomic counter
+  increment bounded by a limit): a zero return means the guard rejected the update rather
+  than a failure. Callers that don't need the count can discard it with `_`.
+
 ## [0.23.0] - 2026-06-27
 
 ### Added

@@ -17,7 +17,7 @@ import "github.com/hatami57/microjet/host"
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `core.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
-- **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD, a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), aggregates (`Count`/`Sum`/`Avg`/`Max`/`Min`/`Aggregate`), struct or map projections (`Project`/`ProjectFirst`), cursor- and offset-based pagination, transactions, batch inserts, and eager loading. `gormx.NamedModule` supports multiple databases side by side.
+- **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD (incl. `UpdateMap`/`UpdateColumn(s)` partial updates and `Raw`/`Exec` SQL escape hatches), a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`/`LockForUpdate`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), collectors (`Pluck`/`PluckDistinct`), aggregates (`Count`/`Sum`/`Avg`/`Max`/`Min`/`Aggregate`), struct or map projections (`Project`/`ProjectFirst`), cursor- and offset-based pagination, transactions, batch inserts and batched reads (`FindInBatches`), and eager loading. `gormx.NamedModule` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain. `messaging.Subscribe` ties subscriptions to the app lifecycle (subscribe on start, drain on shutdown); `messaging.HandleJSON` / `HandleEnvelope` give typed handlers (`func(ctx, T) error`) with automatic decoding, and `messaging.WithQueueGroup` load-balances a subject across replicas.
 - **Transactional Outbox** — `outbox.Enqueue`/`EnqueueJSON` record an event in the same DB transaction as your domain write; `outbox.Module()` migrates the table and runs a periodic relay that publishes pending events to the broker with at-least-once delivery, so events are never lost on a crash between commit and publish.
@@ -337,6 +337,38 @@ orders.Select("campaign_id, COALESCE(SUM(amount), 0) AS total").
 // ProjectFirst is the single-row form; it reports whether a row was found.
 var one tally
 found, _ := orders.Select("campaign_id, amount AS total").Order("amount DESC").ProjectFirst(ctx, &one)
+```
+
+## Atomic & guarded updates
+
+```go
+// UpdateMap returns rows affected. Combine a gormx.Expr value (computed in-place by the
+// database, no read-then-write) with a guard in the WHERE clause for a lock-free atomic
+// compare-and-swap — a zero return means the guard rejected the update, not a failure.
+// Portable across engines, SQLite included.
+n, _ := campaigns.UpdateMap(ctx,
+    map[string]any{"used": gormx.Expr("used + 1")},
+    "id = ? AND used < capacity", id)
+if n == 0 {
+    // missing or at capacity
+}
+
+// For read-modify-write that can't be expressed as one statement, take a row lock inside
+// a transaction. LockForUpdate emits SELECT … FOR UPDATE on Postgres/MySQL; on SQLite the
+// clause is dropped (write safety comes from transaction-level serialization there).
+repo.RunTx(ctx, func(ctx context.Context) error {
+    acct, err := accounts.LockForUpdate().Get(ctx, "id = ?", id)
+    if err != nil {
+        return err
+    }
+    acct.Balance = recompute(acct.Balance)
+    return accounts.Update(ctx, acct)
+})
+
+// UpdateColumn(s) write raw columns without hooks or timestamp auto-updates; Raw/Exec are
+// the escape hatch for SQL the builder can't express (both honor the ctx transaction).
+var report []SalesRow
+campaigns.Raw(ctx, &report, "SELECT region, SUM(total) AS total FROM orders GROUP BY region")
 ```
 
 ## Money

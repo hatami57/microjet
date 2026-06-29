@@ -284,6 +284,34 @@ func (t *Table[TEntity]) Unscoped() *Table[TEntity] {
 	})
 }
 
+// LockForUpdate returns a copy of the Table whose reads emit SELECT … FOR UPDATE,
+// taking a row-level pessimistic lock on the matched rows until the surrounding
+// transaction commits or rolls back. Use it inside RunTx for read-modify-write
+// sequences that can't be expressed as a single guarded UpdateMap, e.g.:
+//
+//	repo.RunTx(ctx, func(ctx context.Context) error {
+//	    acct, err := t.LockForUpdate().Get(ctx, "id = ?", id) // row locked here
+//	    if err != nil {
+//	        return err
+//	    }
+//	    acct.Balance = recompute(acct.Balance)
+//	    return t.Update(ctx, acct)
+//	})
+//
+// Engine caveat: this is a Postgres/MySQL feature. The SQLite driver silently drops
+// the locking clause (the query still runs, but no lock is taken), so on SQLite the
+// lock provides no protection — write safety there comes from SQLite serializing
+// writers at the transaction level instead. Outside a transaction the clause is a
+// no-op on every engine, since any lock would be released immediately.
+//
+// Prefer a single guarded UpdateMap (see its docs) when the change can be expressed
+// as a SQL expression — it is atomic and portable without any locking.
+func (t *Table[TEntity]) LockForUpdate() *Table[TEntity] {
+	return t.withScope(func(db *gorm.DB) *gorm.DB {
+		return db.Clauses(clause.Locking{Strength: "UPDATE"})
+	})
+}
+
 func (t *Table[TEntity]) db(ctx context.Context) *gorm.DB {
 	var base *gorm.DB
 	if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
@@ -330,14 +358,57 @@ func (t *Table[TEntity]) Update(ctx context.Context, item *TEntity) error {
 	return t.db(ctx).Updates(item).Error
 }
 
-// UpdateMap applies a column→value map as a partial update. Accepts optional GORM-style
-// where conditions (same format as Find/Count) to scope which rows are updated.
-func (t *Table[TEntity]) UpdateMap(ctx context.Context, values map[string]any, where ...any) error {
+// UpdateMap applies a column→value map as a partial update and reports how many rows
+// were updated. Accepts optional GORM-style where conditions (same format as Find/Count)
+// to scope which rows are updated.
+//
+// The affected-rows count matters for capacity- or version-guarded updates whose WHERE
+// clause may match no rows (e.g. an atomic counter increment bounded by a limit): a zero
+// return means the guard rejected the update rather than a failure. Callers that don't
+// need the count can discard it.
+//
+// For lock-free atomic updates, pass a gormx.Expr value so the new value is computed by
+// the database in-place rather than read-then-written, and put the precondition in the
+// WHERE clause. The whole thing is a single atomic statement and is portable across
+// engines (SQLite included):
+//
+//	n, err := t.UpdateMap(ctx,
+//	    map[string]any{"used": gormx.Expr("used + 1")},
+//	    "id = ? AND used < capacity", id)
+//	// n == 0 means the row was missing or at capacity.
+func (t *Table[TEntity]) UpdateMap(ctx context.Context, values map[string]any, where ...any) (int64, error) {
 	q := t.db(ctx).Model(t.entity)
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
-	return q.Updates(values).Error
+	res := q.Updates(values)
+	return res.RowsAffected, res.Error
+}
+
+// UpdateColumn sets a single column to value and reports how many rows were updated.
+// Unlike UpdateMap it writes the raw column WITHOUT running model hooks or auto-updating
+// tracked timestamps (e.g. UpdatedAt). Accepts optional GORM-style where conditions.
+// Reach for it on bulk maintenance writes where hook/timestamp side effects are
+// unwanted; prefer UpdateMap for ordinary updates.
+func (t *Table[TEntity]) UpdateColumn(ctx context.Context, column string, value any, where ...any) (int64, error) {
+	q := t.db(ctx).Model(t.entity)
+	if len(where) > 0 {
+		q = q.Where(where[0], where[1:]...)
+	}
+	res := q.UpdateColumn(column, value)
+	return res.RowsAffected, res.Error
+}
+
+// UpdateColumns applies a column→value map and reports how many rows were updated. It is
+// the multi-column form of UpdateColumn: like it, the raw columns are written WITHOUT
+// model hooks or timestamp auto-updates — the no-side-effects counterpart to UpdateMap.
+func (t *Table[TEntity]) UpdateColumns(ctx context.Context, values map[string]any, where ...any) (int64, error) {
+	q := t.db(ctx).Model(t.entity)
+	if len(where) > 0 {
+		q = q.Where(where[0], where[1:]...)
+	}
+	res := q.UpdateColumns(values)
+	return res.RowsAffected, res.Error
 }
 
 // Delete removes rows matching conditions. Accepts the same GORM condition formats as Find.
@@ -402,6 +473,17 @@ func (t *Table[TEntity]) Min(ctx context.Context, column string, dest any, where
 	return t.Aggregate(ctx, "COALESCE(MIN("+column+"), 0)", dest, where...)
 }
 
+// Pluck collects the values of a single column into dest (a pointer to a slice), one
+// element per matching row with duplicates preserved. Accepts optional GORM-style where
+// conditions to scope the query. Use PluckDistinct to deduplicate.
+func (t *Table[TEntity]) Pluck(ctx context.Context, column string, dest any, where ...any) error {
+	q := t.db(ctx).Model(t.entity)
+	if len(where) > 0 {
+		q = q.Where(where[0], where[1:]...)
+	}
+	return q.Pluck(column, dest).Error
+}
+
 // PluckDistinct collects unique values from column into dest (a pointer to a slice).
 // Accepts optional GORM-style where conditions to scope the query.
 func (t *Table[TEntity]) PluckDistinct(ctx context.Context, column string, dest any, where ...any) error {
@@ -410,6 +492,28 @@ func (t *Table[TEntity]) PluckDistinct(ctx context.Context, column string, dest 
 		q = q.Where(where[0], where[1:]...)
 	}
 	return q.Pluck(column, dest).Error
+}
+
+// Raw runs a raw SQL query and scans the result into dest — a pointer to a struct,
+// slice of structs, map, or scalar. Use it as an escape hatch for queries the Table
+// builder can't express (CTEs, window functions, engine-specific syntax). The SQL is
+// sent verbatim, so it is engine-specific, and the Table's accumulated Where/Order/
+// Preload scopes do NOT apply. It runs on the transaction in ctx when one is present
+// (see RunTx).
+//
+//	var report []SalesRow
+//	err := t.Raw(ctx, &report, "SELECT region, SUM(total) AS total FROM orders GROUP BY region")
+func (t *Table[TEntity]) Raw(ctx context.Context, dest any, sql string, values ...any) error {
+	return t.db(ctx).Raw(sql, values...).Scan(dest).Error
+}
+
+// Exec runs a raw SQL statement that returns no rows (INSERT/UPDATE/DELETE/DDL) and
+// reports how many rows were affected. Like Raw, the SQL is engine-specific, the
+// Table's builder scopes do not apply, and it participates in the ctx transaction
+// when present.
+func (t *Table[TEntity]) Exec(ctx context.Context, sql string, values ...any) (int64, error) {
+	res := t.db(ctx).Exec(sql, values...)
+	return res.RowsAffected, res.Error
 }
 
 // singleResult translates a single-row GORM result into the (nil, nil)-on-miss
@@ -689,6 +793,19 @@ func (t *Table[TEntity]) ListAll(ctx context.Context) ([]*TEntity, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+// FindInBatches streams matching rows to fn in batches of batchSize, so large result
+// sets can be processed without loading every row into memory at once. Chain
+// Where/WhereIf/Order/Preload on the Table to scope the query first. fn is called once
+// per batch; returning a non-nil error from it stops the iteration and surfaces that
+// error. The batch slice is GORM-managed and reused between calls — copy out any
+// elements you need to keep beyond the current call.
+func (t *Table[TEntity]) FindInBatches(ctx context.Context, batchSize int, fn func(batch []*TEntity) error) error {
+	var batch []*TEntity
+	return t.applyPreloads(t.db(ctx)).FindInBatches(&batch, batchSize, func(_ *gorm.DB, _ int) error {
+		return fn(batch)
+	}).Error
 }
 
 // Project runs the Table's query — including any chained Select/Where/Order/Group/Joins/etc
