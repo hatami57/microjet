@@ -1,4 +1,8 @@
-MODULES := core aws messaging messaging/nats gormx gormx/migrate gormx/postgres gormx/sqlite httpx host cache otelx outbox testx
+# Every released module (any directory with a go.mod), discovered so a new
+# module can't silently escape build/vet/test/lint. examples/ are excluded:
+# they are never released, and release.sh tags exactly this list (CI discovers
+# and tests examples separately).
+MODULES := $(shell find . -name go.mod -not -path './examples/*' -not -path '*/vendor/*' | xargs -n1 dirname | sed 's|^\./||' | sort)
 
 .PHONY: build vet test fmt tidy lint staticcheck release-patch release-minor $(MODULES)
 

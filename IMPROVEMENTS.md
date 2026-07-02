@@ -296,15 +296,14 @@ govet, staticcheck, errcheck, revive, misspell — tune from there) and add the
 job (official `golangci/golangci-lint-action`, per-module via the matrix).
 Fix or `nolint`-annotate existing findings in the same PR so it lands green.
 
-### 4.3 [P1] Auto-discover modules in the Makefile  `build`
+### 4.3 [P1] Auto-discover modules in the Makefile  `build` — **done**
 
-Makefile:1 hand-maintains `MODULES` while ci.yml auto-discovers via
-`find . -name go.mod`. A new module silently escapes `make test/vet/lint`
-locally while CI catches it — confusing drift. Replace with:
-`MODULES := $(shell find . -name go.mod -not -path '*/vendor/*' | xargs -n1 dirname | sed 's|^\./||' | sort)`
-…and exclude `examples/` where the current list excludes them (release
-tooling iterates MODULES too — check scripts/release.sh before changing the
-variable it receives; may need `RELEASE_MODULES` vs `ALL_MODULES` split).
+Makefile:1 hand-maintained `MODULES` while ci.yml auto-discovers via
+`find . -name go.mod`. Now discovered with the same find (excluding
+`examples/`, which are never released or tagged). Verified: release.sh uses
+MODULES only for tag names and the post-tag verify loop, both order- and
+set-compatible with the discovered list, so no `RELEASE_MODULES` split was
+needed.
 
 ### 4.4 [P2] Slim the README; move depth to `docs/` + `doc.go`  `docs`
 
