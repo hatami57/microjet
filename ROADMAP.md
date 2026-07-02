@@ -1,8 +1,9 @@
-# MicroJet — Roadmap: features & genericity
+# MicroJet — Roadmap
 
-Production-microservice features MicroJet is missing, and places where it is too
-specific. Ordered by recommended execution. Each top-level item should be its own
-commit (Conventional Commits format, e.g. `feat:`, `refactor:`; no AI attribution).
+Production-microservice features MicroJet was missing, and places where it was
+too specific — tracked as phases, each now complete. Newly found work is
+tracked in [IMPROVEMENTS.md](IMPROVEMENTS.md). Each top-level item should be
+its own commit (Conventional Commits format, e.g. `feat:`, `refactor:`).
 
 ---
 
@@ -113,7 +114,7 @@ Not done (was lower-priority, not selected): **DB migration guidance
 
 ---
 
-## Deferred earlier (judgment calls, intentionally not done)
+## Design decisions (deliberately not done)
 
 - H2 `Error()` prints inner (stdlib-consistent; output-format choice)
 - H3 `Must*` reachable from handlers (needs usage-contract policy)

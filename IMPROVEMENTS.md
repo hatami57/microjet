@@ -1,7 +1,7 @@
 # MicroJet — Improvement Backlog
 
 Findings from a full-repo review (2026-07-02). Ordered by priority within each
-section. Same workflow as `issues.md`: each top-level item should be its own
+section. Same workflow as `ROADMAP.md`: each top-level item should be its own
 commit (Conventional Commits; no AI attribution). Check items off as they land.
 
 Legend: **[P1]** fix soon (defect or high-value/low-cost) · **[P2]** next
@@ -251,13 +251,13 @@ nil-return), and a decision on whether it's a new `messaging/jetstream` module
 
 ## 3. Naming & structure
 
-### 3.1 [P1] Rename `issues.md` → `ROADMAP.md`  `docs`
+### 3.1 [P1] Rename `issues.md` → `ROADMAP.md`  `docs` — **done**
 
 On a public repo, root-level `issues.md` reads as a known-bugs list; it's
-actually a well-kept roadmap/changelog of phases. `git mv issues.md ROADMAP.md`
-and fix the self-reference in its header. Consider reframing the "Deferred
-earlier (judgment calls)" section as "Design decisions" at the bottom of the
-renamed file (or move it into CONTRIBUTING.md).
+actually a well-kept roadmap/changelog of phases. Renamed via `git mv`, header
+rewritten to point at IMPROVEMENTS.md for new work, and the "Deferred earlier
+(judgment calls)" section reframed as "Design decisions (deliberately not
+done)".
 
 ### 3.2 [P3] Break up `core/utils`  `refactor` (breaking — batch with next major wave)
 
