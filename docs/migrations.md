@@ -18,18 +18,23 @@ import (
     "context"
     "embed"
 
+    "github.com/hatami57/microjet/gormx"
     "github.com/hatami57/microjet/gormx/migrate"
+    "github.com/hatami57/microjet/gormx/postgres"
+    "github.com/hatami57/microjet/host"
+    "github.com/hatami57/microjet/httpx"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
 app := host.MustNew().
-    WithDatabase(postgres.Driver()).
+    WithModule(gormx.Module(postgres.Driver())).
+    WithModule(httpx.Module()).
     Setup(func(a *host.App) error {
-        return migrate.Up(context.Background(), a.DB(), migrationsFS)
+        return migrate.Up(context.Background(), gormx.Of(a), migrationsFS)
     }).
-    WithHTTPServer(registerRoutes)
+    Setup(registerRoutes)
 ```
 
 `migrate.New` returns a `*Migrator` exposing `Up`, `Down`, and `Version` for
@@ -44,16 +49,17 @@ directly against the `*sql.DB` that GORM uses, as shown below.
 
 Run migrations **before** the app starts serving — typically as a `host.Setup`
 step in the fluent chain, or as a separate one-shot job/CLI in your deploy
-pipeline. The `App` exposes the underlying connection via `app.DB()` (and
-`app.NamedDB(name)` for [named databases](../README.md)).
+pipeline. Retrieve the connection with `gormx.Of(app)` (and
+`gormx.Of(app, name)` for [named databases](../README.md)).
 
 ```go
 app := host.MustNew().
-    WithDatabaseFromConfig().
+    WithModule(gormx.Module(postgres.Driver())).
+    WithModule(httpx.Module()).
     Setup(func(a *host.App) error {
         return runMigrations(a) // apply pending migrations before serving
     }).
-    WithHTTPServer(registerRoutes)
+    Setup(registerRoutes)
 
 app.MustRun()
 ```
@@ -77,7 +83,7 @@ import (
 var migrationsFS embed.FS
 
 func runMigrations(a *host.App) error {
-    sqlDB, err := a.DB().DB()
+    sqlDB, err := gormx.Of(a).DB()
     if err != nil {
         return err
     }
@@ -112,7 +118,7 @@ import (
 var migrationsFS embed.FS
 
 func runMigrations(a *host.App) error {
-    sqlDB, err := a.DB().DB()
+    sqlDB, err := gormx.Of(a).DB()
     if err != nil {
         return err
     }
@@ -130,7 +136,8 @@ func runMigrations(a *host.App) error {
   production paths once you adopt one.
 - For SQLite use the matching driver (`golang-migrate/.../database/sqlite` or
   `goose.SetDialect("sqlite3")`).
-- For multiple databases registered via `WithDatabasesFromConfig`, run the
-  appropriate migration set against each `app.NamedDB(name)`.
+- For multiple databases registered via named modules
+  (`gormx.Module(driver, name)`), run the appropriate migration set against
+  each `gormx.Of(app, name)`.
 - Run migrations from a single instance (or behind an advisory lock) to avoid
   concurrent apply during rolling deploys.

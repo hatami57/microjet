@@ -67,7 +67,7 @@ func WithCloseTimeout(d time.Duration) Option {
 // New constructs an App, loading the standard configuration sections and the
 // logger. Returns an error instead of panicking so callers can handle config
 // failures gracefully. To load service-specific config sections call
-// app.LoadConfig after construction.
+// app.Configure after construction.
 func New(opts ...Option) (*App, error) {
 	a := &App{}
 	for _, opt := range opts {

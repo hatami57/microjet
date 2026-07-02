@@ -11,34 +11,37 @@ feature wave · **[P3]** nice to have / larger design work.
 
 ## 1. Defects / doc drift (fix first)
 
-### 1.1 [P1] README documents APIs that don't exist  `docs`
+### 1.1 [P1] README documents APIs that don't exist  `docs` — **done**
 
 The README's front-page examples reference the pre-rename API surface. Nothing
 in `core` re-exports these, so every snippet below fails to compile for a new
 user.
 
-- [ ] **Error Handling section** (README.md:253–275): uses `core.NewNotFoundError`,
+- [x] **Error Handling section** (README.md:253–275): uses `core.NewNotFoundError`,
   `core.ErrBadRequest`, `core.IsNotFoundError`, `core.ErrNotFound` (also
   README.md:16). Real package is `core/errorx`. Fix imports/prose to
   `errorx.NewNotFoundError(...)`, `errorx.ErrBadRequest`, `errors.Is(err, errorx.ErrNotFound)`.
-- [ ] **Config API** (README.md:80–98, 234–251): uses `core.ConfigLoader`,
+- [x] **Config API** (README.md:80–98, 234–251): uses `core.ConfigLoader`,
   `core.Configurable`, `LoadConfig(l *core.ConfigLoader)`, `l.UnmarshalKey`,
   `app.LoadConfig(&cfg)`. Real API: implement `configx.Configurable` with
   `ReadConfig(l configx.Reader) error` using `l.Read(section, &cfg)`, and load
   via `app.Configure(&cfg)`.
-- [ ] **Cached tenant store** (README.md:170–190): uses
+- [x] **Multi-database API** (README.md:20, 164–167): uses `gormx.NamedModule(name, driver)`
+  and `gormx.NamedDB(app, name)` — neither exists; the real API is
+  `gormx.Module(driver, name)` and `gormx.Of(app, name)` (gormx/module.go:44,80).
+- [x] **Cached tenant store** (README.md:170–190): uses
   `middleware.NewCachedTenantStore(dbStore, 5*time.Minute)` — no such function;
   the real API is `tenant.NewCachedStore(store, ttl, opts...)` in `core/tenant`
   (returns `*tenant.CachedStore` with `Invalidate(id)`/`Clear()`).
-- [ ] **Stale comment** host/host.go:70: says "call app.LoadConfig after
+- [x] **Stale comment** host/host.go:70: says "call app.LoadConfig after
   construction" — no such method; should say `app.Configure`.
-- [ ] **Architecture diagram** (README.md:490–507): shows the old single-module
+- [x] **Architecture diagram** (README.md:490–507): shows the old single-module
   layout (`utils → types → aws` as one tree, `host` importing everything).
   Redraw to match the real multi-module graph: `core` at the bottom; `host`
   depends only on `core`; satellite modules (`httpx`, `gormx`, `messaging`,
   `cache`, `otelx`, `outbox`, `aws`, `testx`) each depend on `core` (+ `host`
   for their `Module()`), never on each other except `outbox → messaging/gormx`.
-- [ ] While in there: sweep all fenced code blocks in README + `docs/` for the
+- [x] While in there: sweep all fenced code blocks in README + `docs/` for the
   same drift (`host.WithAWS`, `host.WithTracing`, `host.WithSubscriber` era
   names appear in issues.md history; make sure none leak into user-facing docs).
 
@@ -51,7 +54,7 @@ modules, and runs `go build ./...`. Skip blocks marked ` ```go ignore `.
 A ~40-line shell/Go script in `scripts/` is enough; wire it as a `docs` job in
 ci.yml.
 
-### 1.3 [P1] Fix or remove the "Packages" table drift check  `docs`
+### 1.3 [P1] Fix or remove the "Packages" table drift check  `docs` — **done** (folded into 1.1)
 
 README.md:36 describes `core` subpackages including `errorx` — correct — but
 README.md:16 says "(`errors.Is(err, core.ErrNotFound)`)". One-line fix; listed
