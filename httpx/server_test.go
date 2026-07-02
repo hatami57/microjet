@@ -49,3 +49,27 @@ func TestReadyzReportsFailingCheck(t *testing.T) {
 		t.Errorf("body = %s, want failing check detail", body)
 	}
 }
+
+func TestPprofServedInDebugMode(t *testing.T) {
+	s := NewServer(ServerConfig{Host: "localhost", Port: 0, Debug: true}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	for _, path := range []string{"/debug/pprof/", "/debug/pprof/goroutine", "/debug/pprof/cmdline"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		s.Router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("GET %s status = %d, want 200", path, rec.Code)
+		}
+	}
+}
+
+func TestPprofAbsentInReleaseMode(t *testing.T) {
+	s := newTestServer()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	s.Router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("GET /debug/pprof/ status = %d, want 404", rec.Code)
+	}
+}

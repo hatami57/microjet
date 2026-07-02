@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
@@ -76,8 +77,8 @@ func (s *Server) runReadinessChecks(ctx context.Context) (bool, map[string]strin
 }
 
 // NewServer creates the router with its middleware stack and standard routes
-// (/health, /metrics, /readyz, and /swagger if debug). The server does not
-// start listening until Init is called.
+// (/health, /metrics, /readyz, and /swagger + /debug/pprof if debug). The
+// server does not start listening until Init is called.
 func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	if cfg.Debug {
 		gin.SetMode(gin.DebugMode)
@@ -122,9 +123,26 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 
 	if cfg.Debug {
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		registerPprof(router)
 	}
 
 	return s
+}
+
+// registerPprof mounts the net/http/pprof handlers under /debug/pprof. Only
+// wired in debug mode: the profile/trace endpoints run for tens of seconds and
+// expose internals, so they must not be reachable on a production port.
+func registerPprof(router *gin.Engine) {
+	dbg := router.Group("/debug/pprof")
+	dbg.GET("/", gin.WrapF(pprof.Index))
+	dbg.GET("/cmdline", gin.WrapF(pprof.Cmdline))
+	dbg.GET("/profile", gin.WrapF(pprof.Profile))
+	dbg.GET("/symbol", gin.WrapF(pprof.Symbol))
+	dbg.POST("/symbol", gin.WrapF(pprof.Symbol))
+	dbg.GET("/trace", gin.WrapF(pprof.Trace))
+	for _, p := range []string{"allocs", "block", "goroutine", "heap", "mutex", "threadcreate"} {
+		dbg.GET("/"+p, gin.WrapH(pprof.Handler(p)))
+	}
 }
 
 // SetConfigSection overrides the config section the server reads (default

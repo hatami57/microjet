@@ -112,9 +112,9 @@ own counters to the endpoint it already exposes.
   `prometheus.DefaultRegisterer`) — that was the right call; just add the
   accessor.
 
-### 2.3 [P1] `/debug/pprof` endpoints  `feat(httpx)`
+### 2.3 [P1] `/debug/pprof` endpoints  `feat(httpx)` — **done**
 
-- [ ] Mount `net/http/pprof` under `/debug/pprof/*` via `gin.WrapF/WrapH`
+- [x] Mount `net/http/pprof` under `/debug/pprof/*` via `gin.WrapF/WrapH`
   (index, cmdline, profile, symbol, trace + the named profiles), gated behind
   `[http] debug` — the same gate as Swagger. No separate flag needed.
 
