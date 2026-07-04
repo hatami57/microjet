@@ -118,45 +118,54 @@ own counters to the endpoint it already exposes.
   (index, cmdline, profile, symbol, trace + the named profiles), gated behind
   `[http] debug` — the same gate as Swagger. No separate flag needed.
 
-### 2.4 [P1] HTTP server hardening  `feat(httpx)` (config-compatible)
+### 2.4 [P1] HTTP server hardening  `feat(httpx)` (config-compatible) — **done**
 
-httpx/server.go:152–158 hardcodes timeouts and omits two protections:
+httpx/server.go hardcoded timeouts and omitted two protections; now all
+configurable in `[http]` with the previous values as defaults.
 
-- [ ] Add `ReadHeaderTimeout` (slowloris exposure — Go's `ReadTimeout` alone
+- [x] Add `ReadHeaderTimeout` (slowloris exposure — Go's `ReadTimeout` alone
   does cover it, but only because it's set; if a user config later allows
   `readTimeout = 0` the header path becomes unbounded). Default 5s.
-- [ ] Add `MaxHeaderBytes` (default 1 MiB, configurable).
-- [ ] Make all timeouts configurable in `[http]` with current values as
+- [x] Add `MaxHeaderBytes` (default 1 MiB, configurable).
+- [x] Make all timeouts configurable in `[http]` with current values as
   defaults: `readTimeout = "10s"`, `writeTimeout = "10s"`, `idleTimeout = "60s"`,
-  `readHeaderTimeout = "5s"`. Use `time.Duration` mapstructure decoding
-  (StringToTimeDurationHookFunc — verify configx enables it; add if not).
-- [ ] TLS: `certFile`/`keyFile` in `[http]`; when both set, `serve()` uses
+  `readHeaderTimeout = "5s"`. Uses `time.Duration` mapstructure decoding —
+  viper's UnmarshalKey enables StringToTimeDurationHookFunc by default (verified),
+  so defaults are set as duration strings and env overrides (e.g.
+  `APP_HTTP_READTIMEOUT=15s`) decode too.
+- [x] TLS: `certFile`/`keyFile` in `[http]`; when both set, `serve()` uses
   `ListenAndServeTLS`. (mTLS/client-CA can wait.)
-- [ ] New middleware, all opt-in like CORS:
-  - `middleware.BodyLimit(maxBytes)` — reject > limit with 413 via
-    `http.MaxBytesReader` (413 emitted directly; errorx has no 413 category).
-  - `middleware.Timeout(d)` — per-request deadline; on expiry respond 503 and
-    cancel the request ctx. Document the caveat that the handler goroutine
-    is not killed, only its ctx cancelled.
+- [x] New middleware, all opt-in like CORS:
+  - `middleware.BodyLimit(maxBytes)` — reject > limit with 413 (declared
+    Content-Length rejected up front; chunked/undeclared bodies capped via
+    `http.MaxBytesReader`; errorx has no 413 category so it's emitted directly).
+  - `middleware.Timeout(d)` — per-request deadline; on expiry flushes 503
+    immediately and cancels the request ctx. Race-free: the handler runs on the
+    request goroutine and a watcher goroutine flushes the 503, so gin.Context is
+    never touched concurrently (unlike the c.Next()-in-goroutine + c.Abort()
+    pattern, which races c.index). Buffers the response, so not for streaming; the
+    handler is not killed, only its ctx cancelled.
   - `middleware.SecureHeaders(cfg)` — `X-Content-Type-Options: nosniff`,
-    `X-Frame-Options: DENY`, `Referrer-Policy`, optional HSTS (only when TLS).
-  - gzip: recommend `gin-contrib/gzip` in docs instead of wrapping it —
-    a wrapper would add zero value.
+    `X-Frame-Options: DENY`, `Referrer-Policy`, optional CSP, optional HSTS (only
+    emitted on TLS requests).
+  - gzip: README recommends `gin-contrib/gzip` instead of wrapping it.
 
-### 2.5 [P1] Kubernetes-aware shutdown (readiness flip before drain)  `feat`
+### 2.5 [P1] Kubernetes-aware shutdown (readiness flip before drain)  `feat` — **done**
 
-Current `Run()` shutdown: signal → cancel workers → `Close()`. During a rolling
+Previous `Run()` shutdown: signal → cancel workers → `Close()`. During a rolling
 deploy, kube-proxy/endpoints lag means a few requests still land on the
-terminating pod and get connection-refused.
+terminating pod and get connection-refused. `Run()` now flips readiness and waits
+before draining.
 
-- [ ] Add `Server.SetReady(ready bool)`; when false, `/readyz` returns 503
+- [x] Add `Server.SetReady(ready bool)`; when false, `/readyz` returns 503
   `{"status":"shutting-down"}` without running the checks.
-- [ ] In the host shutdown path (before cancelling workers / closing services):
-  resolve any service implementing a new `core.ReadinessToggler` interface
-  (`SetReady(bool)`), flip it off, then wait a configurable grace period
-  (`[app] shutdownDelay = "0s"` default — zero keeps current behavior;
-  document "set to ~5s on Kubernetes with a matching `terminationGracePeriodSeconds`").
-- [ ] `/health` (liveness) stays 200 throughout — only readiness flips,
+- [x] In the host shutdown path (before cancelling workers / closing services):
+  `beginShutdown()` resolves every service implementing the new
+  `core.ReadinessToggler` interface (`SetReady(bool)`), flips it off, then waits
+  `[app] shutdownDelay` (default `"0s"` — zero keeps current behavior and skips
+  the wait entirely when nothing toggles; README documents ~5s on Kubernetes with
+  a matching `terminationGracePeriodSeconds`).
+- [x] `/health` (liveness) stays 200 throughout — only readiness flips,
   otherwise kubelet restarts the pod mid-drain.
 
 ### 2.6 [P2] Outbox: safe concurrent relays  `feat(outbox)`

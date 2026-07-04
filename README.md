@@ -15,7 +15,7 @@ import "github.com/hatami57/microjet/host"
 - **Application Orchestrator** — Fluent builder API (`MustNew().WithModules(gormx.Module(postgres.Driver()), httpx.Module()).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](#modules) for tree-structured feature wiring, and managed graceful shutdown. Every capability — database, HTTP, AWS, messaging, cache, tracing, outbox — is installed the same way, as a `host.Module`, so the `host` runtime itself depends on none of them: you pull in only the satellite modules you actually use.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, errorx.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
-- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI and `/debug/pprof` profiling (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), and graceful shutdown.
+- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI and `/debug/pprof` profiling (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), configurable timeouts and TLS, opt-in hardening middleware (security headers, body-size limit, per-request timeout), and Kubernetes-aware graceful shutdown (readiness flips to draining before the pod is torn down).
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `errorx.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
 - **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD (incl. `UpdateMap`/`UpdateColumn(s)` partial updates and `Raw`/`Exec` SQL escape hatches), a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`/`LockForUpdate`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), collectors (`Pluck`/`PluckDistinct`), aggregates (`Count`/`Sum`/`Avg`/`Max`/`Min`/`Aggregate`), struct or map projections (`Project`/`ProjectFirst`), cursor- and offset-based pagination, transactions, batch inserts and batched reads (`FindInBatches`), and eager loading. `gormx.Module(driver, name)` supports multiple databases side by side.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
@@ -205,10 +205,24 @@ environment = "production"
 name = "My Service"
 version = "1.0.0"
 debug = false
+# Grace period after readiness flips to not-ready before shutdown proceeds.
+# 0 (default) keeps the previous behavior; on Kubernetes set it to give
+# kube-proxy time to drop the pod (see Graceful Shutdown).
+shutdownDelay = "0s"
 
 [http]
 host = "0.0.0.0"
 port = 8080
+# Server timeouts (defaults shown). A value of "0s" disables that timeout;
+# readHeaderTimeout still bounds the header read to cap slowloris exposure.
+readTimeout = "10s"
+readHeaderTimeout = "5s"
+writeTimeout = "10s"
+idleTimeout = "60s"
+maxHeaderBytes = 1048576 # 1 MiB
+# TLS: when both are set the server serves HTTPS.
+# certFile = "/etc/tls/tls.crt"
+# keyFile = "/etc/tls/tls.key"
 
 [database]
 driver = "postgres"
@@ -280,6 +294,32 @@ case errorx.IsBadRequestError(err):
     // handle 400
 }
 ```
+
+## HTTP Hardening Middleware
+
+Opt-in middleware (like CORS and rate limiting) for tightening the HTTP surface —
+register them on the router or a route group:
+
+```go
+import "github.com/hatami57/microjet/httpx/middleware"
+
+r := httpx.Of(app).Router
+r.Use(middleware.SecureHeaders(middleware.DefaultSecureHeadersConfig())) // nosniff, X-Frame-Options, Referrer-Policy, HSTS (TLS only)
+r.Use(middleware.BodyLimit(2 << 20))                                     // 413 when the body exceeds 2 MiB
+r.Use(middleware.Timeout(15 * time.Second))                             // 503 when a request outlives its deadline
+```
+
+- `SecureHeaders(cfg)` — sets `X-Content-Type-Options: nosniff`, `X-Frame-Options`,
+  `Referrer-Policy`, optional CSP, and HSTS (emitted only on TLS requests).
+- `BodyLimit(maxBytes)` — rejects an oversized declared `Content-Length` with a
+  clean 413 up front and caps chunked/undeclared bodies via `http.MaxBytesReader`.
+- `Timeout(d)` — buffers the response and, if the handler outlives `d`, flushes a
+  503 immediately and cancels the request context. Buffering means it is not for
+  streaming (SSE) responses; the handler is not force-killed, only its context is
+  cancelled.
+
+For gzip, use [`gin-contrib/gzip`](https://github.com/gin-contrib/gzip) directly —
+wrapping it would add nothing.
 
 ## HTTP Helpers
 
@@ -470,7 +510,16 @@ See [`examples/modules`](examples/modules) for a runnable three-level tree.
 
 ## Graceful Shutdown
 
-`app.Close()` drains messaging, stops the HTTP server, closes DB connections, and calls all registered `ServiceCloser` implementations — all running concurrently with a `sync.WaitGroup`. It is idempotent (guarded by `sync.Once`), so it is safe to call it via both `Run()`/`MustRun()` and a `defer app.Close()`.
+On a shutdown signal (or a fatal service error), `Run()` first flips every service
+implementing `core.ReadinessToggler` — the HTTP server does — to not-ready, so
+`/readyz` returns 503 `{"status":"shutting-down"}` while `/health` (liveness) stays
+200. It then waits `app.shutdownDelay` before tearing anything down. On Kubernetes
+set `shutdownDelay` to a few seconds (e.g. `"5s"`, with a matching
+`terminationGracePeriodSeconds`) so kube-proxy removes the pod from its endpoints —
+new requests stop arriving — before in-flight ones are drained. The default of
+`"0s"` flips readiness and proceeds immediately.
+
+`app.Close()` then drains messaging, stops the HTTP server, closes DB connections, and calls all registered `ServiceCloser` implementations — all running concurrently with a `sync.WaitGroup`. It is idempotent (guarded by `sync.Once`), so it is safe to call it via both `Run()`/`MustRun()` and a `defer app.Close()`.
 
 ## Examples
 

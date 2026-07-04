@@ -2,6 +2,7 @@ package host
 
 import (
 	"strings"
+	"time"
 
 	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/core/logx"
@@ -19,6 +20,12 @@ type AppConfig struct {
 	Name        string `mapstructure:"name"`
 	Version     string `mapstructure:"version"`
 	Debug       bool   `mapstructure:"debug"`
+	// ShutdownDelay is how long the host waits after flipping readiness to
+	// not-ready before it cancels workers and closes services. Defaults to 0
+	// (flip and continue immediately). On Kubernetes set it to roughly the pod's
+	// terminationGracePeriodSeconds headroom (e.g. "5s") so kube-proxy removes the
+	// pod from its endpoints before in-flight requests are drained.
+	ShutdownDelay time.Duration `mapstructure:"shutdownDelay"`
 }
 
 func (a *AppConfig) GetEnvironment() string {
@@ -64,6 +71,7 @@ func (c *Config) ReadConfig(l configx.Reader) error {
 	// inner-error exposure in HTTP responses — none of which are safe defaults
 	// for a library that may be embedded in production. Opt in via app.debug=true.
 	l.SetDefault("app.debug", false)
+	l.SetDefault("app.shutdownDelay", "0s")
 
 	if err := l.Read("app", &c.App); err != nil {
 		return err

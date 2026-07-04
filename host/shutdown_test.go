@@ -1,7 +1,9 @@
 package host
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // orderedCloser records the order in which Close is called and reports a
@@ -58,5 +60,55 @@ func (plainCloser) Close(*App) error { return nil }
 func TestUnmarkedServiceClosesAtDefault(t *testing.T) {
 	if got := closeOrder(plainCloser{}); got != CloseDefault {
 		t.Errorf("closeOrder(unmarked) = %d, want %d", got, CloseDefault)
+	}
+}
+
+// readyToggler records readiness flips for the shutdown-drain tests.
+type readyToggler struct{ ready atomic.Bool }
+
+func (r *readyToggler) SetReady(ready bool) { r.ready.Store(ready) }
+
+func TestBeginShutdownFlipsReadiness(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	tog := &readyToggler{}
+	tog.ready.Store(true)
+	ProvideService(app, tog)
+
+	app.beginShutdown()
+
+	if tog.ready.Load() {
+		t.Error("beginShutdown did not flip readiness to not-ready")
+	}
+}
+
+func TestBeginShutdownWaitsShutdownDelay(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	app.Config.App.ShutdownDelay = 40 * time.Millisecond
+	ProvideService(app, &readyToggler{})
+
+	start := time.Now()
+	app.beginShutdown()
+	if elapsed := time.Since(start); elapsed < 35*time.Millisecond {
+		t.Errorf("beginShutdown returned after %v, want to wait ~40ms", elapsed)
+	}
+}
+
+func TestBeginShutdownSkipsDelayWithoutToggler(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	app.Config.App.ShutdownDelay = time.Hour // must be ignored when nothing toggles
+
+	start := time.Now()
+	app.beginShutdown()
+	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
+		t.Errorf("beginShutdown waited %v with no toggler; delay should be skipped", elapsed)
 	}
 }

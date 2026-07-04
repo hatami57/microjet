@@ -40,6 +40,17 @@ type Closer interface {
 	Close() error
 }
 
+// ReadinessToggler is implemented by services whose readiness can be flipped —
+// typically an HTTP server backing /readyz. At the start of graceful shutdown the
+// host flips every such service to not-ready and waits app.shutdownDelay before
+// tearing anything down, so Kubernetes drops the pod from its endpoints (and load
+// balancers stop routing new requests) before in-flight work is drained. Liveness
+// (/health) must stay healthy throughout, or the kubelet restarts the pod
+// mid-drain.
+type ReadinessToggler interface {
+	SetReady(ready bool)
+}
+
 // HealthChecker is implemented by services that can report whether they are
 // ready to serve traffic. The host's /readyz probe consults every registered
 // service implementing it, so databases, cache, messaging, and any user service

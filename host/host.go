@@ -210,10 +210,36 @@ func (a *App) Run() error {
 		}
 	}
 
+	a.beginShutdown()
 	cancel()
 	workerWg.Wait()
 	a.Close()
 	return runErr
+}
+
+// beginShutdown flips every core.ReadinessToggler service to not-ready and then
+// waits app.shutdownDelay before the host cancels workers and closes services.
+// On Kubernetes this gives kube-proxy/endpoints time to drop the pod so new
+// requests stop arriving (readiness starts failing) while in-flight ones drain;
+// liveness (/health) stays healthy so the kubelet does not restart the pod
+// mid-drain. With the default shutdownDelay of 0 it flips readiness and returns
+// immediately, preserving the previous behavior.
+func (a *App) beginShutdown() {
+	flipped := 0
+	a.RangeServices(func(v any) bool {
+		if t, ok := v.(core.ReadinessToggler); ok {
+			t.SetReady(false)
+			flipped++
+		}
+		return true
+	})
+
+	delay := a.Config.App.ShutdownDelay
+	if flipped == 0 || delay <= 0 {
+		return
+	}
+	a.Logger.Info("readiness flipped to not-ready; draining before shutdown", "delay", delay)
+	time.Sleep(delay)
 }
 
 // MustRun is like Run but logs and exits the process on error.
