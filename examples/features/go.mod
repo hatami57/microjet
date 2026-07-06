@@ -4,10 +4,10 @@ go 1.26.2
 
 require (
 	github.com/gin-gonic/gin v1.12.0
-	github.com/hatami57/microjet/cache v0.24.0
-	github.com/hatami57/microjet/core v0.24.0
-	github.com/hatami57/microjet/host v0.24.0
-	github.com/hatami57/microjet/httpx v0.24.0
+	github.com/hatami57/microjet/cache v0.25.0
+	github.com/hatami57/microjet/core v0.25.0
+	github.com/hatami57/microjet/host v0.25.0
+	github.com/hatami57/microjet/httpx v0.25.0
 )
 
 require (

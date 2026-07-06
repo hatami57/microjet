@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/messaging/nats
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.24.0
-	github.com/hatami57/microjet/messaging v0.24.0
+	github.com/hatami57/microjet/core v0.25.0
+	github.com/hatami57/microjet/messaging v0.25.0
 	github.com/nats-io/nats.go v1.52.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0

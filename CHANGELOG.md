@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-07-06
+
+### Added
+
+- **Configurable HTTP server timeouts (`httpx`)** — `readTimeout` (10s), `readHeaderTimeout`
+  (5s, caps slowloris even when `readTimeout=0`), `writeTimeout` (10s), and `idleTimeout`
+  (60s) are now set under `[http]`, with the previous hardcoded values as defaults. Adds
+  `maxHeaderBytes` (default 1 MiB) and TLS via `certFile`/`keyFile` (the server uses
+  `ListenAndServeTLS` when both are set).
+- **New opt-in `httpx` middleware** — `BodyLimit` (413 for oversized declared
+  `Content-Length`, with a `MaxBytesReader` backstop for chunked/undeclared bodies),
+  `Timeout` (buffers the response and flushes a 503 the instant the deadline fires while
+  cancelling the request context), and `SecureHeaders` (`nosniff`, `X-Frame-Options`,
+  `Referrer-Policy`, optional CSP, and HSTS emitted only on TLS requests).
+- **pprof endpoints in debug mode (`httpx`)** — `net/http/pprof` is mounted under
+  `/debug/pprof` behind the same `[http]` debug gate as Swagger, so profiling is available
+  in development but never reachable on a production port.
+- **Kubernetes-aware graceful shutdown (`core` + `host` + `httpx`)** — new
+  `core.ReadinessToggler` interface; `httpx.Server` implements it so that during shutdown
+  `/readyz` returns `503 {"status":"shutting-down"}` (without running checks) while
+  `/health` liveness stays `200`. `Run()` flips every `ReadinessToggler` to not-ready and
+  waits `[app] shutdownDelay` (default 0s) before cancelling workers and closing services,
+  letting load balancers drop the pod before in-flight requests drain.
+
+### Changed
+
+- **Build** — the `Makefile` now auto-discovers modules with the same `find`-based
+  discovery CI uses (excluding `examples/`), so a newly added module can no longer silently
+  escape `build`/`vet`/`test`/`lint`.
+- **Docs** — fixed stale API references across the README and `docs/migrations.md` to match
+  the current multi-module surface (`core/errorx`, `configx.Reader`, `gormx.Module`/
+  `gormx.Of`, `tenant.NewCachedStore`), redrew the architecture diagram, and renamed the
+  root `issues.md` roadmap to `ROADMAP.md`.
+
 ## [0.24.0] - 2026-06-29
 
 ### Added
