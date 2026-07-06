@@ -355,6 +355,11 @@ for _, user := range result.Items {
     // ...
 }
 // result.NextPageToken is base64-encoded cursor for the next page
+
+// Offset (page-number) pagination: set Page on the request, or call ForceOffset()
+// to default a missing "page" query param to page 1 instead of cursor mode — for
+// SQL-backed endpoints that always want page jumps with a computed TotalCount.
+req = gormx.NewPageRequest[User, uint](httpx.PagedRequest(c).ForceOffset(), "id", func(u User) uint { return u.ID })
 ```
 
 ## Aggregates & projections

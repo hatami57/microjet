@@ -29,6 +29,17 @@ type PagedResultRequest struct {
 	Page          *int32  `json:"page"`
 }
 
+// ForceOffset selects offset pagination when the caller didn't pick a mode,
+// defaulting to the first page. Use it on SQL-backed listing endpoints that
+// always want page-number pagination with a computed TotalCount, so a missing
+// "page" query param falls back to page 1 instead of cursor mode.
+func (r *PagedResultRequest) ForceOffset() *PagedResultRequest {
+	if r.Page == nil {
+		r.Page = new(int32(1))
+	}
+	return r
+}
+
 func EncodePageToken[T any](v T) (*string, error) {
 	jsonBytes, err := jsoniter.Marshal(v)
 	if err != nil {

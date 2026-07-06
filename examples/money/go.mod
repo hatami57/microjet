@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/money
 
 go 1.26.2
 
-require github.com/hatami57/microjet/core v0.25.0
+require github.com/hatami57/microjet/core v0.26.0
 
 require (
 	github.com/json-iterator/go v1.1.12 // indirect

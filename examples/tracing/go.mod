@@ -4,9 +4,9 @@ go 1.26.2
 
 require (
 	github.com/gin-gonic/gin v1.12.0
-	github.com/hatami57/microjet/host v0.25.0
-	github.com/hatami57/microjet/httpx v0.25.0
-	github.com/hatami57/microjet/otelx v0.25.0
+	github.com/hatami57/microjet/host v0.26.0
+	github.com/hatami57/microjet/httpx v0.26.0
+	github.com/hatami57/microjet/otelx v0.26.0
 )
 
 require (
@@ -38,7 +38,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
-	github.com/hatami57/microjet/core v0.25.0 // indirect
+	github.com/hatami57/microjet/core v0.26.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
