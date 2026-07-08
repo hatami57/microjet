@@ -95,6 +95,49 @@ func MustResolveService[T any](a *App, name ...string) T {
 	panic(ErrServiceNotRegistered.WithSubject(subject))
 }
 
+// ResolveAllServices returns every service registered under type T, keyed by the
+// name it was provided with ("" for the default, unnamed instance). Use it to
+// enumerate all implementors of an interface — registered side by side under one
+// interface type via distinct names — and pick one by a runtime criterion:
+//
+//	host.ProvideService[Notifier](a, email, "email")
+//	host.ProvideService[Notifier](a, sms, "sms")
+//	for name, n := range host.ResolveAllServices[Notifier](a) { ... }
+//
+// Only services registered under T itself are returned; an instance registered
+// under a concrete type is not discoverable through its interface. The result is
+// a fresh map (never nil) and safe to mutate.
+func ResolveAllServices[T any](a *App) map[string]T {
+	want := reflect.TypeFor[T]()
+	out := make(map[string]T)
+	a.container.Range(func(k, v any) bool {
+		if key, ok := k.(serviceKey); ok && key.typ == want {
+			out[key.name] = v.(T)
+		}
+		return true
+	})
+	return out
+}
+
+// ResolveServiceBy returns the first service registered under type T that
+// satisfies pred, reporting whether one matched. Iteration order is unspecified,
+// so pred should identify at most one service (or the caller must not depend on
+// which match wins). It is a convenience over ResolveAllServices for criteria-
+// based selection:
+//
+//	h, ok := host.ResolveServiceBy[Handler](a, func(h Handler) bool {
+//	    return h.CanHandle(contentType)
+//	})
+func ResolveServiceBy[T any](a *App, pred func(T) bool) (T, bool) {
+	for _, svc := range ResolveAllServices[T](a) {
+		if pred(svc) {
+			return svc, true
+		}
+	}
+	var zero T
+	return zero, false
+}
+
 // WithProvider runs fn to register services imperatively within the fluent chain,
 // deferring any error to Run/MustRun/Err.
 func (a *App) WithProvider(fn HandlerFunc) *App {

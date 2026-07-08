@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2026-07-08
+
+### Added
+
+- **Resolve multiple implementors of one interface (`host`)** — `ResolveAllServices[T](app)`
+  returns every service registered under type `T`, keyed by the name it was provided with
+  (`""` for the default), so implementors registered side by side under one interface type
+  can be enumerated and chosen by a runtime criterion. `ResolveServiceBy[T](app, pred)`
+  returns the first registered `T` satisfying a predicate. Resolution is exact-type: an
+  instance is discoverable through an interface only if registered under that interface type.
+
 ## [0.27.0] - 2026-07-08
 
 ### Added

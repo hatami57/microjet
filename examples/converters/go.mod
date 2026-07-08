@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/converters
 
 go 1.26.2
 
-require github.com/hatami57/microjet/core v0.27.0
+require github.com/hatami57/microjet/core v0.28.0
 
 require (
 	github.com/json-iterator/go v1.1.12 // indirect

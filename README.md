@@ -453,6 +453,31 @@ svc, ok := host.ResolveService[*UserService](app)
 svc := host.MustResolveService[*UserService](app)
 ```
 
+### Multiple implementors of one interface
+
+Register several implementors under one interface type by giving each a distinct
+name, then resolve one by a discrete key — or enumerate them all and choose by a
+runtime criterion:
+
+```go
+host.ProvideService[Notifier](app, emailNotifier, "email")
+host.ProvideService[Notifier](app, smsNotifier, "sms")
+
+// Pick by name (discrete key):
+n := host.MustResolveService[Notifier](app, "sms")
+
+// Enumerate every registered Notifier, keyed by name:
+for name, n := range host.ResolveAllServices[Notifier](app) { /* ... */ }
+
+// Or select the first one satisfying a predicate:
+n, ok := host.ResolveServiceBy(app, func(n Notifier) bool {
+    return n.Supports(channel)
+})
+```
+
+Resolution is exact-type: an implementor is discoverable through an interface only
+if it was registered under that interface type.
+
 ## Modules
 
 A **Module** bundles a slice of functionality — its services, routes, config, and
