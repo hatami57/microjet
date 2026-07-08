@@ -33,32 +33,35 @@ const (
 	InternalErrorType     ErrorType = "INTERNAL"
 )
 
-func NewError(errorType ErrorType, subject, message string) *Error {
-	return &Error{Type: errorType, Subject: subject, Message: message}
+// NewError builds an *Error. Optional key-value pairs are merged into Params
+// (same semantics as WithParams): keys must be strings; a non-string key is
+// surfaced under "!BADKEY", and a trailing key without a value is dropped.
+func NewError(errorType ErrorType, subject, message string, paramKeyVals ...any) *Error {
+	return &Error{Type: errorType, Subject: subject, Message: message, Params: sliceToMap(paramKeyVals)}
 }
 
-func NewBadRequestError(subject, message string) *Error {
-	return NewError(BadRequestErrorType, subject, message)
+func NewBadRequestError(subject, message string, paramKeyVals ...any) *Error {
+	return NewError(BadRequestErrorType, subject, message, paramKeyVals...)
 }
 
-func NewNotFoundError(subject, message string) *Error {
-	return NewError(NotFoundErrorType, subject, message)
+func NewNotFoundError(subject, message string, paramKeyVals ...any) *Error {
+	return NewError(NotFoundErrorType, subject, message, paramKeyVals...)
 }
 
-func NewBusinessError(subject, message string) *Error {
-	return NewError(BusinessErrorType, subject, message)
+func NewBusinessError(subject, message string, paramKeyVals ...any) *Error {
+	return NewError(BusinessErrorType, subject, message, paramKeyVals...)
 }
 
-func NewUnauthorizedError(subject, message string) *Error {
-	return NewError(UnauthorizedErrorType, subject, message)
+func NewUnauthorizedError(subject, message string, paramKeyVals ...any) *Error {
+	return NewError(UnauthorizedErrorType, subject, message, paramKeyVals...)
 }
 
-func NewForbiddenError(subject, message string) *Error {
-	return NewError(ForbiddenErrorType, subject, message)
+func NewForbiddenError(subject, message string, paramKeyVals ...any) *Error {
+	return NewError(ForbiddenErrorType, subject, message, paramKeyVals...)
 }
 
-func NewInternalError(subject, message string) *Error {
-	return NewError(InternalErrorType, subject, message)
+func NewInternalError(subject, message string, paramKeyVals ...any) *Error {
+	return NewError(InternalErrorType, subject, message, paramKeyVals...)
 }
 
 func GetError(err error) *Error {
@@ -93,7 +96,7 @@ func (e *Error) WithMessage(message string, params ...any) *Error {
 }
 
 // WithParams returns a copy of the error with additional key-value pairs merged into Params.
-// Keys must be strings; non-string keys are silently skipped.
+// Keys must be strings; a non-string key is surfaced under "!BADKEY".
 func (e *Error) WithParams(keyvals ...any) *Error {
 	if len(keyvals) == 0 && len(e.Params) == 0 {
 		n := *e
@@ -204,4 +207,14 @@ func copySliceToMap(src []any, dst map[string]any) {
 			dst["!BADKEY"] = src[i+1]
 		}
 	}
+}
+
+func sliceToMap(src []any) map[string]any {
+	if len(src) <= 1 {
+		return nil
+	}
+
+	m := make(map[string]any, len(src)/2)
+	copySliceToMap(src, m)
+	return m
 }

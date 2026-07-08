@@ -273,6 +273,50 @@ func TestProjectColumns(t *testing.T) {
 	}
 }
 
+func TestOmitExcludesColumnOnRead(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1, Name: "a", Color: "red", Price: 5},
+	)
+
+	got, err := table.Omit("color").First(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("First: %v", err)
+	}
+	if got == nil {
+		t.Fatal("First returned nil")
+	}
+	// The omitted column is left out of the SELECT, so it comes back zero-valued...
+	if got.Color != "" {
+		t.Errorf("Color = %q, want empty (omitted from SELECT)", got.Color)
+	}
+	// ...while the other columns are still populated.
+	if got.Name != "a" || got.Price != 5 {
+		t.Errorf("got = %+v, want Name=a Price=5", got)
+	}
+}
+
+func TestOmitExcludesColumnOnWrite(t *testing.T) {
+	ctx := context.Background()
+	table := openWidgets(t)
+
+	w := widget{ID: 1, Name: "a", Color: "red", Price: 5}
+	if err := table.Omit("price").Create(ctx, &w); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	got, err := table.Get(ctx, 1)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	// price was omitted from the INSERT, so it fell back to the column default.
+	if got.Price != 0 {
+		t.Errorf("Price = %d, want 0 (omitted from INSERT)", got.Price)
+	}
+	if got.Name != "a" || got.Color != "red" {
+		t.Errorf("got = %+v, want Name=a Color=red", got)
+	}
+}
+
 func TestProjectGroupByAggregate(t *testing.T) {
 	table := openWidgets(t,
 		widget{ID: 1, Color: "red", Price: 10},

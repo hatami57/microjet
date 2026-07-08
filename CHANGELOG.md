@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-07-08
+
+### Added
+
+- **Optional key-value params on `errorx` constructors** — `NewError` and every category
+  constructor (`NewBadRequestError`, `NewNotFoundError`, `NewBusinessError`,
+  `NewUnauthorizedError`, `NewForbiddenError`, `NewInternalError`) now take trailing
+  `paramKeyVals ...any` that are merged into `Params` with the same semantics as
+  `WithParams`: string keys, a non-string key surfaced under `!BADKEY`, and a dangling
+  trailing key dropped. The variadic signature is backward compatible with existing calls.
+- **`gormx.Table[T].Omit(columns...)`** — wraps GORM's `Omit` as the complement of `Select`:
+  on reads it excludes the columns from the `SELECT`; on `Create`/`Save`/`Update` it excludes
+  them from the written columns. Chainable and immutable like the other builder scopes.
+
 ## [0.26.0] - 2026-07-06
 
 ### Added

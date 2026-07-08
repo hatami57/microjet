@@ -3,6 +3,7 @@ package errorx
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -100,5 +101,57 @@ func TestIsCustomSentinelMatchesNarrowly(t *testing.T) {
 func TestIsDoesNotMatchPlainError(t *testing.T) {
 	if errors.Is(ErrInternal, errors.New("plain")) {
 		t.Error("typed error should not match an unrelated plain error")
+	}
+}
+
+func TestNewErrorParams(t *testing.T) {
+	cases := []struct {
+		name   string
+		params []any
+		want   map[string]any
+	}{
+		{"none", nil, nil},
+		{"pair", []any{"userID", 42}, map[string]any{"userID": 42}},
+		{"multiple", []any{"userID", 42, "field", "email"}, map[string]any{"userID": 42, "field": "email"}},
+		// A trailing key without a value is dropped.
+		{"odd trailing key dropped", []any{"userID", 42, "field"}, map[string]any{"userID": 42}},
+		// A lone key produces no params rather than a partial entry.
+		{"single key only", []any{"userID"}, nil},
+		// Non-string keys are surfaced under "!BADKEY" rather than dropped.
+		{"non-string key", []any{7, "value"}, map[string]any{"!BADKEY": "value"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := NewError(BadRequestErrorType, "Subj", "msg", c.params...)
+			if !reflect.DeepEqual(err.Params, c.want) {
+				t.Errorf("Params = %#v, want %#v", err.Params, c.want)
+			}
+		})
+	}
+}
+
+func TestConstructorsForwardParams(t *testing.T) {
+	cases := []struct {
+		name string
+		fn   func(subject, message string, paramKeyVals ...any) *Error
+		typ  ErrorType
+	}{
+		{"BadRequest", NewBadRequestError, BadRequestErrorType},
+		{"NotFound", NewNotFoundError, NotFoundErrorType},
+		{"Business", NewBusinessError, BusinessErrorType},
+		{"Unauthorized", NewUnauthorizedError, UnauthorizedErrorType},
+		{"Forbidden", NewForbiddenError, ForbiddenErrorType},
+		{"Internal", NewInternalError, InternalErrorType},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.fn("User", "boom", "userID", 42)
+			if err.Type != c.typ {
+				t.Errorf("Type = %q, want %q", err.Type, c.typ)
+			}
+			if got := err.Params["userID"]; got != 42 {
+				t.Errorf("Params[userID] = %v, want 42", got)
+			}
+		})
 	}
 }
