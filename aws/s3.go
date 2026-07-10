@@ -98,7 +98,7 @@ func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error 
 
 	// TODO: migrate to feature/s3/transfermanager once it stabilizes.
 	//lint:ignore SA1019 manager.Uploader is the current stable multipart uploader; its successor lives in a separate module.
-	uploader := manager.NewUploader(a.S3Client)
+	uploader := manager.NewUploader(a.S3Client) //nolint:staticcheck // SA1019: see note above (golangci-lint ignores //lint:ignore).
 
 	var tagging *string
 	if req.Headers != nil {
@@ -111,7 +111,7 @@ func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error 
 
 	a.Logger.Debug("uploading to s3", slog.String("path", req.LocalFilePath))
 	//lint:ignore SA1019 see note above; using the stable manager.Uploader API.
-	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
+	_, err = uploader.Upload(ctx, &s3.PutObjectInput{ //nolint:staticcheck // SA1019: see note above.
 		Bucket:      &req.BucketName,
 		Key:         &req.ObjectKey,
 		ContentType: &req.ContentType,

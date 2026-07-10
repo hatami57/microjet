@@ -73,14 +73,14 @@ func JWT(cfg JWTConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := extract(c)
 		if tokenStr == "" {
-			c.Error(errorx.ErrUnauthorized.WithMessage("missing bearer token"))
+			_ = c.Error(errorx.ErrUnauthorized.WithMessage("missing bearer token")) // gin returns the error it just recorded
 			c.Abort()
 			return
 		}
 		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(tokenStr, claims, keyfunc, parserOpts...)
 		if err != nil || !token.Valid {
-			c.Error(errorx.ErrUnauthorized.WithMessage("invalid or expired token"))
+			_ = c.Error(errorx.ErrUnauthorized.WithMessage("invalid or expired token")) // gin returns the error it just recorded
 			c.Abort()
 			return
 		}

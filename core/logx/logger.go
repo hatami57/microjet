@@ -67,9 +67,8 @@ func NewLogger(config *LogConfig, forceDebug bool) *slog.Logger {
 	}
 
 	if config != nil && config.File != nil && config.File.Enabled && config.File.Path != "" {
-		fileLevel := defaultLevel
+		fileLevel := config.File.Level
 		fileFormat := defaultFormat
-		fileLevel = config.File.Level
 		if config.File.Format != "" {
 			fileFormat = config.File.Format
 		}

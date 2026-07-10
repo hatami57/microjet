@@ -107,6 +107,30 @@ jobs:
         working-directory: ${{ matrix.module }}
         run: govulncheck ./...
 
+  # golangci-lint reads the repo-root .golangci.yml for every module. The
+  # Makefile `lint` target runs the same binary against the same config.
+  lint:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: "**/go.sum"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.module }}
+
   # Compiles the ```go blocks in README.md and docs/*.md against this checkout
   # and resolves every microjet symbol they name, so the docs cannot drift from
   # the API (IMPROVEMENTS §1.2).

@@ -29,7 +29,7 @@ func (q *QueryParamBase) GetMap() map[string]any { return q.data }
 // parameter rather than silently substituting a zero value.
 func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) error {
 	rv := reflect.ValueOf(target)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("BindQueryParams: target must be a non-nil pointer to a struct, got %T", target)
 	}
 	v := rv.Elem()
@@ -90,7 +90,7 @@ func parseQueryField(field reflect.Value, queryValue string) (any, error) {
 			field.SetInt(i)
 		}
 		return field.Interface(), err
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if field.Type().Elem().Kind() == reflect.Int32 {
 			i, err := strconv.ParseInt(queryValue, 10, 32)
 			if err == nil {

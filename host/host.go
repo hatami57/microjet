@@ -303,7 +303,9 @@ func (a *App) close() {
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
-		a.closeServices()
+		// Each failure is already logged per-service inside closeServices, and
+		// Close has no error to return, so the joined error is discarded here.
+		_ = a.closeServices()
 	})
 
 	// Bound the overall shutdown: a misbehaving service must not block exit

@@ -328,13 +328,34 @@ exposure.
   The other finding was the stdlib `crypto/tls` ECH leak (GO-2026-5856), fixed
   by the go1.26.5 toolchain that `go-version: stable` resolves to.
 
-### 4.2 [P1] `golangci-lint` in CI + committed config  `ci`
+### 4.2 [P1] `golangci-lint` in CI + committed config  `ci` — **done**
 
-The Makefile has a `lint` target but CI only enforces gofmt + staticcheck +
-tests, so the lint bar is optional. Commit a `.golangci.yml` (start minimal:
-govet, staticcheck, errcheck, revive, misspell — tune from there) and add the
-job (official `golangci/golangci-lint-action`, per-module via the matrix).
-Fix or `nolint`-annotate existing findings in the same PR so it lands green.
+The Makefile had a `lint` target but CI only enforced gofmt + staticcheck +
+tests, so the lint bar was optional.
+
+- [x] `.golangci.yml` at the repo root (v2 schema), enabling errcheck, govet,
+  ineffassign, misspell, revive, staticcheck, unused. Every module resolves it
+  by walking up from its own directory.
+- [x] `lint` job via `golangci/golangci-lint-action`, per-module over the
+  discover matrix. All 34 modules land green.
+- [x] Findings fixed rather than suppressed:
+  - `core/logx`: `fileLevel` was initialized to `defaultLevel` and overwritten
+    on the next line inside a block only reachable when `config.File != nil`,
+    so the initializer was dead. Collapsed; behavior identical.
+  - `httpx/query.go`: `reflect.Ptr` → `reflect.Pointer` (the modern spelling).
+  - `host/host.go`, `httpx/middleware/jwt.go`: three deliberate error discards
+    made explicit with `_ =` and a reason. `closeServices` already logs each
+    per-service failure and `Close()` has no error to return.
+  - `aws/s3.go`: the SA1019 deprecations already carried `//lint:ignore`, which
+    golangci-lint does not honour (it reads only `//nolint:`). Added the
+    `//nolint:staticcheck` twin; the `//lint:ignore` lines stay load-bearing for
+    `make staticcheck`.
+- [x] Disabled `QF*` (staticcheck's "quickfix" category): these are editor code
+  actions that `staticcheck ./...` itself does not run, which is why they fired
+  here while the staticcheck job was green. They also fight deliberate style —
+  QF1011 would strip the type from `var _ Iface = impl`, QF1008 would hide the
+  embedded field in `db.Dialector.Name()`. `ST1000` (package comments) is
+  deferred to its own commit as a large mechanical diff.
 
 ### 4.3 [P1] Auto-discover modules in the Makefile  `build` — **done**
 

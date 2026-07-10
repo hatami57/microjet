@@ -1,0 +1,78 @@
+# Shared lint config for every module in the workspace. The Makefile and CI
+# both run golangci-lint per module (each has its own go.mod), and each run
+# walks up to this file at the repo root.
+#
+# The enabled set is deliberately small: it must stay green on every module so
+# the gate is meaningful. Widen it in its own commit, fixing findings alongside.
+version: "2"
+
+run:
+  # A module's tests are part of its public contract here (testx exports test
+  # helpers), so lint them too.
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck # unchecked errors — the bug class this repo cares most about
+    - govet
+    - ineffassign
+    - misspell
+    - revive # golint successor: exported-symbol docs, naming, early-return
+    - staticcheck # in v2 this subsumes gosimple + stylecheck
+    - unused
+
+  settings:
+    errcheck:
+      # Failing to check these is idiomatic and near-universal in Go; flagging
+      # them trains reviewers to ignore errcheck output entirely.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net/http.ResponseWriter).Write
+
+    revive:
+      rules:
+        - name: exported
+          # Report an exported symbol only when its doc comment is missing,
+          # not when it merely fails to start with the symbol name.
+          arguments: [checkPrivateReceivers, disableStutteringCheck]
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: indent-error-flow
+        - name: unexported-return
+        - name: var-declaration
+
+    staticcheck:
+      checks:
+        - all
+        # ST1000: package comment on every package. Reasonable for a library,
+        # but it is a large mechanical diff — enable in its own commit.
+        - -ST1000
+        # QF*: "quickfix" refactorings, meant as editor code actions rather
+        # than a CI gate — `staticcheck ./...` does not run them either, which
+        # is why the staticcheck job is green while these fire. They also fight
+        # deliberate style here: QF1011 would strip the type from the
+        # `var _ Iface = impl` compile-time assertion, and QF1008 would hide
+        # the embedded field in `db.Dialector.Name()`.
+        - -QF*
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Examples are teaching material: they favour brevity over doc comments
+      # and error plumbing, and they are never released or imported.
+      - path: ^examples/
+        linters: [errcheck, revive]
+      # Table-driven tests reassign loop vars and ignore teardown errors.
+      - path: _test\.go$
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofmt
