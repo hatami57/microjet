@@ -290,12 +290,19 @@ Keep enforcing in review; nothing to change.
 
 ## 4. Maintainability / CI
 
-### 4.1 [P1] `govulncheck` in CI  `ci`
+### 4.1 [P1] `govulncheck` in CI  `ci` — **done**
 
 Table stakes for a public framework — its CVE exposure is its users' CVE
-exposure. Add a job running `golang.org/x/vuln/cmd/govulncheck ./...` per
-module (reuse the discover matrix), on PRs **and** on a weekly `schedule:`
-trigger (new CVEs land against unchanged code).
+exposure.
+
+- [x] Job runs `golang.org/x/vuln/cmd/govulncheck ./...` per module (reuses the
+  discover matrix), on PRs/pushes **and** on a weekly `schedule:` trigger.
+- [x] `make vuln` mirrors it locally.
+- [x] It found one on the first run: `quic-go` v0.59.0 (GO-2026-5676, HTTP/3
+  QPACK trailer memory exhaustion), reachable via the http3 symbols and pulled
+  in indirectly by every module carrying the HTTP stack — bumped to v0.59.1.
+  The other finding was the stdlib `crypto/tls` ECH leak (GO-2026-5856), fixed
+  by the go1.26.5 toolchain that `go-version: stable` resolves to.
 
 ### 4.2 [P1] `golangci-lint` in CI + committed config  `ci`
 
