@@ -106,3 +106,20 @@ jobs:
       - name: Run govulncheck
         working-directory: ${{ matrix.module }}
         run: govulncheck ./...
+
+  # Compiles the ```go blocks in README.md and docs/*.md against this checkout
+  # and resolves every microjet symbol they name, so the docs cannot drift from
+  # the API (IMPROVEMENTS §1.2).
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: "**/go.sum"
+
+      - name: Check doc snippets
+        run: ./scripts/check-doc-snippets.sh

@@ -4,7 +4,7 @@
 # and tests examples separately).
 MODULES := $(shell find . -name go.mod -not -path './examples/*' -not -path '*/vendor/*' | xargs -n1 dirname | sed 's|^\./||' | sort)
 
-.PHONY: build vet test fmt tidy lint staticcheck vuln release-patch release-minor $(MODULES)
+.PHONY: build vet test fmt tidy lint staticcheck vuln docs release-patch release-minor $(MODULES)
 
 build:
 	@for m in $(MODULES); do echo "==> build $$m"; (cd $$m && go build ./...) || exit 1; done
@@ -32,6 +32,11 @@ staticcheck:
 vuln:
 	@command -v govulncheck >/dev/null 2>&1 || { echo "govulncheck not installed: go install golang.org/x/vuln/cmd/govulncheck@latest"; exit 1; }
 	@for m in $(MODULES); do echo "==> govulncheck $$m"; (cd $$m && govulncheck ./...) || exit 1; done
+
+# Compile the ```go blocks in README.md/docs and resolve every microjet symbol
+# they name, so documented APIs cannot drift from the real ones.
+docs:
+	@scripts/check-doc-snippets.sh
 
 # Cut a lockstep release: bump internal requires, stamp the CHANGELOG, then
 # (after a confirmation prompt) commit, push, and tag every module. See

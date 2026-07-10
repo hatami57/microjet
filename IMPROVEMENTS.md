@@ -45,14 +45,38 @@ user.
   same drift (`host.WithAWS`, `host.WithTracing`, `host.WithSubscriber` era
   names appear in issues.md history; make sure none leak into user-facing docs).
 
-### 1.2 [P1] CI job that compiles README snippets  `ci`
+### 1.2 [P1] CI job that compiles README snippets  `ci` — **done**
 
-Doc drift recurs unless it breaks the build. Add a CI job that extracts fenced
-` ```go ` blocks from README.md (and `docs/*.md`), writes each into a throwaway
-module under a temp dir with `replace` directives pointing at the local
-modules, and runs `go build ./...`. Skip blocks marked ` ```go ignore `.
-A ~40-line shell/Go script in `scripts/` is enough; wire it as a `docs` job in
-ci.yml.
+Doc drift recurs unless it breaks the build. `scripts/check-doc-snippets.sh`,
+wired as the `docs` job in ci.yml and as `make docs`.
+
+The plan was "write each ` ```go ` block into a throwaway module and
+`go build ./...`". That only works for 2 of the 23 blocks: the rest are
+fragments that open with `import (...)` and then use `app`, `router`, `dbStore`
+— variables that exist only in the surrounding prose. Marking those
+` ```go ignore ` would have left a gate that checks almost nothing, and making
+them compile would mean padding user-facing docs with dummy declarations. So
+the script does two things instead:
+
+- [x] **compile** — blocks starting with `package` are written into a throwaway
+  module whose `replace` directives point at this checkout, then `go build ./...`.
+  `//go:embed` patterns get a placeholder file so they resolve.
+- [x] **resolve symbols** — for every block, each `pkg.Symbol` reference into a
+  microjet package is checked with `go doc`. This is precisely the §1.1 drift
+  class (`core.NewNotFoundError`, `gormx.NamedModule`,
+  `middleware.NewCachedTenantStore`) and it needs no change to how docs are
+  written. Import aliases are collected per file (a fragment often uses a
+  package an earlier block imported), but a block's own imports shadow them —
+  `docs/migrations.md` imports golang-migrate as `migrate`/`postgres`, which
+  must not resolve against `gormx/migrate` and `gormx/postgres`.
+- [x] ` ```go ignore ` is still honoured, for pseudo-code.
+- [x] It found drift on the first run: README documented `httpx.FindUUIDParam`,
+  `httpx.FindQuery`, `httpx.FindInt64Query`; the package exports only the
+  `Get*` forms. Fixed.
+
+Coverage today: 75 symbol references across 23 blocks, plus 2 compiled programs.
+Verified non-vacuous — reintroducing `core.NewNotFoundError` or a typo'd
+`host.MustNewTypo` fails the job.
 
 ### 1.3 [P1] Fix or remove the "Packages" table drift check  `docs` — **done** (folded into 1.1)
 

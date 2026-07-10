@@ -326,10 +326,10 @@ wrapping it would add nothing.
 ```go
 import "github.com/hatami57/microjet/httpx"
 
-// Typed param/query extraction
-id, _ := httpx.FindUUIDParam(c, "id")
-name, _ := httpx.FindQuery(c, "name")
-pageSize, _ := httpx.FindInt64Query(c, "pageSize")
+// Typed param/query extraction (each returns an errorx error on a bad value)
+id, _ := httpx.GetUUIDParam(c, "id")
+name, _ := httpx.GetQuery(c, "name") // *string; nil when absent
+pageSize, _ := httpx.GetInt64Query(c, "pageSize")
 
 // JSON body binding
 body, _ := httpx.Body[CreateUserRequest](c)
