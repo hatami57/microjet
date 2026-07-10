@@ -33,17 +33,30 @@ make build
 make vet
 make test
 
+# The same gates CI enforces:
+make lint         # golangci-lint, using the root .golangci.yml
+make staticcheck
+make vuln         # govulncheck: known CVEs reachable from our code
+make docs         # doc snippets still match the real API
+
 # Or target a single module:
 cd core && go test ./...
 ```
 
-If you add a new module, add it to `go.work` (`go work use ./newmodule`) and to
-the `MODULES` list in the `Makefile`.
+`make lint`, `make staticcheck` and `make vuln` need their tools on `PATH`; each
+target prints the `go install` line if the binary is missing.
+
+If you add a new module, add it to `go.work` (`go work use ./newmodule`). The
+`Makefile` and CI both discover modules by finding `go.mod` files, so there is
+no list to update.
 
 ## Coding guidelines
 
 - Run `gofmt`/`go vet` before committing (`make fmt vet`).
 - Public functions and types should have doc comments.
+- ` ```go ` blocks in `README.md` and `docs/` are checked by `make docs`: blocks
+  starting with `package` are compiled, and every `pkg.Symbol` reference into a
+  microjet package must resolve. Mark pseudo-code ` ```go ignore ` to skip it.
 - Library code must not call `os.Exit` or `panic` for recoverable errors —
   return an error and let the caller decide. The `host` package exposes
   `Must*` helpers for the `main()` convenience case.
@@ -51,21 +64,26 @@ the `MODULES` list in the `Makefile`.
 
 ## Releasing (maintainers)
 
-Because each module is versioned independently, cross-module changes are
-released by tagging each affected module with a module-scoped tag:
+Every module is released in lockstep on one version, tagged with module-scoped
+tags (`core/v0.2.0`, `httpx/v0.2.0`, …). `scripts/release.sh` does the whole
+flow — bump internal `require` lines, stamp the CHANGELOG, then pause for
+confirmation before committing, pushing and tagging:
 
 ```bash
-git tag core/v0.2.0
-git tag httpx/v0.2.0
-git push --tags
+make release-patch   # or: make release-minor
 ```
 
-Then bump the corresponding `require` lines in dependent modules to the new
-tagged versions.
+Note the ordering constraint it encodes: internal requires are bumped by string
+replacement rather than `go get`, because `go get` cannot resolve the next
+version until its tags exist.
+
+Describe user-visible changes under a `## [Unreleased]` heading in
+`CHANGELOG.md`; the script renames it to the released version.
 
 ## Submitting changes
 
 1. Fork and create a feature branch.
 2. Make your change with tests.
-3. Ensure `make build vet test` passes.
+3. Ensure `make build vet test lint` passes (and `make docs` if you touched
+   `README.md` or `docs/`).
 4. Open a pull request describing the change and its motivation.

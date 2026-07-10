@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **`quic-go` bumped to v0.59.1** — v0.59.0 is affected by
+  [GO-2026-5676](https://pkg.go.dev/vuln/GO-2026-5676), an HTTP/3 QPACK trailer
+  expansion memory exhaustion, and `govulncheck` reports the `http3` symbols as
+  reachable. It arrives as an indirect dependency of every module that carries
+  the HTTP stack, so the `require` is bumped in each. Importers pick up the fix
+  by upgrading to this release.
+
+### Fixed
+
+- **README documented three `httpx` helpers that do not exist** —
+  `FindUUIDParam`, `FindQuery` and `FindInt64Query`; the package exports the
+  `Get*` forms (`GetUUIDParam`, `GetQuery`, `GetInt64Query`). The new `docs` CI
+  job now resolves every documented symbol, so this class of drift breaks the
+  build.
+
+### Tooling
+
+- `govulncheck` runs per module in CI, on PRs and on a weekly schedule (new CVEs
+  are published against unchanged code). `make vuln` mirrors it.
+- `golangci-lint` is enforced in CI against a committed root `.golangci.yml`
+  (errcheck, govet, ineffassign, misspell, revive, staticcheck, unused).
+- A `docs` job compiles the self-contained ` ```go ` blocks in `README.md` and
+  `docs/*.md` against the local modules, and resolves every microjet symbol the
+  remaining fragments name. `make docs` mirrors it.
+
 ## [0.29.0] - 2026-07-12
 
 ### Added
