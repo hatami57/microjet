@@ -6,8 +6,10 @@
 // relayed on recovery.
 //
 // The flow: POST /orders writes an Order row and enqueues an "orders.created"
-// event in one transaction; the relay (running every 2s) publishes it to NATS;
-// the in-process subscriber logs it.
+// event in one transaction; the relay (running every 2s, and woken immediately by
+// each enqueue) publishes it to NATS; the in-process subscriber logs it. The relay
+// is configured to quarantine poison messages after 10 failed attempts and to
+// prune rows published more than 24h ago.
 //
 // Needs a running NATS server; the database is local SQLite (created at runtime):
 //
@@ -32,7 +34,6 @@ import (
 	"github.com/hatami57/microjet/messaging"
 	"github.com/hatami57/microjet/messaging/nats"
 	"github.com/hatami57/microjet/outbox"
-	"gorm.io/gorm"
 )
 
 const subject = "orders.created"
@@ -54,8 +55,15 @@ func main() {
 	app := host.MustNew().
 		WithModule(gormx.Module(sqlite.Driver())).
 		WithModule(messaging.Module(nats.New())).
-		// The outbox module migrates its table on startup and runs the relay.
-		WithModule(outbox.Module(outbox.Interval(2 * time.Second))).
+		// The outbox module migrates its table on startup and runs the relay. The
+		// relay drains every Interval (and promptly after each enqueue); MaxAttempts
+		// quarantines a message that keeps failing to publish instead of retrying it
+		// forever; Retention prunes long-published rows so the table stays bounded.
+		WithModule(outbox.Module(
+			outbox.Interval(2*time.Second),
+			outbox.MaxAttempts(10),
+			outbox.Retention(24*time.Hour),
+		)).
 		WithModule(httpx.Module())
 
 	// Subscribe so we can see relayed events arrive (decoded with HandleJSON).
@@ -72,6 +80,9 @@ func main() {
 
 	app.Setup(func(a *host.App) error {
 		db := gormx.Of(a)
+		repo := gormx.NewBaseRepository(db)
+		orders := gormx.NewTable[Order](db)
+		enq := outbox.NewEnqueuer(db)
 		httpx.Of(a).Router.POST("/orders", func(c *gin.Context) {
 			body, err := httpx.Body[Order](c)
 			if err != nil {
@@ -79,13 +90,15 @@ func main() {
 				return
 			}
 
-			// The domain write and the event enqueue share one transaction: either
-			// both commit or neither does, so an event can never be lost or orphaned.
-			err = db.Transaction(func(tx *gorm.DB) error {
-				if err := tx.Create(&body).Error; err != nil {
+			// The domain write and the event enqueue share one gormx transaction:
+			// RunTx threads the tx through the context, both the Create and the
+			// Enqueue join it, so either both commit or neither does — an event can
+			// never be lost or orphaned.
+			err = repo.RunTx(c.Request.Context(), func(ctx context.Context) error {
+				if err := orders.Create(ctx, &body); err != nil {
 					return err
 				}
-				return outbox.EnqueueJSON(tx, subject, OrderCreated{
+				return enq.EnqueueJSON(ctx, subject, OrderCreated{
 					OrderID: body.ID,
 					Item:    body.Item,
 					Qty:     body.Qty,

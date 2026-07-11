@@ -6,6 +6,7 @@ import (
 
 	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/host"
+	"github.com/hatami57/microjet/messaging"
 )
 
 func newApp(t *testing.T) *host.App {
@@ -17,34 +18,49 @@ func newApp(t *testing.T) *host.App {
 	return app
 }
 
-func TestMigrateTableCreatesTable(t *testing.T) {
+func newRelayService() *relayService {
+	return &relayService{cfg: config{dbName: gormx.DefaultDatabase, batchSize: DefaultBatchSize}, enq: &Enqueuer{}}
+}
+
+func TestWireMigratesTableAndBuildsRelay(t *testing.T) {
+	db := openDB(t)
+	app := newApp(t)
+	svc := newRelayService()
+	if err := svc.wire(app, db, &fakePublisher{}); err != nil {
+		t.Fatalf("wire: %v", err)
+	}
+	if !db.Migrator().HasTable("outbox_messages") {
+		t.Fatal("outbox table was not migrated")
+	}
+	if svc.enq.table == nil {
+		t.Fatal("wire did not connect the enqueuer table")
+	}
+	if svc.relay == nil {
+		t.Fatal("wire did not build the relay")
+	}
+}
+
+func TestSetupWithoutDatabaseFails(t *testing.T) {
+	app := newApp(t)
+	if err := newRelayService().Setup(app); err == nil {
+		t.Error("expected Setup to fail without a database installed")
+	}
+}
+
+func TestSetupWithoutMessagingFails(t *testing.T) {
 	db := openDB(t)
 	app := newApp(t)
 	app.WithModule(gormx.Inject(db))
 	if err := app.Err(); err != nil {
 		t.Fatalf("inject db: %v", err)
 	}
-	if err := migrateTable(app, gormx.DefaultDatabase); err != nil {
-		t.Fatalf("migrateTable: %v", err)
-	}
-	if !db.Migrator().HasTable("outbox_messages") {
-		t.Fatal("outbox table was not migrated")
+	if err := newRelayService().Setup(app); err == nil {
+		t.Error("expected Setup to fail without a messaging client installed")
 	}
 }
 
-func TestMigrateTableWithoutDatabaseFails(t *testing.T) {
-	app := newApp(t)
-	if err := migrateTable(app, gormx.DefaultDatabase); err == nil {
-		t.Error("expected migrateTable to fail without a database installed")
-	}
-}
-
-func TestRelayOnceWithoutMessagingFails(t *testing.T) {
-	db := openDB(t)
-	app := newApp(t)
-	app.WithModule(gormx.Inject(db))
-	err := relayOnce(context.Background(), app, config{dbName: gormx.DefaultDatabase, batchSize: DefaultBatchSize})
-	if err == nil {
-		t.Error("expected relayOnce to fail without a messaging client")
+func TestEnqueueBeforeSetupFails(t *testing.T) {
+	if err := (&Enqueuer{}).Enqueue(context.Background(), messaging.Message{Subject: "x"}); err == nil {
+		t.Error("expected Enqueue on an unwired enqueuer to fail")
 	}
 }

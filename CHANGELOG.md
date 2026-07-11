@@ -13,6 +13,27 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mapped to gorm's portable sentinels. New `gormx` helpers classify them without importing
   gorm or sniffing driver error codes (e.g. pg `SQLSTATE 23505`): `IsDuplicateKey`,
   `IsForeignKeyViolation`, `IsCheckConstraintViolation`, and `IsRecordNotFound`.
+- **Outbox durability and observability knobs (`outbox`)** — the enqueuer now captures the
+  caller's trace context and correlation id at enqueue time, so events relayed later from a
+  background context keep their lineage (matching the live publisher). New options harden the
+  relay: `outbox.MaxAttempts(n)` / `WithMaxAttempts` quarantines a poison message once it has
+  failed `n` times (recording it in a new `FailedAt` column instead of retrying forever), and
+  `outbox.Retention(d)` / `WithRetention` (via `Relay.PrunePublished`) deletes rows published
+  more than `d` ago so the table stays bounded. The relay also drains promptly after each
+  enqueue instead of only on its interval.
+
+### Changed
+
+- **`outbox` is now gormx-native (breaking)** — enqueuing moved from the package-level
+  `outbox.Enqueue`/`outbox.EnqueueJSON(tx *gorm.DB, ...)` to an `*outbox.Enqueuer`
+  (`outbox.NewEnqueuer(db)`, or resolve the shared one with `outbox.Of(app)` /
+  `outbox.Lookup(app)` when `outbox.Module` is installed). The enqueuer writes through
+  `gormx.Table[Message]`, so calls are context-threaded: enqueuing inside a
+  `gormx.BaseRepository.RunTx` joins that transaction — no more passing a raw `*gorm.DB`
+  around. The relay likewise drains via `gormx.Table` and is built once (per named database)
+  by a `relayService.Setup` hook that fails fast if the database or messaging client is
+  missing. Migrate callers: replace `outbox.EnqueueJSON(tx, subj, v)` inside a
+  `db.Transaction` with `outbox.Of(app).EnqueueJSON(ctx, subj, v)` inside a `RunTx`.
 
 ## [0.28.0] - 2026-07-08
 
