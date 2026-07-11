@@ -29,6 +29,7 @@ func (sqliteDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error) {
 	db, err := gorm.Open(glebarez.Open(cfg.Name), &gorm.Config{
 		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
+		TranslateError:       true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to sqlite database: %w", err)

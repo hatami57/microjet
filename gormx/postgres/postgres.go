@@ -38,6 +38,7 @@ func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error)
 	db, err := gorm.Open(gormpg.Open(dsn), &gorm.Config{
 		Logger:               newGormLogger(log),
 		FullSaveAssociations: false,
+		TranslateError:       true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to postgresql: %w", err)
