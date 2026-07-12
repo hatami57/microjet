@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`gormx.Table` shared one model struct across all calls, racing under
+  concurrent writes** — `UpdateMap`, `UpdateColumn` and `UpdateColumns` hand the
+  table's model to GORM, which writes the assigned columns (and any auto-updated
+  timestamp) back into that struct via reflection. A single `*TEntity` was
+  allocated per `Table` and reused, so concurrent writes through a shared
+  repository raced on it (`go test -race` flags it, and a stale primary key could
+  leak into a later statement's `WHERE`). Each call now resolves the schema from a
+  fresh model value; `entityName` no longer dereferences the shared struct either.
+
 ## [0.29.1] - 2026-07-12
 
 ### Security

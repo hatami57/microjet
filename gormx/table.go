@@ -79,7 +79,6 @@ type preloadEntry struct {
 // Call Preload to eager-load associations before executing a query.
 // Call WhereIf to accumulate conditional WHERE clauses.
 type Table[TEntity any] struct {
-	entity   *TEntity
 	gormDB   *gorm.DB
 	preloads []preloadEntry
 	scopes   []func(*gorm.DB) *gorm.DB
@@ -146,8 +145,7 @@ func (b *BaseListRequest[T]) CreateNextPageToken(_ []T) (*string, error) { retur
 
 // NewTable creates a Table for TEntity backed by a database.
 func NewTable[TEntity any](db *gorm.DB) *Table[TEntity] {
-	var entity TEntity
-	return &Table[TEntity]{entity: &entity, gormDB: db}
+	return &Table[TEntity]{gormDB: db}
 }
 
 // clone returns a shallow copy of the Table. The preloads and scopes slices are
@@ -155,7 +153,6 @@ func NewTable[TEntity any](db *gorm.DB) *Table[TEntity] {
 // never mutate the original Table.
 func (t *Table[TEntity]) clone() *Table[TEntity] {
 	return &Table[TEntity]{
-		entity:   t.entity,
 		gormDB:   t.gormDB,
 		preloads: t.preloads,
 		scopes:   t.scopes,
@@ -322,6 +319,15 @@ func (t *Table[TEntity]) LockForUpdate() *Table[TEntity] {
 	})
 }
 
+// model returns a fresh zero-valued *TEntity for GORM to resolve the table and
+// schema from. A new value is allocated per call rather than shared on the Table:
+// map-based Updates write assigned columns (and auto-updated timestamps) back into
+// the model struct via reflection, so a single shared instance would be a data race
+// across concurrent writes through the same Table.
+func (t *Table[TEntity]) model() *TEntity {
+	return new(TEntity)
+}
+
 func (t *Table[TEntity]) db(ctx context.Context) *gorm.DB {
 	var base *gorm.DB
 	if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
@@ -387,7 +393,7 @@ func (t *Table[TEntity]) Update(ctx context.Context, item *TEntity) error {
 //	    "id = ? AND used < capacity", id)
 //	// n == 0 means the row was missing or at capacity.
 func (t *Table[TEntity]) UpdateMap(ctx context.Context, values map[string]any, where ...any) (int64, error) {
-	q := t.db(ctx).Model(t.entity)
+	q := t.db(ctx).Model(t.model())
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -401,7 +407,7 @@ func (t *Table[TEntity]) UpdateMap(ctx context.Context, values map[string]any, w
 // Reach for it on bulk maintenance writes where hook/timestamp side effects are
 // unwanted; prefer UpdateMap for ordinary updates.
 func (t *Table[TEntity]) UpdateColumn(ctx context.Context, column string, value any, where ...any) (int64, error) {
-	q := t.db(ctx).Model(t.entity)
+	q := t.db(ctx).Model(t.model())
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -413,7 +419,7 @@ func (t *Table[TEntity]) UpdateColumn(ctx context.Context, column string, value 
 // the multi-column form of UpdateColumn: like it, the raw columns are written WITHOUT
 // model hooks or timestamp auto-updates — the no-side-effects counterpart to UpdateMap.
 func (t *Table[TEntity]) UpdateColumns(ctx context.Context, values map[string]any, where ...any) (int64, error) {
-	q := t.db(ctx).Model(t.entity)
+	q := t.db(ctx).Model(t.model())
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -423,13 +429,13 @@ func (t *Table[TEntity]) UpdateColumns(ctx context.Context, values map[string]an
 
 // Delete removes rows matching conditions. Accepts the same GORM condition formats as Find.
 func (t *Table[TEntity]) Delete(ctx context.Context, conditions ...any) error {
-	return t.db(ctx).Delete(t.entity, conditions...).Error
+	return t.db(ctx).Delete(t.model(), conditions...).Error
 }
 
 // Count returns the number of rows matching the optional where conditions.
 func (t *Table[TEntity]) Count(ctx context.Context, where ...any) (int64, error) {
 	var count int64
-	q := t.db(ctx).Model(t.entity)
+	q := t.db(ctx).Model(t.model())
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -451,7 +457,7 @@ func (t *Table[TEntity]) Count(ctx context.Context, where ...any) (int64, error)
 // Where/WhereIf scopes. The expression is raw SQL, so when it can be NULL (e.g. over an
 // empty set) wrap it in COALESCE to give dest a default rather than failing the scan.
 func (t *Table[TEntity]) Aggregate(ctx context.Context, expr string, dest any, where ...any) error {
-	q := t.db(ctx).Model(t.entity)
+	q := t.db(ctx).Model(t.model())
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -487,7 +493,7 @@ func (t *Table[TEntity]) Min(ctx context.Context, column string, dest any, where
 // element per matching row with duplicates preserved. Accepts optional GORM-style where
 // conditions to scope the query. Use PluckDistinct to deduplicate.
 func (t *Table[TEntity]) Pluck(ctx context.Context, column string, dest any, where ...any) error {
-	q := t.db(ctx).Model(t.entity)
+	q := t.db(ctx).Model(t.model())
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -497,7 +503,7 @@ func (t *Table[TEntity]) Pluck(ctx context.Context, column string, dest any, whe
 // PluckDistinct collects unique values from column into dest (a pointer to a slice).
 // Accepts optional GORM-style where conditions to scope the query.
 func (t *Table[TEntity]) PluckDistinct(ctx context.Context, column string, dest any, where ...any) error {
-	q := t.db(ctx).Model(t.entity).Distinct(column)
+	q := t.db(ctx).Model(t.model()).Distinct(column)
 	if len(where) > 0 {
 		q = q.Where(where[0], where[1:]...)
 	}
@@ -587,7 +593,7 @@ func (t *Table[TEntity]) Get(ctx context.Context, conditions ...any) (*TEntity, 
 // entityName returns the Go type name of TEntity, used as the subject of the
 // not-found error produced by Get.
 func (t *Table[TEntity]) entityName() string {
-	return reflect.TypeOf(*t.entity).Name()
+	return reflect.TypeFor[TEntity]().Name()
 }
 
 // Exists reports whether any row matches the optional where conditions (combined with
@@ -775,7 +781,7 @@ func (t *Table[TEntity]) applyFilter(q *gorm.DB, req ListRequest[TEntity]) *gorm
 // page fetch do not share statement state.
 func (t *Table[TEntity]) listByOffset(ctx context.Context, req ListRequest[TEntity], pageSize, offset int) (*types.PagedResult[TEntity], error) {
 	var totalCount int64
-	countQ := t.applyFilter(t.db(ctx).Model(t.entity), req)
+	countQ := t.applyFilter(t.db(ctx).Model(t.model()), req)
 	if err := countQ.Count(&totalCount).Error; err != nil {
 		return nil, err
 	}
@@ -836,7 +842,7 @@ func (t *Table[TEntity]) FindInBatches(ctx context.Context, batchSize int, fn fu
 //	    Group("campaign_id").
 //	    Project(ctx, &rows)
 func (t *Table[TEntity]) Project(ctx context.Context, dest any) error {
-	return t.db(ctx).Model(t.entity).Find(dest).Error
+	return t.db(ctx).Model(t.model()).Find(dest).Error
 }
 
 // ProjectFirst is the single-row form of Project: it maps the first matching row into dest
@@ -844,7 +850,7 @@ func (t *Table[TEntity]) Project(ctx context.Context, dest any) error {
 // dest untouched and returns (false, nil) — the missing row is not an error. Chain Order on
 // the Table to control which row "first" selects; otherwise it is the entity's primary key.
 func (t *Table[TEntity]) ProjectFirst(ctx context.Context, dest any) (bool, error) {
-	err := t.db(ctx).Model(t.entity).First(dest).Error
+	err := t.db(ctx).Model(t.model()).First(dest).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
