@@ -4,13 +4,13 @@ go 1.26.2
 
 require (
 	github.com/gin-gonic/gin v1.12.0
-	github.com/hatami57/microjet/gormx v0.28.0
-	github.com/hatami57/microjet/gormx/sqlite v0.28.0
-	github.com/hatami57/microjet/host v0.28.0
-	github.com/hatami57/microjet/httpx v0.28.0
-	github.com/hatami57/microjet/messaging v0.28.0
-	github.com/hatami57/microjet/messaging/nats v0.28.0
-	github.com/hatami57/microjet/outbox v0.28.0
+	github.com/hatami57/microjet/gormx v0.29.0
+	github.com/hatami57/microjet/gormx/sqlite v0.29.0
+	github.com/hatami57/microjet/host v0.29.0
+	github.com/hatami57/microjet/httpx v0.29.0
+	github.com/hatami57/microjet/messaging v0.29.0
+	github.com/hatami57/microjet/messaging/nats v0.29.0
+	github.com/hatami57/microjet/outbox v0.29.0
 	gorm.io/gorm v1.31.1
 )
 
@@ -44,7 +44,7 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hatami57/microjet/core v0.28.0 // indirect
+	github.com/hatami57/microjet/core v0.29.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

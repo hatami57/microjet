@@ -4,8 +4,8 @@ go 1.26.2
 
 require (
 	github.com/glebarez/sqlite v1.11.0
-	github.com/hatami57/microjet/core v0.28.0
-	github.com/hatami57/microjet/host v0.28.0
+	github.com/hatami57/microjet/core v0.29.0
+	github.com/hatami57/microjet/host v0.29.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	gorm.io/gorm v1.31.1
