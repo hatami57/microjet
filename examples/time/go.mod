@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/time
 
 go 1.26.2
 
-require github.com/hatami57/microjet/core v0.29.1
+require github.com/hatami57/microjet/core v0.29.2
 
 replace (
 	github.com/hatami57/microjet/aws => ../../aws
