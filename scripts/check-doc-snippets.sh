@@ -32,6 +32,18 @@ trap 'rm -rf "$WORK"' EXIT
 MODPREFIX="github.com/hatami57/microjet"
 
 cd "$ROOT"
+
+# Preflight: prove `go doc` can resolve a microjet package that certainly exists
+# before attributing anything to the docs. Without this, an environment that
+# cannot load the workspace at all reports every documented symbol as missing,
+# which reads as catastrophic API drift instead of a broken toolchain.
+if ! probe=$(go doc "$MODPREFIX/core" 2>&1); then
+  echo "error: go doc cannot resolve $MODPREFIX/core, so no symbol can be checked." >&2
+  echo "       This is a toolchain/workspace problem, not doc drift:" >&2
+  printf '%s\n' "$probe" | sed 's/^/  /' >&2
+  exit 1
+fi
+
 FILES=(README.md)
 while IFS= read -r f; do FILES+=("$f"); done < <(find docs -name '*.md' | sort)
 
@@ -148,7 +160,21 @@ for f in "${FILES[@]}"; do
         [ -z "$sym" ] && continue
         key="$path $sym"
         if [ -z "${SEEN[$key]+x}" ]; then
-          if go doc "$path" "$sym" >/dev/null 2>&1; then SEEN[$key]=1; else SEEN[$key]=2; fi
+          # `go doc` exits non-zero both for real drift ("no symbol X in package
+          # Y") and for anything that stops it loading the package at all — a
+          # toolchain, proxy, checksum or workspace failure. Reporting the latter
+          # as drift is a lie that sends you hunting through the docs for symbols
+          # that exist, so only "no symbol" counts; every other error aborts with
+          # the message the go command actually printed.
+          if out=$(go doc "$path" "$sym" 2>&1); then
+            SEEN[$key]=1
+          elif printf '%s' "$out" | grep -q "^doc: no symbol "; then
+            SEEN[$key]=2
+          else
+            echo "error: go doc could not load $path — this is not doc drift:" >&2
+            printf '%s\n' "$out" | sed 's/^/  /' >&2
+            exit 1
+          fi
         fi
         nsyms=$((nsyms + 1))
         if [ "${SEEN[$key]}" = "2" ]; then
