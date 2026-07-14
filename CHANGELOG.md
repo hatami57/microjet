@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`gormx.Table` write methods now report affected rows (breaking)** — `Delete`, `Update`,
+  `Save`, `Upsert` and `CreateMany` returned a bare `error`, discarding the row count the
+  database already sends back; `FindInBatches` likewise discarded the number of rows it
+  streamed. All six now return `(int64, error)`, matching `UpdateMap`, `UpdateColumn`,
+  `UpdateColumns` and `Exec`, which already did. The count is what distinguishes "no row
+  matched" from "the write failed": a zero from `Delete` or `Update` with a nil error means
+  the row was already gone or a `Where` guard rejected it, which is how an idempotent
+  re-delete or a conditional update is detected. `FindInBatches` reports the total rows
+  processed across all batches, so a backfill can report its own progress. Migrate callers:
+  `if err := t.Delete(ctx, …); err != nil` becomes `if _, err := t.Delete(ctx, …); err != nil`,
+  and likewise for the others — discard the count where it isn't needed.
+- **`outbox.Relay.PrunePublished` no longer counts before deleting** — it ran a `Count` and
+  then a `Delete` with the same condition purely to report how many rows it removed. It now
+  takes the count from the delete itself: one round trip instead of two, and no window in
+  which the reported number can go stale.
+
 ## [0.29.2] - 2026-07-12
 
 ### Fixed

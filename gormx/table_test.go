@@ -491,6 +491,40 @@ func TestUpdateMapReportsAffectedAndGuards(t *testing.T) {
 	}
 }
 
+func TestDeleteReportsAffected(t *testing.T) {
+	table := openWidgets(t,
+		widget{ID: 1, Color: "red"},
+		widget{ID: 2, Color: "red"},
+		widget{ID: 3, Color: "blue"},
+	)
+	ctx := context.Background()
+
+	n, err := table.Delete(ctx, "color = ?", "red")
+	if err != nil {
+		t.Fatalf("Delete(red): %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("Delete(red) affected = %d, want 2", n)
+	}
+
+	// Nothing left to match: zero rows, no error.
+	n, err = table.Delete(ctx, "color = ?", "red")
+	if err != nil {
+		t.Fatalf("Delete(red, again): %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("Delete(red, again) affected = %d, want 0", n)
+	}
+
+	remaining, err := table.Count(ctx)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if remaining != 1 {
+		t.Fatalf("remaining = %d, want 1", remaining)
+	}
+}
+
 func TestUpdateMapAtomicExpr(t *testing.T) {
 	table := openWidgets(t, widget{ID: 1, Price: 5})
 	ctx := context.Background()
@@ -657,7 +691,7 @@ func TestFindInBatches(t *testing.T) {
 	ctx := context.Background()
 
 	var batches [][]int
-	err := table.Order("id").FindInBatches(ctx, 2, func(batch []*widget) error {
+	n, err := table.Order("id").FindInBatches(ctx, 2, func(batch []*widget) error {
 		ids := make([]int, len(batch))
 		for i, w := range batch {
 			ids[i] = w.ID
@@ -672,11 +706,15 @@ func TestFindInBatches(t *testing.T) {
 	if !reflect.DeepEqual(batches, want) {
 		t.Fatalf("batches = %v, want %v", batches, want)
 	}
+	if n != 5 {
+		t.Fatalf("processed = %d, want 5", n)
+	}
 
-	// An error from the callback stops iteration and surfaces.
+	// An error from the callback stops iteration and surfaces; the count covers only
+	// the batches processed before the stop.
 	stop := errors.New("stop")
 	var seen int
-	err = table.Order("id").FindInBatches(ctx, 2, func(batch []*widget) error {
+	n, err = table.Order("id").FindInBatches(ctx, 2, func(batch []*widget) error {
 		seen += len(batch)
 		return stop
 	})
@@ -685,6 +723,9 @@ func TestFindInBatches(t *testing.T) {
 	}
 	if seen != 2 {
 		t.Fatalf("processed %d rows before stop, want 2", seen)
+	}
+	if n != 2 {
+		t.Fatalf("processed = %d, want 2", n)
 	}
 }
 
@@ -705,7 +746,8 @@ func TestLockForUpdateWithinTx(t *testing.T) {
 			return err
 		}
 		w.Price += 100
-		return table.Update(ctx, w)
+		_, err = table.Update(ctx, w)
+		return err
 	})
 	if err != nil {
 		t.Fatalf("RunTx: %v", err)

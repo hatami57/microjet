@@ -142,7 +142,7 @@ func TestConcurrentReadWriteMixNoDataRace(t *testing.T) {
 		}
 	})
 	worker(func() { // Delete passes the model to GORM
-		if err := table.Delete(ctx, "id = ?", 2); err != nil {
+		if _, err := table.Delete(ctx, "id = ?", 2); err != nil {
 			t.Errorf("Delete: %v", err)
 		}
 	})

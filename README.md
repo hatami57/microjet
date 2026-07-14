@@ -414,7 +414,8 @@ repo.RunTx(ctx, func(ctx context.Context) error {
         return err
     }
     acct.Balance = recompute(acct.Balance)
-    return accounts.Update(ctx, acct)
+    _, err = accounts.Update(ctx, acct)
+    return err
 })
 
 // UpdateColumn(s) write raw columns without hooks or timestamp auto-updates; Raw/Exec are

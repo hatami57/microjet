@@ -170,14 +170,8 @@ func (r *Relay) PrunePublished(ctx context.Context) (int64, error) {
 	}
 	cutoff := r.clock.Now().Add(-r.retention)
 	const cond = "published_at IS NOT NULL AND published_at < ?"
-	n, err := r.table.Count(ctx, cond, cutoff)
+	n, err := r.table.Delete(ctx, cond, cutoff)
 	if err != nil {
-		return 0, errorx.NewInternalError("outbox", "counting prunable messages failed").WithInner(err)
-	}
-	if n == 0 {
-		return 0, nil
-	}
-	if err := r.table.Delete(ctx, cond, cutoff); err != nil {
 		return 0, errorx.NewInternalError("outbox", "pruning published messages failed").WithInner(err)
 	}
 	return n, nil

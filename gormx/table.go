@@ -302,7 +302,8 @@ func (t *Table[TEntity]) Unscoped() *Table[TEntity] {
 //	        return err
 //	    }
 //	    acct.Balance = recompute(acct.Balance)
-//	    return t.Update(ctx, acct)
+//	    _, err = t.Update(ctx, acct)
+//	    return err
 //	})
 //
 // Engine caveat: this is a Postgres/MySQL feature. The SQLite driver silently drops
@@ -353,25 +354,43 @@ func (t *Table[TEntity]) Create(ctx context.Context, item *TEntity) error {
 	return t.db(ctx).Create(item).Error
 }
 
-// CreateMany inserts items in batches of batchSize. Use for bulk inserts.
-func (t *Table[TEntity]) CreateMany(ctx context.Context, items []*TEntity, batchSize int) error {
-	return t.db(ctx).CreateInBatches(items, batchSize).Error
+// CreateMany inserts items in batches of batchSize and reports how many rows were
+// inserted. Use for bulk inserts. The count equals len(items) on a plain insert, so it
+// is mainly a check against a conflict clause silently skipping rows.
+func (t *Table[TEntity]) CreateMany(ctx context.Context, items []*TEntity, batchSize int) (int64, error) {
+	res := t.db(ctx).CreateInBatches(items, batchSize)
+	return res.RowsAffected, res.Error
 }
 
-// Save performs a full upsert — all fields are written. Use Update or UpdateMap for partial updates.
-func (t *Table[TEntity]) Save(ctx context.Context, item *TEntity) error {
-	return t.db(ctx).Save(item).Error
+// Save performs a full upsert — all fields are written — and reports how many rows were
+// written. Use Update or UpdateMap for partial updates.
+func (t *Table[TEntity]) Save(ctx context.Context, item *TEntity) (int64, error) {
+	res := t.db(ctx).Save(item)
+	return res.RowsAffected, res.Error
 }
 
-// Upsert inserts item or updates all columns if the primary key already exists.
-// Uses a database-level ON CONFLICT clause, making it safe under concurrent writes.
-func (t *Table[TEntity]) Upsert(ctx context.Context, item *TEntity) error {
-	return t.db(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(item).Error
+// Upsert inserts item or updates all columns if the primary key already exists, and
+// reports how many rows were written. Uses a database-level ON CONFLICT clause, making
+// it safe under concurrent writes. The count does not distinguish an insert from an
+// update — both write one row.
+func (t *Table[TEntity]) Upsert(ctx context.Context, item *TEntity) (int64, error) {
+	res := t.db(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(item)
+	return res.RowsAffected, res.Error
 }
 
-// Update performs a partial update — only non-zero fields in item are written.
-func (t *Table[TEntity]) Update(ctx context.Context, item *TEntity) error {
-	return t.db(ctx).Updates(item).Error
+// Update performs a partial update — only non-zero fields in item are written — and
+// reports how many rows were updated.
+//
+// A zero count with a nil error means no row matched: the primary key on item is absent
+// from the table, or an accumulated Where scope excluded it. Treat it as the not-found
+// signal rather than assuming the write landed. Callers that don't need the count can
+// discard it.
+//
+// Only non-zero fields are written, so a field cleared to its zero value ("", 0, false)
+// is skipped — use UpdateMap to write zero values explicitly.
+func (t *Table[TEntity]) Update(ctx context.Context, item *TEntity) (int64, error) {
+	res := t.db(ctx).Updates(item)
+	return res.RowsAffected, res.Error
 }
 
 // UpdateMap applies a column→value map as a partial update and reports how many rows
@@ -427,9 +446,19 @@ func (t *Table[TEntity]) UpdateColumns(ctx context.Context, values map[string]an
 	return res.RowsAffected, res.Error
 }
 
-// Delete removes rows matching conditions. Accepts the same GORM condition formats as Find.
-func (t *Table[TEntity]) Delete(ctx context.Context, conditions ...any) error {
-	return t.db(ctx).Delete(t.model(), conditions...).Error
+// Delete removes rows matching conditions and reports how many rows were deleted.
+// Accepts the same GORM condition formats as Find.
+//
+// The count distinguishes "the row was already gone" from "the delete failed": a zero
+// return with a nil error means nothing matched, which is how a caller detects an
+// idempotent re-delete or a WHERE guard that rejected the row. Callers that don't need
+// the count can discard it.
+//
+// On a soft-delete entity (one carrying gorm.DeletedAt) this is the number of rows
+// marked deleted, not physically removed; chain Unscoped for a hard delete.
+func (t *Table[TEntity]) Delete(ctx context.Context, conditions ...any) (int64, error) {
+	res := t.db(ctx).Delete(t.model(), conditions...)
+	return res.RowsAffected, res.Error
 }
 
 // Count returns the number of rows matching the optional where conditions.
@@ -812,16 +841,18 @@ func (t *Table[TEntity]) ListAll(ctx context.Context) ([]*TEntity, error) {
 }
 
 // FindInBatches streams matching rows to fn in batches of batchSize, so large result
-// sets can be processed without loading every row into memory at once. Chain
-// Where/WhereIf/Order/Preload on the Table to scope the query first. fn is called once
-// per batch; returning a non-nil error from it stops the iteration and surfaces that
-// error. The batch slice is GORM-managed and reused between calls — copy out any
-// elements you need to keep beyond the current call.
-func (t *Table[TEntity]) FindInBatches(ctx context.Context, batchSize int, fn func(batch []*TEntity) error) error {
+// sets can be processed without loading every row into memory at once, and reports how
+// many rows were processed in total across all batches. Chain Where/WhereIf/Order/Preload
+// on the Table to scope the query first. fn is called once per batch; returning a non-nil
+// error from it stops the iteration and surfaces that error, and the count then covers
+// only the batches processed up to that point. The batch slice is GORM-managed and reused
+// between calls — copy out any elements you need to keep beyond the current call.
+func (t *Table[TEntity]) FindInBatches(ctx context.Context, batchSize int, fn func(batch []*TEntity) error) (int64, error) {
 	var batch []*TEntity
-	return t.applyPreloads(t.db(ctx)).FindInBatches(&batch, batchSize, func(_ *gorm.DB, _ int) error {
+	res := t.applyPreloads(t.db(ctx)).FindInBatches(&batch, batchSize, func(_ *gorm.DB, _ int) error {
 		return fn(batch)
-	}).Error
+	})
+	return res.RowsAffected, res.Error
 }
 
 // Project runs the Table's query — including any chained Select/Where/Order/Group/Joins/etc
