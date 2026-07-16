@@ -131,6 +131,100 @@ jobs:
           version: v2.12.2
           working-directory: ${{ matrix.module }}
 
+  # tidy fails the build if any module carries requires it cannot reach from its
+  # own import graph (or is missing one it needs). Run per module with the
+  # workspace off — go.work would otherwise resolve sibling imports and hide a
+  # missing require — then fail if go mod tidy changed anything.
+  tidy:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJson(needs.discover.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: "**/go.sum"
+
+      - name: go mod tidy (workspace-isolated)
+        working-directory: ${{ matrix.module }}
+        env:
+          GOWORK: "off"
+        run: go mod tidy
+
+      - name: Fail if go.mod/go.sum is untidy
+        run: |
+          if ! git diff --exit-code -- '**/go.mod' '**/go.sum'; then
+            echo "::error::${{ matrix.module }} is untidy — run 'cd ${{ matrix.module }} && GOWORK=off go mod tidy' and commit the result" >&2
+            exit 1
+          fi
+
+  # consumer-build proves the published modules build for an outside consumer
+  # that does NOT have the workspace: a throwaway module in a temp dir (so
+  # go.work cannot apply), importing host + httpx + gormx + gormx/sqlite, with
+  # replace directives pointing at this checkout. If a module under-declares its
+  # requires, `go mod tidy` here fails even though the workspace build passes.
+  consumer-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: "**/go.sum"
+
+      - name: Build an external consumer without the workspace
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE"
+          WORK="$(mktemp -d)"
+          cd "$WORK"
+
+          cat > main.go <<'GO'
+          // Package main is a throwaway external consumer: it imports and
+          // minimally uses the modules an application wires together, so a build
+          // here proves those modules resolve without the repo's go.work.
+          package main
+
+          import (
+          	"github.com/hatami57/microjet/gormx"
+          	"github.com/hatami57/microjet/gormx/sqlite"
+          	"github.com/hatami57/microjet/host"
+          	"github.com/hatami57/microjet/httpx"
+          )
+
+          func main() {
+          	app := host.MustNew()
+          	app.WithModule(gormx.Module(sqlite.Driver())).
+          		WithModule(httpx.Module())
+          	_ = app
+          }
+          GO
+
+          # A standalone module with a replace for every published module in the
+          # checkout. Modelled on scripts/check-doc-snippets.sh.
+          {
+            echo "module microjetconsumer"
+            echo
+            echo "go 1.26.2"
+            echo
+            while IFS= read -r m; do
+              mod=$(awk '/^module /{print $2; exit}' "$ROOT/$m")
+              echo "replace $mod => $ROOT/$(dirname "$m")"
+            done < <(cd "$ROOT" && find . -name go.mod -not -path './examples/*' -not -path '*/vendor/*' | sed 's|^\./||' | sort)
+          } > go.mod
+
+          export GOWORK=off
+          go mod tidy
+          go build ./...
+
   # Compiles the ```go blocks in README.md and docs/*.md against this checkout
   # and resolves every microjet symbol they name, so the docs cannot drift from
   # the API (IMPROVEMENTS §1.2).
