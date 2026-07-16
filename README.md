@@ -53,6 +53,9 @@ import "github.com/hatami57/microjet/host"
 go get github.com/hatami57/microjet/host
 ```
 
+Requires **Go 1.26+**. See [docs/compatibility.md](docs/compatibility.md) for the
+full Go-version, versioning, breaking-change, and deprecation policy.
+
 ## Quick Start
 
 ### Minimal Application

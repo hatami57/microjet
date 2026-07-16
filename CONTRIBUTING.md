@@ -80,6 +80,11 @@ version until its tags exist.
 Describe user-visible changes under a `## [Unreleased]` heading in
 `CHANGELOG.md`; the script renames it to the released version.
 
+The supported Go versions, lockstep versioning scheme, pre-v1 breaking-change
+rules, and deprecation policy are documented in
+[docs/compatibility.md](docs/compatibility.md) — keep it in sync when any of
+those change (e.g. when a release bumps the `go` directive).
+
 ## Submitting changes
 
 1. Fork and create a feature branch.
