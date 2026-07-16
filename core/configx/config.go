@@ -11,6 +11,15 @@ type Reader interface {
 	ReadAll(dest any) error
 }
 
+// Setter is an optional interface a Reader may implement to accept programmatic
+// override values that win over its other layers — config files, environment
+// variables, and defaults. Both the Viper file reader (NewViperConfigReader)
+// and the map reader (NewMapReader) implement it; host.WithConfigValue relies
+// on it to inject settings in code.
+type Setter interface {
+	Set(key string, value any)
+}
+
 // Configurable is implemented by any type that can populate itself from a
 // Reader. ReadConfig is called on each registered value in order.
 type Configurable interface {

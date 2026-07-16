@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Explicit runtime API: `App.Start(ctx)` / `App.Wait()` / `App.Shutdown(ctx)`** —
+  `Run()` owned SIGINT/SIGTERM handling, created its own root context, and blocked
+  until termination, so an App could not be embedded in a monolith, CLI, test, or
+  supervisor that already owns cancellation. `Start` brings the app fully up
+  without blocking, deriving the worker context from the supplied `ctx`; `Wait`
+  blocks until the app begins stopping (ctx cancelled, a service loop exits, or
+  `Shutdown` is called) and returns the fatal service error; `Shutdown` gracefully
+  stops it, its ctx deadline bounding the drain and worker wait on top of
+  `WithCloseTimeout`. `Run()` is reimplemented on top of the three and adds only
+  signal handling — its logs, error wrapping, signal behavior, and return value are
+  unchanged.
+- **Inject or set configuration in code** — `host.WithConfigReader` supplies the
+  configuration source directly, bypassing TOML file discovery, for embedding an
+  App in a process that already owns configuration or for hermetic tests;
+  `configx.NewMapReader` is an in-memory `Reader` seeded from a nested map that
+  mirrors the file layout (string values decode to typed fields, so `"5s"`
+  populates a `time.Duration`). `host.WithConfigValue` / `host.WithConfigValues`
+  set individual values by dotted path (e.g. `"app.shutdownDelay"`); programmatic
+  values win over config files, environment variables, and defaults, and work with
+  the default file reader as well as any reader implementing the new
+  `configx.Setter`. Whatever an injected reader returns is authoritative — the
+  env-var override shim applies only to the built-in file reader.
+
 ## [0.30.0] - 2026-07-14
 
 ### Changed

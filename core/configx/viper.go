@@ -47,6 +47,14 @@ func (r *viperConfigReader) SetDefault(key string, value any) {
 	r.v.SetDefault(key, value)
 }
 
+// Set records an override that wins over config files, environment variables,
+// and defaults — the top of viper's precedence order — so it is authoritative.
+// It satisfies Setter, which host.WithConfigValue uses to inject settings in
+// code without a config file or environment variable.
+func (r *viperConfigReader) Set(key string, value any) {
+	r.v.Set(key, value)
+}
+
 // Read unmarshals the named config key into dest, recording the key's top-level
 // section as claimed. Environment variables override file and default values
 // (see applyEnvOverrides).

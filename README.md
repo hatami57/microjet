@@ -296,6 +296,50 @@ var extra MyExtra
 app.Configure(&extra)
 ```
 
+### Programmatic Config
+
+File discovery is the default, but an embedded app (one started with
+`Start`/`Wait`/`Shutdown` inside a larger process) or a test can supply
+configuration in code instead.
+
+Set individual values by their dotted path with `host.WithConfigValue` /
+`host.WithConfigValues`. They win over config files, environment variables, and
+defaults, and work with the default file reader too:
+
+```go ignore
+app := host.MustNew(
+    host.WithConfigValue("app.name", "billing"),
+    host.WithConfigValues(map[string]any{
+        "app.shutdownDelay": "5s",
+        "http.port":         8080,
+    }),
+)
+```
+
+To bypass file discovery entirely — an embedding host that already owns
+configuration, or a hermetic test — inject a reader with `host.WithConfigReader`.
+`configx.NewMapReader` provides an in-memory one seeded from a nested map that
+mirrors the TOML layout (string values decode to typed fields, so `"5s"`
+populates a `time.Duration`):
+
+```go
+import (
+    "github.com/hatami57/microjet/core/configx"
+    "github.com/hatami57/microjet/host"
+)
+
+func newApp() (*host.App, error) {
+    reader := configx.NewMapReader(map[string]any{
+        "app": map[string]any{"name": "billing", "shutdownDelay": "5s"},
+        "log": map[string]any{"level": "debug"},
+    })
+    return host.New(host.WithConfigReader(reader))
+}
+```
+
+Whatever an injected reader returns is authoritative — the env-var override shim
+applies only to the built-in file reader.
+
 ## Error Handling
 
 ```go

@@ -27,6 +27,7 @@ type App struct {
 
 	envPrefix            string
 	configReader         configx.Reader
+	configValues         map[string]any
 	shutdownTimeout      time.Duration
 	container            sync.Map
 	modules              sync.Map
@@ -78,6 +79,49 @@ func WithCloseTimeout(d time.Duration) Option {
 	return func(a *App) { a.shutdownTimeout = d }
 }
 
+// WithConfigReader injects the configuration source, bypassing the default TOML
+// file discovery. Use it to embed the App in a host process that already owns
+// configuration, or to supply fixed config in tests (see configx.NewMapReader).
+//
+// Precedence note: whatever the injected Reader returns is authoritative. The
+// default env-var override shim applies only to the built-in Viper file reader,
+// so an injected reader is not subject to it unless it implements that itself.
+func WithConfigReader(r configx.Reader) Option {
+	return func(a *App) { a.configReader = r }
+}
+
+// WithConfigValue sets a single configuration value in code, keyed by its dotted
+// path (e.g. "app.debug", "app.shutdownDelay", "http.port"). Programmatic values
+// are authoritative: they win over config files, environment variables, and
+// defaults. Apply several at once with WithConfigValues.
+//
+// It works with the default file reader and with any injected reader that
+// implements configx.Setter (both the file reader and configx.NewMapReader do);
+// New returns an error if the active reader does not support it.
+func WithConfigValue(key string, value any) Option {
+	return func(a *App) {
+		if a.configValues == nil {
+			a.configValues = make(map[string]any)
+		}
+		a.configValues[key] = value
+	}
+}
+
+// WithConfigValues sets several configuration values in code at once, each keyed
+// by its dotted path. Equivalent to calling WithConfigValue per entry; when keys
+// collide the last write wins. See WithConfigValue for precedence and reader
+// requirements.
+func WithConfigValues(values map[string]any) Option {
+	return func(a *App) {
+		if a.configValues == nil {
+			a.configValues = make(map[string]any, len(values))
+		}
+		for k, v := range values {
+			a.configValues[k] = v
+		}
+	}
+}
+
 // New constructs an App, loading the standard configuration sections and the
 // logger. Returns an error instead of panicking so callers can handle config
 // failures gracefully. To load service-specific config sections call
@@ -90,13 +134,28 @@ func New(opts ...Option) (*App, error) {
 	if a.Clock == nil {
 		a.Clock = core.UTC
 	}
-	reader, err := configx.NewViperConfigReader(a.envPrefix)
-	if err != nil {
-		return nil, fmt.Errorf("creating config loader: %w", err)
+	// Only build the default file reader when one was not injected via
+	// WithConfigReader — the seam Configure and per-service ReadConfig share.
+	if a.configReader == nil {
+		reader, err := configx.NewViperConfigReader(a.envPrefix)
+		if err != nil {
+			return nil, fmt.Errorf("creating config loader: %w", err)
+		}
+		a.configReader = reader
 	}
-	a.configReader = reader
+	// Layer any programmatic values (WithConfigValue/WithConfigValues) on top of
+	// the reader before anything reads from it, so they win over files and env.
+	if len(a.configValues) > 0 {
+		setter, ok := a.configReader.(configx.Setter)
+		if !ok {
+			return nil, fmt.Errorf("config reader %T does not support programmatic values set via WithConfigValue/WithConfigValues", a.configReader)
+		}
+		for key, value := range a.configValues {
+			setter.Set(key, value)
+		}
+	}
 	cfg := &Config{}
-	if err := cfg.ReadConfig(reader); err != nil {
+	if err := cfg.ReadConfig(a.configReader); err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 	a.Config = cfg
