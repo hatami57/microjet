@@ -320,6 +320,24 @@ func (t *Table[TEntity]) LockForUpdate() *Table[TEntity] {
 	})
 }
 
+// LockForUpdateSkipLocked is LockForUpdate with SKIP LOCKED: reads emit
+// SELECT … FOR UPDATE SKIP LOCKED, taking row-level locks on the matched rows
+// but skipping (rather than waiting on) any row another transaction already
+// locks. Use it inside a transaction so competing workers each claim a disjoint
+// set of rows — the standard way to fan a queue or outbox table out across
+// several concurrent consumers without any two of them grabbing the same row.
+//
+// Engine caveat: SKIP LOCKED is a Postgres/MySQL 8+ feature. The SQLite driver
+// silently drops the locking clause, so no rows are skipped there and every
+// worker sees the whole set — gate on db.Dialector.Name() and keep a
+// single-consumer path for SQLite. Outside a transaction the clause is a no-op
+// on every engine, since any lock would be released immediately.
+func (t *Table[TEntity]) LockForUpdateSkipLocked() *Table[TEntity] {
+	return t.withScope(func(db *gorm.DB) *gorm.DB {
+		return db.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+	})
+}
+
 // model returns a fresh zero-valued *TEntity for GORM to resolve the table and
 // schema from. A new value is allocated per call rather than shared on the Table:
 // map-based Updates write assigned columns (and auto-updated timestamps) back into
