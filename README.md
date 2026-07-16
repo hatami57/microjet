@@ -608,6 +608,43 @@ Key behaviors:
 
 See [`examples/modules`](examples/modules) for a runnable three-level tree.
 
+## Metrics
+
+`httpx.Module` serves Prometheus metrics at `GET /metrics` on a private registry
+seeded with HTTP RED metrics (`http_requests_total`, `http_request_duration_seconds`)
+plus the standard Go runtime and process collectors. To add your own collectors to
+that same endpoint, register them from a `Setup` hook via `MetricsRegistry()`:
+
+```go
+package main
+
+import (
+    "github.com/hatami57/microjet/host"
+    "github.com/hatami57/microjet/httpx"
+    "github.com/prometheus/client_golang/prometheus"
+)
+
+func main() {
+    widgets := prometheus.NewCounter(prometheus.CounterOpts{
+        Name: "widgets_processed_total",
+        Help: "Number of widgets processed.",
+    })
+
+    host.MustNew().
+        WithModule(httpx.Module()).
+        Setup(func(app *host.App) error {
+            // Served at /metrics alongside the built-in HTTP, Go runtime,
+            // and process metrics.
+            httpx.Of(app).MetricsRegistry().MustRegister(widgets)
+            return nil
+        }).
+        MustRun()
+}
+```
+
+The registry is private by default (no global `prometheus.DefaultRegisterer`), so
+`MetricsRegistry()` is the only way to add collectors to the endpoint.
+
 ## Graceful Shutdown
 
 On a shutdown signal (or a fatal service error), `Run()` first flips every service

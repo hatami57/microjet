@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/httpx/middleware"
+	"github.com/prometheus/client_golang/prometheus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -85,6 +86,17 @@ func (s *Server) AddReadinessCheck(name string, fn ReadinessFunc) {
 	s.readinessMu.Lock()
 	defer s.readinessMu.Unlock()
 	s.readinessChecks = append(s.readinessChecks, namedReadinessCheck{name: name, fn: fn})
+}
+
+// MetricsRegistry returns the live Prometheus registry backing the server's
+// /metrics endpoint, so application code can register custom collectors that are
+// then exposed alongside the built-in HTTP, Go runtime, and process metrics. Call
+// it from a Setup hook (before the server starts serving):
+//
+//	counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "widgets_total"})
+//	httpx.Of(app).MetricsRegistry().MustRegister(counter)
+func (s *Server) MetricsRegistry() *prometheus.Registry {
+	return s.metrics.Registry()
 }
 
 func (s *Server) runReadinessChecks(ctx context.Context) (bool, map[string]string) {

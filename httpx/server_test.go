@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func newTestServer() *Server {
@@ -50,6 +51,33 @@ func TestReadyzReportsFailingCheck(t *testing.T) {
 	}
 	if !strings.Contains(body, "boom") {
 		t.Errorf("body = %s, want failing check detail", body)
+	}
+}
+
+func TestMetricsRegistryExposesCustomCollector(t *testing.T) {
+	s := newTestServer()
+
+	custom := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "widgets_processed_total",
+		Help: "Test counter registered by application code.",
+	})
+	s.MetricsRegistry().MustRegister(custom)
+	custom.Inc()
+
+	rec := httptest.NewRecorder()
+	s.Router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/metrics status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	// The custom collector is served on the same registry as /metrics.
+	if !strings.Contains(body, "widgets_processed_total") {
+		t.Errorf("metrics output missing custom collector widgets_processed_total:\n%s", body)
+	}
+	// The Go runtime collector NewMetrics registers must also be present.
+	if !strings.Contains(body, "go_goroutines") {
+		t.Errorf("metrics output missing go_goroutines:\n%s", body)
 	}
 }
 

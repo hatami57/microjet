@@ -121,11 +121,11 @@ Scope for a first release:
 (httpx/middleware/metrics.go:26) with **no accessor**, so an app cannot add its
 own counters to the endpoint it already exposes.
 
-- [ ] Register `collectors.NewGoCollector()` and
+- [x] Register `collectors.NewGoCollector()` and
   `collectors.NewProcessCollector(...)` on the registry (goroutines, GC pause,
   RSS — the first graphs anyone looks at in an incident).
-- [ ] Expose the registry: `func (m *Metrics) Registry() *prometheus.Registry`
-  plus a convenience `httpx.Of(app).Metrics()` so app code can
+- [x] Expose the registry: `func (m *Metrics) Registry() *prometheus.Registry`
+  plus a convenience `httpx.Of(app).MetricsRegistry()` so app code can
   `MustRegister` custom collectors.
 - [ ] gormx: export DB pool stats via `prometheus.NewGaugeFunc` over
   `sql.DBStats` (open/in-use/idle/wait-count/wait-duration), one set per named

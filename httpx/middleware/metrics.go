@@ -68,3 +68,17 @@ func (m *Metrics) Middleware() gin.HandlerFunc {
 func (m *Metrics) Handler() http.Handler {
 	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{})
 }
+
+// Registry returns the live Prometheus registry backing /metrics — the one
+// NewMetrics seeded with the HTTP RED, Go runtime, and process collectors.
+// Register your own collectors on it (typically from a Setup hook, before the
+// server starts serving) and they appear in the /metrics exposition alongside
+// the built-ins:
+//
+//	m.Registry().MustRegister(myCounter)
+//
+// The registry is deliberately private by default (not prometheus.DefaultRegisterer),
+// so this accessor is the only way custom collectors reach the endpoint.
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
+}
