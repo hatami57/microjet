@@ -11,7 +11,6 @@ require (
 	github.com/hatami57/microjet/messaging v0.30.0
 	github.com/hatami57/microjet/messaging/nats v0.30.0
 	github.com/hatami57/microjet/outbox v0.30.0
-	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -96,6 +95,7 @@ require (
 	golang.org/x/tools v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gorm.io/gorm v1.31.1 // indirect
 	modernc.org/libc v1.72.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
