@@ -71,6 +71,31 @@ func countPending(t *testing.T, db *gorm.DB) int64 {
 	return n
 }
 
+func TestDialectSupportsLocking(t *testing.T) {
+	cases := map[string]bool{
+		"postgres":  true,
+		"mysql":     true,
+		"sqlite":    false,
+		"sqlserver": false,
+		"":          false,
+	}
+	for dialect, want := range cases {
+		if got := dialectSupportsLocking(dialect); got != want {
+			t.Errorf("dialectSupportsLocking(%q) = %v, want %v", dialect, got, want)
+		}
+	}
+}
+
+// TestNewRelayDialectGating verifies the relay picks its concurrency strategy
+// from the connection dialect: the sqlite test DB must take the lock-free path.
+func TestNewRelayDialectGating(t *testing.T) {
+	db := openDB(t)
+	relay := NewRelay(db, &fakePublisher{})
+	if relay.locking {
+		t.Errorf("relay over sqlite has locking=true, want false (no SKIP LOCKED)")
+	}
+}
+
 func TestEnqueueAndRelay(t *testing.T) {
 	ctx := context.Background()
 	db := openDB(t)

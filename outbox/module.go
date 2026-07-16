@@ -84,6 +84,11 @@ func Database(name string) Option {
 // messaging.Module. Resolve the shared enqueuer with outbox.Of(app) and enqueue
 // events inside the same gormx transaction as your domain write.
 //
+// Multi-replica safety is dialect-dependent (see the Relay doc comment): on
+// Postgres and MySQL the relay claims each batch with FOR UPDATE SKIP LOCKED, so
+// running one replica per instance is safe. On SQLite (and any dialect without
+// SKIP LOCKED) the relay is not replica-safe — run exactly one instance.
+//
 // Tune durability with MaxAttempts (quarantine poison messages instead of
 // retrying them forever) and Retention (prune old published rows so the table
 // stays bounded):

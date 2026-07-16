@@ -192,24 +192,25 @@ before draining.
 - [x] `/health` (liveness) stays 200 throughout — only readiness flips,
   otherwise kubelet restarts the pod mid-drain.
 
-### 2.6 [P2] Outbox: safe concurrent relays  `feat(outbox)`
+### 2.6 [P2] Outbox: safe concurrent relays  `feat(outbox)` — **done**
 
-relay.go:19–20 documents "concurrent relays may double-publish" but the
-framework offers no coordination tool. Preferred fix — `FOR UPDATE SKIP LOCKED`:
+relay.go documented "concurrent relays may double-publish" but the framework
+offered no coordination tool. Fixed with `FOR UPDATE SKIP LOCKED`:
 
-- In `PublishPending`, wrap the pass in a transaction and select the batch with
-  `.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})`.
-  Concurrent relays then partition the pending set instead of racing — the
-  textbook multi-replica outbox. Marking `published_at` happens inside the same
-  tx.
-- Dialect caveat: SKIP LOCKED is Postgres/MySQL 8+; SQLite has no row locks.
+- [x] In `PublishPending`, wrap the pass in a transaction and select the batch
+  with `.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})`
+  (exposed as `gormx.Table.LockForUpdateSkipLocked`). Concurrent relays then
+  partition the pending set instead of racing — the textbook multi-replica
+  outbox. Marking `published_at` happens inside the same tx.
+- [x] Dialect caveat: SKIP LOCKED is Postgres/MySQL 8+; SQLite has no row locks.
   Gate on dialect (`db.Dialector.Name()`): on sqlite keep today's lock-free
-  path and document that sqlite deployments are single-instance anyway.
-- Trade-off to note in the commit: holding the tx across `publisher.Publish`
-  lengthens lock hold time; batch size already bounds it. Alternative
-  (claim-then-publish with a `claimed_at` column) is more complex — not worth
-  it at this scale.
-- Optional follow-up: a general `lockx` helper (Postgres
+  path; documented on `Relay` and `outbox.Module` that sqlite deployments are
+  single-instance anyway.
+- [x] Trade-off noted in the commit and the `Relay` doc comment: holding the tx
+  across `publisher.Publish` lengthens lock hold time; batch size already bounds
+  it. Alternative (claim-then-publish with a `claimed_at` column) is more
+  complex — not worth it at this scale, recorded as the escape hatch instead.
+- Optional follow-up (deferred): a general `lockx` helper (Postgres
   `pg_try_advisory_lock` + Redis `SET NX PX`) for users running periodic
   workers on multiple replicas — a common concern beyond the outbox. Design it
   only if demand shows up; SKIP LOCKED removes the outbox's need for it.
