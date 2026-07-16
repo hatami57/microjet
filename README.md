@@ -145,8 +145,33 @@ func main() {
 services, start the HTTP server, block until SIGINT/SIGTERM (or a fatal server
 error), and then perform a graceful shutdown — so you don't need a separate
 `defer app.Close()`. Use `Setup(...)` for one-off startup steps like migrations.
-For manual control, use `app.InitServices()` + `host.WaitForExitSignal()` with
-`defer app.Close()` instead.
+
+To embed an App in a process that already owns cancellation — a monolith, CLI,
+test, or supervisor — use the explicit runtime API instead of `Run()`. `Start`
+brings the app up without blocking; `Wait` blocks until the app begins stopping
+(the context is cancelled, a service's background loop exits, or `Shutdown` is
+called); `Shutdown` performs the same graceful teardown as `Run`, bounded by the
+context you pass:
+
+```go
+import (
+ "context"
+
+ "github.com/hatami57/microjet/host"
+)
+
+func run(ctx context.Context, app *host.App) error {
+ if err := app.Start(ctx); err != nil {
+  return err
+ }
+ defer app.Shutdown(context.Background())
+ return app.Wait() // returns the fatal service error, if any
+}
+```
+
+`Run()` is itself implemented on top of `Start`/`Wait`/`Shutdown`, adding only
+signal handling. For lower-level manual control, `app.InitServices()` +
+`host.WaitForExitSignal()` with `defer app.Close()` also works.
 
 ### Database drivers
 

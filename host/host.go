@@ -37,6 +37,20 @@ type App struct {
 	isServiceStarted     bool
 	err                  error
 	closeOnce            sync.Once
+
+	// Runtime state for the explicit Start/Wait/Shutdown API. Populated by Start
+	// and consumed by Wait and Shutdown; Run drives the same fields internally.
+	workerCtx    context.Context
+	workerCancel context.CancelFunc
+	workerWg     *sync.WaitGroup
+	fatalCh      <-chan error
+	shutdownCh   chan struct{} // closed by Shutdown to unblock Wait
+	startOnce    sync.Once
+	startErr     error
+	waitOnce     sync.Once
+	waitErr      error
+	shutdownOnce sync.Once
+	shutdownErr  error
 }
 
 // HandlerFunc is a setup/lifecycle callback that receives the App and may fail.
@@ -69,7 +83,7 @@ func WithCloseTimeout(d time.Duration) Option {
 // failures gracefully. To load service-specific config sections call
 // app.Configure after construction.
 func New(opts ...Option) (*App, error) {
-	a := &App{}
+	a := &App{shutdownCh: make(chan struct{})}
 	for _, opt := range opts {
 		opt(a)
 	}
@@ -163,57 +177,29 @@ func (a *App) runSetups() error {
 // then blocks until a termination signal or fatal server error. On exit it
 // cancels workers, waits for them, and gracefully shuts down.
 func (a *App) Run() error {
-	if a.err != nil {
-		a.Close()
-		return a.err
-	}
-	if err := a.initServices(); err != nil {
-		a.Close()
-		return fmt.Errorf("initializing services: %w", err)
-	}
-	// Resources are connected; run setup (migrations, route registration) before
-	// anything begins serving — first the services' own Setup hooks, then the
-	// queued app.Setup handlers, which observe the services' setup.
-	if err := a.setupServices(); err != nil {
-		a.Close()
-		return fmt.Errorf("setting up services: %w", err)
-	}
-	if err := a.runSetups(); err != nil {
-		a.Close()
-		return fmt.Errorf("running setup: %w", err)
-	}
-	if err := a.startServices(); err != nil {
-		a.Close()
-		return fmt.Errorf("starting services: %w", err)
+	if err := a.Start(context.Background()); err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	workerWg := a.startWorkers(ctx)
-
+	// Run owns signal handling: a SIGINT/SIGTERM begins graceful shutdown just
+	// like a fatal service error does. Wait blocks until either happens; running
+	// it in a goroutine lets the select race it against the signal channel.
 	quit := notifySignals()
-
-	// startServices started any background listeners (e.g. the HTTP server's
-	// goroutine); their ErrSource channels are merged so Run reacts to any such
-	// service exiting the same way it reacts to a shutdown signal.
-	fatalCh := a.fatalErrCh()
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- a.Wait() }()
 
 	var runErr error
 	select {
 	case sig := <-quit:
 		a.Logger.Info("received shutdown signal", "signal", sig.String())
-	case err := <-fatalCh:
-		if err != nil {
-			a.Logger.Error("service exited with error", "error", err)
-			runErr = err
-		} else {
-			a.Logger.Warn("service stopped unexpectedly")
-		}
+	case runErr = <-waitDone:
 	}
 
-	a.beginShutdown()
-	cancel()
-	workerWg.Wait()
-	a.Close()
+	// Background ctx preserves Run's historical behavior: drain for the full
+	// ShutdownDelay and wait for workers indefinitely, with Close bounded only by
+	// WithCloseTimeout. Shutdown's own ctx-deadline bounding is for embedded
+	// callers that supply one.
+	_ = a.Shutdown(context.Background())
 	return runErr
 }
 
@@ -223,8 +209,9 @@ func (a *App) Run() error {
 // requests stop arriving (readiness starts failing) while in-flight ones drain;
 // liveness (/health) stays healthy so the kubelet does not restart the pod
 // mid-drain. With the default shutdownDelay of 0 it flips readiness and returns
-// immediately, preserving the previous behavior.
-func (a *App) beginShutdown() {
+// immediately, preserving the previous behavior. Cancelling ctx cuts the drain
+// short, so a Shutdown deadline can bound it.
+func (a *App) beginShutdown(ctx context.Context) {
 	flipped := 0
 	a.RangeServices(func(v any) bool {
 		if t, ok := v.(core.ReadinessToggler); ok {
@@ -239,7 +226,10 @@ func (a *App) beginShutdown() {
 		return
 	}
 	a.Logger.Info("readiness flipped to not-ready; draining before shutdown", "delay", delay)
-	time.Sleep(delay)
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+	}
 }
 
 // MustRun is like Run but logs and exits the process on error.

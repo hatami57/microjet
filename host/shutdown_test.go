@@ -1,6 +1,7 @@
 package host
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func TestBeginShutdownFlipsReadiness(t *testing.T) {
 	tog.ready.Store(true)
 	ProvideService(app, tog)
 
-	app.beginShutdown()
+	app.beginShutdown(context.Background())
 
 	if tog.ready.Load() {
 		t.Error("beginShutdown did not flip readiness to not-ready")
@@ -93,7 +94,7 @@ func TestBeginShutdownWaitsShutdownDelay(t *testing.T) {
 	ProvideService(app, &readyToggler{})
 
 	start := time.Now()
-	app.beginShutdown()
+	app.beginShutdown(context.Background())
 	if elapsed := time.Since(start); elapsed < 35*time.Millisecond {
 		t.Errorf("beginShutdown returned after %v, want to wait ~40ms", elapsed)
 	}
@@ -107,7 +108,7 @@ func TestBeginShutdownSkipsDelayWithoutToggler(t *testing.T) {
 	app.Config.App.ShutdownDelay = time.Hour // must be ignored when nothing toggles
 
 	start := time.Now()
-	app.beginShutdown()
+	app.beginShutdown(context.Background())
 	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
 		t.Errorf("beginShutdown waited %v with no toggler; delay should be skipped", elapsed)
 	}
