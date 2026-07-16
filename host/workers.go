@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"runtime/debug"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 )
@@ -68,14 +66,13 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 		launch(w.name, w.interval, w.fn)
 	}
 
-	// Then DI-registered services implementing AsyncWorker/PeriodicWorker.
-	// sync.Map iteration order is non-deterministic, so collect them and sort by
-	// type name for a stable, reproducible start order. Dedupe by type so a
-	// service that satisfies both interfaces (or is seen twice) starts only once;
-	// PeriodicWorker takes precedence over AsyncWorker.
+	// Then DI-registered services implementing AsyncWorker/PeriodicWorker, in
+	// registration order (orderedRange). Dedupe by type so a service that
+	// satisfies both interfaces (or is seen twice) starts only once; PeriodicWorker
+	// takes precedence over AsyncWorker.
 	var diWorkers []worker
 	seen := make(map[string]bool)
-	a.container.Range(func(_, item any) bool {
+	a.orderedRange(func(_, item any) bool {
 		name := reflect.TypeOf(item).String()
 		if seen[name] {
 			return true
@@ -90,7 +87,6 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 		}
 		return true
 	})
-	slices.SortFunc(diWorkers, func(x, y worker) int { return strings.Compare(x.name, y.name) })
 	for _, w := range diWorkers {
 		launch(w.name, w.interval, w.fn)
 	}

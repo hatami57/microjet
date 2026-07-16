@@ -25,11 +25,17 @@ type App struct {
 	Logger *slog.Logger
 	Clock  core.TimeProvider
 
-	envPrefix            string
-	configReader         configx.Reader
-	configValues         map[string]any
-	shutdownTimeout      time.Duration
-	container            sync.Map
+	envPrefix       string
+	configReader    configx.Reader
+	configValues    map[string]any
+	shutdownTimeout time.Duration
+	container       sync.Map
+	// keys logs container keys in registration order so the lifecycle phases
+	// (init, setup, start, close) iterate deterministically rather than in the
+	// sync.Map's random Range order. keysMu guards appends to the slice; see
+	// storeKey and orderedRange.
+	keys                 []any
+	keysMu               sync.Mutex
 	modules              sync.Map
 	workers              []worker
 	setups               []HandlerFunc

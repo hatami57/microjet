@@ -3,6 +3,7 @@ package host
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"sort"
 
 	"github.com/hatami57/microjet/core"
@@ -36,12 +37,50 @@ type ErrSource interface {
 	ErrCh() <-chan error
 }
 
-// RangeServices calls fn for each registered service until fn returns false;
-// iteration order is unspecified. It lets satellite packages and modules inspect
-// the container — e.g. aggregate health checks across services — without needing
-// access to its internals.
+// RangeServices calls fn for each registered service until fn returns false.
+// Iteration order is unspecified — callers must not depend on it, even though it
+// happens to follow registration order today. It lets satellite packages and
+// modules inspect the container — e.g. aggregate health checks across services —
+// without needing access to its internals.
 func (a *App) RangeServices(fn func(service any) bool) {
-	a.container.Range(func(_, v any) bool { return fn(v) })
+	a.orderedRange(func(_, v any) bool { return fn(v) })
+}
+
+// storeKey stores value under key, recording key in the registration-order log
+// the first time it is seen. Re-storing an existing key replaces its value but
+// keeps its original position, so the lifecycle order is stable across replaces.
+// Every write into the container goes through here so keys and container stay in
+// step. There is no delete path today; if one is added it must also remove key
+// from a.keys.
+func (a *App) storeKey(key, value any) {
+	a.keysMu.Lock()
+	defer a.keysMu.Unlock()
+	if _, loaded := a.container.Load(key); !loaded {
+		a.keys = append(a.keys, key)
+	}
+	a.container.Store(key, value)
+}
+
+// orderedRange calls fn for each registered service in registration order until
+// fn returns false. It snapshots the key log under the lock, then looks each key
+// up in the container, skipping any whose value is gone. Snapshotting per call
+// means fn may register further services (as Init hooks do) without disturbing
+// the current walk; the caller re-invokes orderedRange to pick them up.
+func (a *App) orderedRange(fn func(key, value any) bool) {
+	a.keysMu.Lock()
+	keys := make([]any, len(a.keys))
+	copy(keys, a.keys)
+	a.keysMu.Unlock()
+
+	for _, k := range keys {
+		v, ok := a.container.Load(k)
+		if !ok {
+			continue
+		}
+		if !fn(k, v) {
+			return
+		}
+	}
 }
 
 // serviceKey identifies a service in the container by its Go type and an optional
@@ -68,7 +107,7 @@ func keyFor[T any](name []string) serviceKey {
 // optional name. Re-providing the same (type, name) replaces the earlier value;
 // distinct names register side by side.
 func ProvideService[T any](a *App, service T, name ...string) {
-	a.container.Store(keyFor[T](name), service)
+	a.storeKey(keyFor[T](name), service)
 }
 
 // ResolveService returns the service registered for type T and the optional name,
@@ -150,7 +189,7 @@ func (a *App) WithProvider(fn HandlerFunc) *App {
 // ProvideKey stores an arbitrary value under a string key — an escape hatch for
 // values not identified by Go type. Prefer ProvideService for services.
 func (a *App) ProvideKey(key string, value any) *App {
-	a.container.Store(key, value)
+	a.storeKey(key, value)
 	return a
 }
 
@@ -192,7 +231,7 @@ func (a *App) initServices() error {
 		progressed := false
 
 		// Load config for services that manage their own configuration.
-		a.container.Range(func(key, item any) bool {
+		a.orderedRange(func(key, item any) bool {
 			if configured[key] {
 				return true
 			}
@@ -218,7 +257,7 @@ func (a *App) initServices() error {
 
 		// Initialize configured services. host.ServiceIniter (receives *App) takes
 		// precedence over core.Initer for services that need host-level DI.
-		a.container.Range(func(key, item any) bool {
+		a.orderedRange(func(key, item any) bool {
 			if initialized[key] || !configured[key] {
 				return true
 			}
@@ -278,15 +317,15 @@ func (a *App) warnUnusedConfigSections() {
 // ServiceSetupper (receives *App) or core.Setupper performs post-init work that
 // depends on other services being connected (migrations, route registration). It
 // runs after initServices, so resources are available, and before the queued
-// app.Setup handlers, so those handlers observe the services' setup. Like Start
-// and Close, order across services is unspecified.
+// app.Setup handlers, so those handlers observe the services' setup. Like Init
+// and Start, services are visited in registration order.
 func (a *App) setupServices() error {
 	if a.isServiceSetup {
 		return nil
 	}
 	a.Logger.Debug("setting up services")
 	var setupErr error
-	a.container.Range(func(_, item any) bool {
+	a.orderedRange(func(_, item any) bool {
 		var err error
 		if svc, ok := item.(ServiceSetupper); ok {
 			err = svc.Setup(a)
@@ -314,13 +353,14 @@ func (a *App) setupServices() error {
 // ServiceStarter (receives *App) or core.Starter begins active work (e.g. the
 // HTTP server starts listening). It runs after initServices and after setup
 // handlers, so resources are connected and routes registered before serving.
+// Services are started in registration order.
 func (a *App) startServices() error {
 	if a.isServiceStarted {
 		return nil
 	}
 	a.Logger.Debug("starting services")
 	var startErr error
-	a.container.Range(func(_, item any) bool {
+	a.orderedRange(func(_, item any) bool {
 		var err error
 		if svc, ok := item.(ServiceStarter); ok {
 			err = svc.Start(a)
@@ -350,6 +390,10 @@ func (a *App) startServices() error {
 // database is still open. Services that do not implement CloseOrderer close at
 // CloseDefault. The values are plain ints, so a service needing finer control can
 // return any value between or beyond these (lower = earlier).
+//
+// Within a single band, services close in reverse registration order — the last
+// one registered closes first — mirroring construction so a service tears down
+// before the ones it was built on top of.
 const (
 	// CloseEdge closes first: inbound traffic sources that must stop accepting and
 	// drain, such as HTTP servers and message subscribers.
@@ -380,19 +424,24 @@ func closeOrder(svc any) int {
 // closeServices closes every registered service in ascending CloseOrder so edges
 // drain before the backends they rely on. Closing is sequential: a band fully
 // completes before the next begins, so an HTTP server's in-flight requests are
-// done before the database closes. The whole sequence is still bounded by the
-// shutdown timeout in close(). Errors are collected, not fatal.
+// done before the database closes. Within a band, services close in reverse
+// registration order — last registered, first closed — mirroring construction.
+// The whole sequence is still bounded by the shutdown timeout in close(). Errors
+// are collected, not fatal.
 func (a *App) closeServices() error {
 	type entry struct {
 		svc   any
 		order int
 	}
 	var entries []entry
-	a.container.Range(func(_, item any) bool {
+	a.orderedRange(func(_, item any) bool {
 		entries = append(entries, entry{svc: item, order: closeOrder(item)})
 		return true
 	})
-	// Stable so equal-order services keep a reproducible relative sequence.
+	// entries is in registration order. Reverse it, then stable-sort by band: the
+	// stable sort preserves the now-reversed order within each band, so a band
+	// closes last-registered-first while bands still run ascending (edges first).
+	slices.Reverse(entries)
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].order < entries[j].order })
 
 	a.Logger.Debug("closing services", "count", len(entries))
