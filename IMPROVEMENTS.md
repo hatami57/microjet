@@ -383,13 +383,20 @@ caching, modules deep-dive, pagination) into `docs/<topic>.md` and/or package
 reference a wrong import path silently. Combine with 1.2 so what remains is
 compile-checked.
 
-### 4.5 [P2] `SECURITY.md`  `docs`
+### 4.5 [P2] `SECURITY.md`  `docs` — **done**
 
 Private disclosure channel (email software.apan@gmail.com or GitHub private
 vulnerability reporting — enable it in repo settings), supported-versions
 statement (latest minor), response-time expectation. GitHub surfaces the file
 in the Security tab; its absence gets noticed on a library shipping JWT and
 rate-limit middleware.
+
+- [x] `SECURITY.md` at the repo root: both disclosure channels (GitHub private
+  reporting preferred + email), report contents, response-time expectations
+  (3-day ack, 10-day assessment), coordinated-disclosure and safe-harbour ask.
+- [x] Supported-versions statement tied to the lockstep single-version release
+  model (latest released minor; no maintenance branches), linking
+  `docs/compatibility.md`.
 
 ---
 
