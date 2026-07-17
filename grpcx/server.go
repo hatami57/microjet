@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/grpcx/interceptors"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -172,11 +173,11 @@ func (s *Server) Init() error {
 // checks. Init must have run first.
 func (s *Server) Start() error {
 	if s.grpcServer == nil {
-		return fmt.Errorf("gRPC server not initialized; call Init before Start")
+		return errorx.NewInternalError("grpc", "gRPC server not initialized; call Init before Start")
 	}
 	lis, err := net.Listen("tcp", s.Addr())
 	if err != nil {
-		return fmt.Errorf("gRPC listen on %s: %w", s.Addr(), err)
+		return errorx.NewInternalError("grpc", "gRPC listen failed", "addr", s.Addr()).WithInner(err)
 	}
 	s.listener = lis
 	s.logger.Info("starting gRPC server", "addr", lis.Addr().String())
