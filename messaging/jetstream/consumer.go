@@ -2,10 +2,10 @@ package jetstream
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/messaging"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -33,7 +33,7 @@ func (c *Client) QueueSubscribe(ctx context.Context, subject, queue string, hand
 func (c *Client) consume(ctx context.Context, subject, durable string, handler messaging.Handler) (messaging.Subscription, error) {
 	stream, err := c.js.StreamNameBySubject(ctx, subject)
 	if err != nil {
-		return nil, fmt.Errorf("jetstream: no stream bound to subject %q (declare it under [messaging.jetstream.streams]): %w", subject, err)
+		return nil, errorx.NewInternalError("jetstream", "no stream bound to subject; declare it under [messaging.jetstream.streams]", "subject", subject).WithInner(err)
 	}
 
 	cons, err := c.js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
@@ -45,12 +45,12 @@ func (c *Client) consume(ctx context.Context, subject, durable string, handler m
 		MaxAckPending: c.Config.JetStream.MaxAckPending,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("jetstream: create consumer %q on stream %q: %w", durable, stream, err)
+		return nil, errorx.NewInternalError("jetstream", "create consumer failed", "durable", durable, "stream", stream).WithInner(err)
 	}
 
 	cc, err := cons.Consume(func(m jetstream.Msg) { c.handleMessage(ctx, m, handler) })
 	if err != nil {
-		return nil, fmt.Errorf("jetstream: consume %q: %w", durable, err)
+		return nil, errorx.NewInternalError("jetstream", "consume failed", "durable", durable).WithInner(err)
 	}
 
 	sub := &jsSubscription{subject: subject, cc: cc}

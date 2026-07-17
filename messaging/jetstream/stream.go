@@ -2,8 +2,8 @@ package jetstream
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -20,7 +20,7 @@ func (c *Client) ensureStreams(ctx context.Context) error {
 			MaxAge:    s.MaxAge,
 		}
 		if _, err := c.js.CreateOrUpdateStream(ctx, cfg); err != nil {
-			return fmt.Errorf("jetstream: ensure stream %q: %w", s.Name, err)
+			return errorx.NewInternalError("jetstream", "ensure stream failed", "stream", s.Name).WithInner(err)
 		}
 		c.logger.Info("ensured JetStream stream", "stream", s.Name, "subjects", s.Subjects)
 	}

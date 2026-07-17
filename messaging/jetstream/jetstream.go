@@ -19,6 +19,7 @@ import (
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/messaging"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -97,12 +98,12 @@ func (c *Client) ReadConfig(l configx.Reader) error {
 func (c *Client) Connect() error {
 	conn, err := nats.Connect(c.Config.URL, c.opts...)
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS at %s: %w", c.Config.URL, err)
+		return errorx.NewInternalError("jetstream", "failed to connect to NATS", "url", c.Config.URL).WithInner(err)
 	}
 	js, err := jetstream.New(conn)
 	if err != nil {
 		conn.Close()
-		return fmt.Errorf("jetstream: init: %w", err)
+		return errorx.NewInternalError("jetstream", "opening JetStream context failed").WithInner(err)
 	}
 	c.conn = conn
 	c.js = js
@@ -140,7 +141,7 @@ func (c *Client) Disconnect() error {
 	}
 	if err := c.conn.Drain(); err != nil {
 		c.conn.Close()
-		return fmt.Errorf("jetstream: drain failed: %w", err)
+		return errorx.NewInternalError("jetstream", "drain failed").WithInner(err)
 	}
 	return nil
 }
@@ -153,7 +154,7 @@ func (c *Client) IsConnected() bool {
 // Healthy implements core.HealthChecker.
 func (c *Client) Healthy(_ context.Context) error {
 	if !c.IsConnected() {
-		return fmt.Errorf("jetstream: not connected")
+		return errorx.NewInternalError("jetstream", "not connected")
 	}
 	return nil
 }
@@ -184,7 +185,7 @@ func (c *Client) Publish(ctx context.Context, msg messaging.Message) error {
 	})
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
-		return fmt.Errorf("jetstream: publish to %q: %w", msg.Subject, err)
+		return errorx.NewInternalError("jetstream", "publish failed", "subject", msg.Subject).WithInner(err)
 	}
 	return nil
 }
