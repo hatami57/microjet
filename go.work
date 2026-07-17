@@ -33,6 +33,7 @@ use (
 	./host
 	./httpx
 	./messaging
+	./messaging/jetstream
 	./messaging/nats
 	./otelx
 	./outbox

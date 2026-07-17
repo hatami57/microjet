@@ -38,6 +38,7 @@ import "github.com/hatami57/microjet/host"
 | `grpcx` | `github.com/hatami57/microjet/grpcx` | Managed gRPC server: recovery/request-id/logging/errorx interceptors, health service, reflection, tracing |
 | `gormx` | `github.com/hatami57/microjet/gormx` | Generic GORM CRUD + cursor & offset pagination (works with any `*gorm.DB`, incl. SQLite) |
 | `messaging` | `github.com/hatami57/microjet/messaging` | NATS pub/sub client (context + headers) |
+| `messaging/jetstream` | `github.com/hatami57/microjet/messaging/jetstream` | JetStream driver: durable streams, at-least-once delivery, acks, redelivery, dead-lettering |
 | `cache` | `github.com/hatami57/microjet/cache` | Cache interface with Redis and in-memory implementations |
 | `otelx` | `github.com/hatami57/microjet/otelx` | OpenTelemetry tracing setup (OTLP exporter, W3C propagation) |
 | `gormx/migrate` | `github.com/hatami57/microjet/gormx/migrate` | Opt-in versioned SQL migrations (goose wrapper) |

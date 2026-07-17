@@ -304,15 +304,31 @@ error. Cheap, catches the "empty DSN discovered at first query" class at boot.
   `configx.Configure`, `host.New` (the standard `*Config`), `App.Configure`,
   and per-service config loading in `host/service.go`.
 
-### 2.12 [P3] NATS JetStream  `feat(messaging)`
+### 2.12 [P3] NATS JetStream  `feat(messaging)` — **done**
 
 Core NATS pub/sub drops messages while a consumer is down, which undercuts the
 outbox's at-least-once promise *end to end* (the relay guarantees delivery to
 the broker, not to the consumer). JetStream adds durable consumers, acks,
-redelivery, and DLQ via max-deliveries. Larger design: needs stream/consumer
-config surface, `messaging.Subscribe` ack semantics (explicit ack on handler
-nil-return), and a decision on whether it's a new `messaging/jetstream` module
-(consistent with the driver pattern) — sketch that before coding. Do after 2.6.
+redelivery, and DLQ via max-deliveries.
+
+- [x] New `messaging/jetstream` module (driver pattern, own `go.mod`): a
+  `jetstream.Client` implementing `messaging.Client`, so it drops into
+  `messaging.Module(jetstream.New())` and upgrades the outbox to at-least-once
+  end to end with **no outbox changes** (the relay's `Publish` now persists to a
+  stream and waits for the server `PubAck`).
+- [x] `messaging.Subscribe` ack semantics via durable pull consumers: handler
+  nil-return → `Ack`, error → `Nak` (redelivery after `AckWait`), and after
+  `MaxDeliver` attempts → `Term` plus an optional copy to a dead-letter subject.
+  Durable naming derives from the queue group (shared/load-balanced) or the
+  subject, so the existing `Subscriber` interface is unchanged.
+- [x] Config surface `[messaging.jetstream]` (durable prefix, ackWait,
+  maxDeliver, maxAckPending, deadLetterSubject) with declarative, idempotent
+  `[[messaging.jetstream.streams]]` ensured on connect. Request/Respond delegate
+  to core NATS over the same connection.
+- [x] Zero new shipped dependencies (nats.go client only, matching the core NATS
+  driver). Integration tests run against a real JetStream server gated behind
+  `MICROJET_TEST_NATS_URL` (skips in CI, like the outbox Postgres test), so no
+  embedded server enters any consumer's module graph or binary.
 
 ---
 
