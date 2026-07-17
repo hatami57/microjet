@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/messaging"
 	"github.com/nats-io/nats.go"
 	"go.opentelemetry.io/otel"
@@ -92,7 +93,7 @@ func (c *Client) ReadConfig(l configx.Reader) error {
 func (c *Client) Connect() error {
 	conn, err := nats.Connect(c.Config.URL, c.opts...)
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS at %s: %w", c.Config.URL, err)
+		return errorx.NewInternalError("nats", "failed to connect to NATS", "url", c.Config.URL).WithInner(err)
 	}
 	c.logger.Info("connected to NATS", "url", c.Config.URL)
 	c.conn = conn
@@ -114,7 +115,7 @@ func (c *Client) Disconnect() error {
 	}
 	if err := c.conn.Drain(); err != nil {
 		c.conn.Close()
-		return fmt.Errorf("nats: drain failed: %w", err)
+		return errorx.NewInternalError("nats", "drain failed").WithInner(err)
 	}
 	return nil
 }
@@ -129,7 +130,7 @@ func (c *Client) IsConnected() bool {
 // uniformity; the check is local and fast.
 func (c *Client) Healthy(_ context.Context) error {
 	if !c.IsConnected() {
-		return fmt.Errorf("nats: not connected")
+		return errorx.NewInternalError("nats", "not connected")
 	}
 	return nil
 }
