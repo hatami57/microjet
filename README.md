@@ -513,11 +513,14 @@ symbol-checked against the code, so they can't drift from the API:
 
 Runnable examples live in [`examples/`](examples/) — see the
 [examples index](examples/README.md) for the full list. There is a focused,
-single-feature example for each capability (errors, config, money, time,
-converters, logging, cache, HTTP client, idempotency, tracing, migrations,
-messaging, AWS) plus compound services that combine several:
+single-feature example for each capability (errors, config, config validation,
+money, time, converters, logging, cache, HTTP client, gRPC, idempotency, tracing,
+migrations, messaging, JetStream, AWS) plus compound services that combine
+several:
 
 - [`examples/minimal`](examples/minimal) — smallest possible app.
+- [`examples/grpcx`](examples/grpcx) — gRPC server + client: interceptors, errorx→status mapping, health, request-id; runs in-process, offline.
+- [`examples/jetstream`](examples/jetstream) — durable NATS JetStream messaging: at-least-once delivery with redelivery on handler failure.
 - [`examples/http-postgres`](examples/http-postgres) — HTTP CRUD backed by PostgreSQL.
 - [`examples/sqlite`](examples/sqlite) — HTTP CRUD backed by SQLite; runs with no external database.
 - [`examples/features`](examples/features) — middleware (CORS, rate limit, JWT), request-scoped logging, the cache, and the JSON client with retries.

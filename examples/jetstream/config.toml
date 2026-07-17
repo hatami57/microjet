@@ -1,0 +1,28 @@
+[app]
+name = "jetstream-demo"
+environment = "development"
+debug = true
+
+[log]
+level = "info"
+format = "text"
+
+[messaging]
+url = "nats://localhost:4222"
+
+[messaging.jetstream]
+# Prefix for the derived durable consumer name (so two services on the same
+# subject get distinct durables).
+durablePrefix = "jsdemo"
+# Redelivery timeout: a naked (failed) message is redelivered after this.
+ackWait = "2s"
+# Delivery attempts before a message is terminated and sent to the dead-letter
+# subject.
+maxDeliver = 5
+deadLetterSubject = "dlq.orders"
+
+# Streams are ensured (created or updated) on connect. Leave this out when the
+# stream is provisioned by your infrastructure instead.
+[[messaging.jetstream.streams]]
+name = "ORDERS"
+subjects = ["orders.>"]

@@ -23,6 +23,7 @@ so in the table below.
 |---|---|---|---|
 | [`errors`](errors) | Structured errors (`core/errorx`) | — | 6 categories, builder enrichment, JSON shape, `errors.Is` by category |
 | [`config`](config) | Configuration (`configx`) | — | TOML + defaults + typed sections; `APP_*` env overrides; `config.local.toml` overlay |
+| [`config-validation`](config-validation) | Config validation hook (`configx.Validator`) | — | `Validate() error` rejects bad config at startup with a wrapped error |
 | [`money`](money) | Money type (`core/types/money`) | — | currency-safe arithmetic, minor-unit conversion |
 | [`time`](time) | Time utilities (`core`) | — | `TimeProvider`, `FixedClock`, sortable timestamps |
 | [`converters`](converters) | Type converters (`jsonx`, `utils`) | — | JSON, struct↔map, pointer coalescing |
@@ -34,6 +35,8 @@ so in the table below.
 | [`tracing`](tracing) | Distributed tracing (`otelx`) | OTLP collector (optional) | spans + `trace_id` log correlation |
 | [`migrations`](migrations) | Versioned migrations (`gormx/migrate`) | — | embedded SQL Up/Down on SQLite |
 | [`messaging`](messaging) | NATS pub/sub (`messaging`) | NATS | typed `HandleJSON` subscribe + periodic publish |
+| [`jetstream`](jetstream) | Durable messaging (`messaging/jetstream`) | NATS (JetStream) | at-least-once delivery, acks, redelivery on failure, dead-letter subject |
+| [`grpcx`](grpcx) | gRPC server + client (`grpcx`) | — | interceptors, errorx→status mapping, health, request-id trailer, `Dial` (in-process, offline) |
 | [`aws`](aws) | AWS integration (`aws`) | AWS / LocalStack (optional) | S3, SQS, DynamoDB client init |
 
 ## Compound examples
@@ -53,6 +56,9 @@ so in the table below.
 ```sh
 # NATS (messaging, outbox)
 docker run --rm -p 4222:4222 nats:latest
+
+# NATS with JetStream enabled (jetstream) — durable streams need the -js flag
+docker run --rm -p 4222:4222 nats:latest -js
 
 # PostgreSQL (http-postgres) — see that example's config.toml for credentials
 docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16

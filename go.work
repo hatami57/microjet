@@ -8,13 +8,16 @@ use (
 	./examples/cache
 	./examples/compound-orders
 	./examples/config
+	./examples/config-validation
 	./examples/converters
 	./examples/cors
 	./examples/errors
 	./examples/features
+	./examples/grpcx
 	./examples/http-client
 	./examples/http-postgres
 	./examples/idempotency
+	./examples/jetstream
 	./examples/logging
 	./examples/messaging
 	./examples/migrations
