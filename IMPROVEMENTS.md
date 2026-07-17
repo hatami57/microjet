@@ -88,7 +88,7 @@ separately so it isn't missed if 1.1 is split across commits.
 
 ## 2. Feature gaps
 
-### 2.1 [P2] gRPC module (`grpcx`)  `feat` (new module)
+### 2.1 [P2] gRPC module (`grpcx`)  `feat` (new module) — **done**
 
 Biggest gap for a framework that says "microservice". Internal service-to-service
 traffic in Go shops is predominantly gRPC, and every needed building block
@@ -131,8 +131,10 @@ Progress:
 - [x] `grpc_health_v1` health service driven by the same readiness checks as
   httpx `/readyz` (a poller + immediate flip on `SetReady`), and reflection when
   `debug = true`. `CloseOrder` is `host.CloseEdge`.
-- [ ] Client dial helper (`grpcx.Dial`) with matching client interceptors —
-  next commit.
+- [x] Client dial helper (`grpcx.Dial`) installing the matching client
+  interceptors: correlation-id propagation into outgoing metadata and the
+  otelgrpc client stats handler. End-to-end test confirms the id flows
+  client→server and is echoed in the trailer.
 
 ### 2.2 [P1] Runtime + custom metrics  `feat(httpx)` / `feat(gormx)` / `feat(cache)`
 

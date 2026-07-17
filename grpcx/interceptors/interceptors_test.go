@@ -105,3 +105,40 @@ func TestTranslateErrorPassesThroughStatus(t *testing.T) {
 		t.Fatalf("status error was not passed through unchanged: %v", got)
 	}
 }
+
+func TestRequestIDUnaryClientPropagatesID(t *testing.T) {
+	interceptor := RequestIDUnaryClient()
+	ctx := core.ContextWithCorrelationID(context.Background(), "cid-9")
+
+	var seen string
+	invoker := func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		if md, ok := metadata.FromOutgoingContext(ctx); ok {
+			if vals := md.Get(requestIDKey); len(vals) > 0 {
+				seen = vals[0]
+			}
+		}
+		return nil
+	}
+	if err := interceptor(ctx, "/test.Service/Method", nil, nil, nil, invoker); err != nil {
+		t.Fatalf("interceptor error: %v", err)
+	}
+	if seen != "cid-9" {
+		t.Fatalf("outgoing request id = %q, want cid-9", seen)
+	}
+}
+
+func TestRequestIDUnaryClientNoopWithoutID(t *testing.T) {
+	interceptor := RequestIDUnaryClient()
+
+	var had bool
+	invoker := func(ctx context.Context, _ string, _, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
+		_, had = metadata.FromOutgoingContext(ctx)
+		return nil
+	}
+	if err := interceptor(context.Background(), "/test.Service/Method", nil, nil, nil, invoker); err != nil {
+		t.Fatalf("interceptor error: %v", err)
+	}
+	if had {
+		t.Fatal("outgoing metadata was set even though the context carried no id")
+	}
+}
