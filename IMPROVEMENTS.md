@@ -263,13 +263,19 @@ min 1/min) and on a TTL (default 1h), thread-safe. Either hand-roll (~150
 lines over `crypto/*` + `encoding/json`) or wrap `github.com/MicahParks/keyfunc`
 — decide by dependency-weight policy; hand-rolling fits this repo's style.
 
-### 2.11 [P3] Config validation hook  `feat(core)`
+### 2.11 [P3] Config validation hook  `feat(core)` — **done**
 
 After `ReadConfig`, if the config struct implements
 `interface{ Validate() error }`, call it and fail startup with the wrapped
-error. One `if v, ok := cfg.(Validator); ok` in `configx.Read` /
-`app.Configure`. Cheap, catches the "empty DSN discovered at first query"
-class at boot.
+error. Cheap, catches the "empty DSN discovered at first query" class at boot.
+
+- [x] `configx.Validator` interface (`Validate() error`) plus
+  `configx.ReadAndValidate(Reader, Configurable)` — the single seam that pairs
+  `ReadConfig` with the optional `Validate`, wrapping failures as
+  `config validation failed: %w`.
+- [x] Wired into every entry point so validation is enforced identically:
+  `configx.Configure`, `host.New` (the standard `*Config`), `App.Configure`,
+  and per-service config loading in `host/service.go`.
 
 ### 2.12 [P3] NATS JetStream  `feat(messaging)`
 

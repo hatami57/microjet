@@ -1,6 +1,7 @@
 package configx
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,6 +87,56 @@ func TestEnvOverridesFileAndDefault(t *testing.T) {
 	}
 	if cfg.MaxRetries != 3 {
 		t.Errorf("MaxRetries = %d, want 3 (file value should survive)", cfg.MaxRetries)
+	}
+}
+
+// validatingConfig reads a [svc] section and validates that Port is set.
+type validatingConfig struct {
+	Port int `mapstructure:"port"`
+}
+
+func (c *validatingConfig) ReadConfig(r Reader) error { return r.Read("svc", c) }
+
+func (c *validatingConfig) Validate() error {
+	if c.Port == 0 {
+		return errors.New("port must be set")
+	}
+	return nil
+}
+
+func TestReadAndValidateRunsValidate(t *testing.T) {
+	r := readerWithConfig(t, "[svc]\nport = 0\n")
+	err := ReadAndValidate(r, &validatingConfig{})
+	if err == nil {
+		t.Fatal("ReadAndValidate() = nil, want validation error")
+	}
+	if err.Error() != "config validation failed: port must be set" {
+		t.Fatalf("ReadAndValidate() error = %v, want wrapped validation error", err)
+	}
+}
+
+func TestReadAndValidatePassesWhenValid(t *testing.T) {
+	r := readerWithConfig(t, "[svc]\nport = 8080\n")
+	cfg := &validatingConfig{}
+	if err := ReadAndValidate(r, cfg); err != nil {
+		t.Fatalf("ReadAndValidate() = %v, want nil", err)
+	}
+	if cfg.Port != 8080 {
+		t.Fatalf("Port = %d, want 8080", cfg.Port)
+	}
+}
+
+// plainConfig has no Validate method; ReadAndValidate must still populate it.
+type plainConfig struct {
+	Port int `mapstructure:"port"`
+}
+
+func (c *plainConfig) ReadConfig(r Reader) error { return r.Read("svc", c) }
+
+func TestReadAndValidateSkipsWhenNoValidator(t *testing.T) {
+	r := readerWithConfig(t, "[svc]\nport = 0\n")
+	if err := ReadAndValidate(r, &plainConfig{}); err != nil {
+		t.Fatalf("ReadAndValidate() = %v, want nil (no Validator implemented)", err)
 	}
 }
 

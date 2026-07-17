@@ -2,6 +2,8 @@
 // overlay, environment-variable overrides, and defaults — into typed structs.
 package configx
 
+import "fmt"
+
 // Reader wraps a reader instance and exposes config-reading operations to
 // Configurable implementations.
 type Reader interface {
@@ -26,6 +28,30 @@ type Configurable interface {
 	ReadConfig(Reader) error
 }
 
+// Validator is an optional interface a Configurable may implement to check its
+// values once they have been read. When a Configurable also implements it,
+// Configure and host.App call Validate immediately after ReadConfig and fail
+// startup with the wrapped error — catching invalid settings (an empty DSN, an
+// out-of-range port) at boot instead of at first use.
+type Validator interface {
+	Validate() error
+}
+
+// ReadAndValidate calls cfg.ReadConfig and, when cfg also implements Validator,
+// its Validate method. It is the single seam that pairs reading with validation
+// so every entry point (Configure, host.App) enforces Validate identically.
+func ReadAndValidate(r Reader, cfg Configurable) error {
+	if err := cfg.ReadConfig(r); err != nil {
+		return err
+	}
+	if v, ok := cfg.(Validator); ok {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("config validation failed: %w", err)
+		}
+	}
+	return nil
+}
+
 // Configure creates a single Reader and calls ReadConfig on each
 // Configurable in order. Use NewViperConfigReader when you need to reuse the
 // same parsed config across multiple calls.
@@ -36,7 +62,7 @@ func Configure(envPrefix string, cfgs ...Configurable) error {
 	}
 
 	for _, cfg := range cfgs {
-		if err := cfg.ReadConfig(reader); err != nil {
+		if err := ReadAndValidate(reader, cfg); err != nil {
 			return err
 		}
 	}

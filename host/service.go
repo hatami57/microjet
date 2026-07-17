@@ -244,7 +244,7 @@ func (a *App) initServices() error {
 			configCallCount++
 			name := reflect.TypeOf(item).String()
 			a.Logger.Debug("loading config for service", "type", name)
-			if err := cfg.ReadConfig(a.configReader); err != nil {
+			if err := configx.ReadAndValidate(a.configReader, cfg); err != nil {
 				a.Logger.Error("failed to load config for service", "type", name, "error", err)
 				passErr = err
 				return false

@@ -161,7 +161,7 @@ func New(opts ...Option) (*App, error) {
 		}
 	}
 	cfg := &Config{}
-	if err := cfg.ReadConfig(a.configReader); err != nil {
+	if err := configx.ReadAndValidate(a.configReader, cfg); err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 	a.Config = cfg
@@ -186,7 +186,7 @@ func (a *App) Configure(cfgs ...configx.Configurable) *App {
 		return a
 	}
 	for _, cfg := range cfgs {
-		if err := cfg.ReadConfig(a.configReader); err != nil {
+		if err := configx.ReadAndValidate(a.configReader, cfg); err != nil {
 			return a.fail(err)
 		}
 	}
