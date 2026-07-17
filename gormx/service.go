@@ -2,11 +2,11 @@ package gormx
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"gorm.io/gorm"
 )
 
@@ -112,10 +112,10 @@ func (s *Service) Healthy(ctx context.Context) error {
 	}
 	sqlDB, err := s.db.DB()
 	if err != nil {
-		return fmt.Errorf("db %q: %w", name, err)
+		return errorx.NewInternalError("gormx", "database handle unavailable", "db", name).WithInner(err)
 	}
 	if err := sqlDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("db %q: %w", name, err)
+		return errorx.NewInternalError("gormx", "database ping failed", "db", name).WithInner(err)
 	}
 	return nil
 }

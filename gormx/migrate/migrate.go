@@ -16,10 +16,10 @@ package migrate
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"log/slog"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/pressly/goose/v3"
 	"gorm.io/gorm"
 )
@@ -72,7 +72,7 @@ func New(db *gorm.DB, fsys fs.FS, opts ...Option) (*Migrator, error) {
 		o(&cfg)
 	}
 	if db == nil {
-		return nil, fmt.Errorf("migrate: nil *gorm.DB")
+		return nil, errorx.NewInternalError("migrate", "nil *gorm.DB")
 	}
 
 	dialect, err := dialectFor(db)
@@ -81,20 +81,20 @@ func New(db *gorm.DB, fsys fs.FS, opts ...Option) (*Migrator, error) {
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("migrate: resolving *sql.DB: %w", err)
+		return nil, errorx.NewInternalError("migrate", "resolving *sql.DB failed").WithInner(err)
 	}
 
 	root := fsys
 	if cfg.dir != "" && cfg.dir != "." {
 		root, err = fs.Sub(fsys, cfg.dir)
 		if err != nil {
-			return nil, fmt.Errorf("migrate: opening migrations dir %q: %w", cfg.dir, err)
+			return nil, errorx.NewInternalError("migrate", "opening migrations dir failed", "dir", cfg.dir).WithInner(err)
 		}
 	}
 
 	provider, err := goose.NewProvider(dialect, sqlDB, root)
 	if err != nil {
-		return nil, fmt.Errorf("migrate: building goose provider: %w", err)
+		return nil, errorx.NewInternalError("migrate", "building goose provider failed").WithInner(err)
 	}
 	return &Migrator{provider: provider, logger: cfg.logger}, nil
 }
@@ -104,7 +104,7 @@ func New(db *gorm.DB, fsys fs.FS, opts ...Option) (*Migrator, error) {
 func (m *Migrator) Up(ctx context.Context) error {
 	results, err := m.provider.Up(ctx)
 	if err != nil {
-		return fmt.Errorf("migrate up: %w", err)
+		return errorx.NewInternalError("migrate", "migrate up failed").WithInner(err)
 	}
 	for _, r := range results {
 		m.logger.Info("migration applied", "version", r.Source.Version, "file", r.Source.Path, "duration", r.Duration)
@@ -119,7 +119,7 @@ func (m *Migrator) Up(ctx context.Context) error {
 func (m *Migrator) Down(ctx context.Context) error {
 	result, err := m.provider.Down(ctx)
 	if err != nil {
-		return fmt.Errorf("migrate down: %w", err)
+		return errorx.NewInternalError("migrate", "migrate down failed").WithInner(err)
 	}
 	m.logger.Info("migration rolled back", "version", result.Source.Version, "file", result.Source.Path)
 	return nil
@@ -129,7 +129,7 @@ func (m *Migrator) Down(ctx context.Context) error {
 func (m *Migrator) Version(ctx context.Context) (int64, error) {
 	v, err := m.provider.GetDBVersion(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("migrate version: %w", err)
+		return 0, errorx.NewInternalError("migrate", "migrate version failed").WithInner(err)
 	}
 	return v, nil
 }
@@ -154,6 +154,6 @@ func dialectFor(db *gorm.DB) (goose.Dialect, error) {
 	case "mysql":
 		return goose.DialectMySQL, nil
 	default:
-		return "", fmt.Errorf("migrate: unsupported dialect %q", name)
+		return "", errorx.NewInternalError("migrate", "unsupported dialect", "dialect", name)
 	}
 }

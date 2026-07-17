@@ -2,8 +2,8 @@ package gormx
 
 import (
 	"errors"
-	"fmt"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -48,10 +48,10 @@ func (tracingPlugin) Initialize(db *gorm.DB) error {
 		{"raw", db.Callback().Raw().Before("gorm:raw"), db.Callback().Raw().After("gorm:raw")},
 	} {
 		if err := e.before.Register("microjet:trace_before_"+e.op, traceBefore(e.op, dbSystem)); err != nil {
-			return fmt.Errorf("gormx: registering before callback for %s: %w", e.op, err)
+			return errorx.NewInternalError("gormx", "registering before callback failed", "op", e.op).WithInner(err)
 		}
 		if err := e.after.Register("microjet:trace_after_"+e.op, traceAfter); err != nil {
-			return fmt.Errorf("gormx: registering after callback for %s: %w", e.op, err)
+			return errorx.NewInternalError("gormx", "registering after callback failed", "op", e.op).WithInner(err)
 		}
 	}
 	return nil

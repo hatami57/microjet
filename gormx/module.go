@@ -1,8 +1,7 @@
 package gormx
 
 import (
-	"fmt"
-
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/host"
 	"gorm.io/gorm"
 )
@@ -45,7 +44,7 @@ func Module(driver Driver, name ...string) host.Module {
 	n := first(name)
 	return host.KeyedModuleFunc(moduleKey("gormx.DB", canonicalName(n)), func(app *host.App) error {
 		if driver == nil {
-			return fmt.Errorf("database %q: nil driver", n)
+			return errorx.NewInternalError("gormx", "nil driver", "database", n)
 		}
 		svc := NewService(displayName(n), dbSection(n), driver)
 		svc.SetLogger(app.Logger)
@@ -62,7 +61,7 @@ func Inject(db *gorm.DB, name ...string) host.Module {
 	n := first(name)
 	return host.KeyedModuleFunc(moduleKey("gormx.DB", canonicalName(n)), func(app *host.App) error {
 		if db == nil {
-			return fmt.Errorf("database %q: nil *gorm.DB", n)
+			return errorx.NewInternalError("gormx", "nil *gorm.DB", "database", n)
 		}
 		svc := NewServiceFromDB(displayName(n), db)
 		svc.SetLogger(app.Logger)

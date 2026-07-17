@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/gormx"
 	gormpg "gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -41,15 +42,15 @@ func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error)
 		TranslateError:       true,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to postgresql: %w", err)
+		return nil, errorx.NewInternalError("gormx", "failed to connect to postgresql").WithInner(err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get db connection: %w", err)
+		return nil, errorx.NewInternalError("gormx", "failed to get db connection").WithInner(err)
 	}
 	if err = sqlDB.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, errorx.NewInternalError("gormx", "failed to ping database").WithInner(err)
 	}
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetMaxOpenConns(10)
