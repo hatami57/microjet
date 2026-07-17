@@ -7,6 +7,12 @@ commit (Conventional Commits; no AI attribution). Check items off as they land.
 Legend: **[P1]** fix soon (defect or high-value/low-cost) · **[P2]** next
 feature wave · **[P3]** nice to have / larger design work.
 
+> A follow-up security & usability review (2026-07-17) with its own actionable
+> backlog lives in
+> [docs/security-usability-review-2026-07-17.md](docs/security-usability-review-2026-07-17.md).
+> It cross-references §2.9, §2.10, §2.11, and §4.5 here rather than duplicating
+> them.
+
 ---
 
 ## 1. Defects / doc drift (fix first)
