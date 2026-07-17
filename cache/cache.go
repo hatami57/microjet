@@ -7,11 +7,11 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/hatami57/microjet/core"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // Cache is a byte-oriented key/value store with per-entry expiry. A zero ttl
@@ -49,7 +49,7 @@ func New(ctx context.Context, cfg Config, timeProvider core.TimeProvider) (Cache
 			Prefix:   cfg.Prefix,
 		})
 	default:
-		return nil, fmt.Errorf("cache: unsupported driver %q", cfg.Driver)
+		return nil, errorx.NewInternalError("cache", "unsupported driver", "driver", cfg.Driver)
 	}
 }
 

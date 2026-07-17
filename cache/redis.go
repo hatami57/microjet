@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"time"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -38,7 +38,7 @@ func NewRedis(ctx context.Context, opts RedisOptions) (*RedisCache, error) {
 	})
 	if err := client.Ping(ctx).Err(); err != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("redis: ping %s: %w", opts.Addr, err)
+		return nil, errorx.NewInternalError("cache", "redis ping failed", "addr", opts.Addr).WithInner(err)
 	}
 	return &RedisCache{client: client, prefix: opts.Prefix}, nil
 }
@@ -57,14 +57,14 @@ func (r *RedisCache) GetBytes(ctx context.Context, key string) ([]byte, bool, er
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("redis get: %w", err)
+		return nil, false, errorx.NewInternalError("cache", "redis get failed").WithInner(err)
 	}
 	return data, true, nil
 }
 
 func (r *RedisCache) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	if err := r.client.Set(ctx, r.key(key), value, ttl).Err(); err != nil {
-		return fmt.Errorf("redis set: %w", err)
+		return errorx.NewInternalError("cache", "redis set failed").WithInner(err)
 	}
 	return nil
 }
@@ -79,7 +79,7 @@ func (r *RedisCache) Get(ctx context.Context, key string) (any, bool, error) {
 	}
 	var value any
 	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&value); err != nil {
-		return nil, false, fmt.Errorf("redis get: gob decode: %w", err)
+		return nil, false, errorx.NewInternalError("cache", "redis get: gob decode failed").WithInner(err)
 	}
 	return value, true, nil
 }
@@ -90,14 +90,14 @@ func (r *RedisCache) Get(ctx context.Context, key string) (any, bool, error) {
 func (r *RedisCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(&value); err != nil {
-		return fmt.Errorf("redis set: gob encode: %w", err)
+		return errorx.NewInternalError("cache", "redis set: gob encode failed").WithInner(err)
 	}
 	return r.SetBytes(ctx, key, buf.Bytes(), ttl)
 }
 
 func (r *RedisCache) Delete(ctx context.Context, key string) error {
 	if err := r.client.Del(ctx, r.key(key)).Err(); err != nil {
-		return fmt.Errorf("redis del: %w", err)
+		return errorx.NewInternalError("cache", "redis del failed").WithInner(err)
 	}
 	return nil
 }
