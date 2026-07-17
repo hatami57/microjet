@@ -4,7 +4,6 @@ package aws
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
@@ -14,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 type AWS struct {
@@ -68,7 +68,7 @@ func (a *AWS) Init() error {
 
 	cfg, err := awsConfig.LoadDefaultConfig(context.Background(), options...)
 	if err != nil {
-		return fmt.Errorf("aws: load default config: %w", err)
+		return errorx.NewInternalError("aws", "load default config failed").WithInner(err)
 	}
 	a.DefaultConfig = awssdk.Config(cfg)
 	for _, service := range a.services {
@@ -87,7 +87,7 @@ func (a *AWS) Init() error {
 			}
 			a.DynamoDBClient = dynamodb.NewFromConfig(a.DefaultConfig, dynamoOpts...)
 		default:
-			return fmt.Errorf("undefined aws service: %s", service)
+			return errorx.NewInternalError("aws", "undefined aws service", "service", service)
 		}
 	}
 	return nil

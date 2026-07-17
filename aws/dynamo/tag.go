@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // keyRole marks whether a struct field owns the partition key or sort key.
@@ -62,7 +63,7 @@ func (kf *keyFormat) decode(raw string, v reflect.Value) error {
 		if seg.fieldIndex < 0 {
 			// Literal: must be a prefix of what remains.
 			if !strings.HasPrefix(remaining, seg.literal) {
-				return fmt.Errorf("dynamo: expected prefix %q decoding %q", seg.literal, raw)
+				return errorx.NewInternalError("dynamo", "expected prefix", "prefix", seg.literal, "raw", raw)
 			}
 			remaining = remaining[len(seg.literal):]
 		} else {
@@ -71,7 +72,7 @@ func (kf *keyFormat) decode(raw string, v reflect.Value) error {
 			if nextLit := nextLiteral(kf.segments[i+1:]); nextLit != "" {
 				idx := strings.Index(remaining, nextLit)
 				if idx < 0 {
-					return fmt.Errorf("dynamo: separator %q not found decoding %q", nextLit, raw)
+					return errorx.NewInternalError("dynamo", "separator not found", "separator", nextLit, "raw", raw)
 				}
 				value = remaining[:idx]
 				remaining = remaining[idx:]
@@ -116,7 +117,7 @@ func parseKeyFormat(pattern, selfName string, t reflect.Type) (*keyFormat, error
 		}
 		close := strings.Index(rest[open:], "}")
 		if close < 0 {
-			return nil, fmt.Errorf("dynamo: unclosed { in format %q", pattern)
+			return nil, errorx.NewInternalError("dynamo", "unclosed { in format", "format", pattern)
 		}
 		name := rest[open+1 : open+close]
 		if name == "" {
@@ -124,7 +125,7 @@ func parseKeyFormat(pattern, selfName string, t reflect.Type) (*keyFormat, error
 		}
 		idx, err := structFieldIndex(t, name)
 		if err != nil {
-			return nil, fmt.Errorf("dynamo: format %q references unknown field %q in %s", pattern, name, t.Name())
+			return nil, errorx.NewInternalError("dynamo", "format references unknown field", "format", pattern, "field", name, "type", t.Name())
 		}
 		kf.segments = append(kf.segments, keySegment{fieldIndex: idx})
 		rest = rest[open+close+1:]
@@ -156,7 +157,7 @@ func getStructMeta[T any]() (*structMeta, error) {
 	var zero T
 	t := reflect.TypeOf(zero)
 	if t == nil {
-		return nil, fmt.Errorf("dynamo: T must not be an interface type")
+		return nil, errorx.NewInternalError("dynamo", "T must not be an interface type")
 	}
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -240,10 +241,10 @@ func buildStructMeta(t reflect.Type) (*structMeta, error) {
 		}
 	}
 	if meta.pkField == nil {
-		return nil, fmt.Errorf("dynamo: %s: no field tagged with dynamo:\"pk,...\"", t.Name())
+		return nil, errorx.NewInternalError("dynamo", "no field tagged with dynamo:\"pk,...\"", "type", t.Name())
 	}
 	if meta.skField == nil {
-		return nil, fmt.Errorf("dynamo: %s: no field tagged with dynamo:\"sk,...\"", t.Name())
+		return nil, errorx.NewInternalError("dynamo", "no field tagged with dynamo:\"sk,...\"", "type", t.Name())
 	}
 	return meta, nil
 }
@@ -295,7 +296,7 @@ func structFieldIndex(t reflect.Type, name string) (int, error) {
 			return i, nil
 		}
 	}
-	return -1, fmt.Errorf("field %q not found in %s", name, t.Name())
+	return -1, errorx.NewInternalError("dynamo", "field not found", "field", name, "type", t.Name())
 }
 
 // fieldToString converts a struct field value to its string key representation.
@@ -316,13 +317,13 @@ func setFieldFromString(dest reflect.Value, s string) error {
 	case uuid.UUID:
 		id, err := uuid.Parse(s)
 		if err != nil {
-			return fmt.Errorf("dynamo: parse uuid from %q: %w", s, err)
+			return errorx.NewInternalError("dynamo", "parse uuid failed", "value", s).WithInner(err)
 		}
 		dest.Set(reflect.ValueOf(id))
 	case string:
 		dest.SetString(s)
 	default:
-		return fmt.Errorf("dynamo: unsupported key field type %s", dest.Type())
+		return errorx.NewInternalError("dynamo", "unsupported key field type", "type", dest.Type())
 	}
 	return nil
 }

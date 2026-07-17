@@ -5,6 +5,7 @@ import (
 	"time"
 
 	dynamoTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 const milliTimeLayout = "2006-01-02T15:04:05.000Z07:00"
@@ -26,14 +27,14 @@ func (t Timestamp) MarshalDynamoDBAttributeValue() (dynamoTypes.AttributeValue, 
 func (t *Timestamp) UnmarshalDynamoDBAttributeValue(av dynamoTypes.AttributeValue) error {
 	s, ok := av.(*dynamoTypes.AttributeValueMemberS)
 	if !ok {
-		return fmt.Errorf("dynamo: cannot unmarshal %T into Timestamp", av)
+		return errorx.NewInternalError("dynamo", "cannot unmarshal into Timestamp", "type", fmt.Sprintf("%T", av))
 	}
 	parsed, err := time.Parse(milliTimeLayout, s.Value)
 	if err != nil {
 		// fall back to RFC3339Nano for records written before this change
 		parsed, err = time.Parse(time.RFC3339Nano, s.Value)
 		if err != nil {
-			return fmt.Errorf("dynamo: parse timestamp %q: %w", s.Value, err)
+			return errorx.NewInternalError("dynamo", "parse timestamp failed", "value", s.Value).WithInner(err)
 		}
 	}
 	*t = Timestamp(parsed)

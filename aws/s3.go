@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
@@ -11,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/hatami57/microjet/core/errorx"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -33,7 +33,7 @@ func (a *AWS) S3DownloadFiles(ctx context.Context, reqs []S3DownloadFileRequest,
 		maxWorkers = 1
 	}
 	if a.S3Client == nil {
-		return fmt.Errorf("s3 client is not configured")
+		return errorx.NewInternalError("aws", "s3 client is not configured")
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -53,7 +53,7 @@ func (a *AWS) S3DownloadFiles(ctx context.Context, reqs []S3DownloadFileRequest,
 
 func (a *AWS) S3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
 	if a.S3Client == nil {
-		return fmt.Errorf("s3 client is not configured")
+		return errorx.NewInternalError("aws", "s3 client is not configured")
 	}
 	return a.internalS3DownloadFile(ctx, req)
 }
@@ -61,7 +61,7 @@ func (a *AWS) S3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) er
 func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
 	f, err := os.Create(req.LocalFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return errorx.NewInternalError("aws", "failed to create file").WithInner(err)
 	}
 	defer f.Close()
 
@@ -71,12 +71,12 @@ func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileReq
 		Key:    aws.String(req.ObjectKey),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get object from s3: %w", err)
+		return errorx.NewInternalError("aws", "failed to get object from s3").WithInner(err)
 	}
 	defer result.Body.Close()
 
 	if _, err := io.Copy(f, result.Body); err != nil {
-		return fmt.Errorf("failed to stream object to file: %w", err)
+		return errorx.NewInternalError("aws", "failed to stream object to file").WithInner(err)
 	}
 	a.Logger.Debug("download completed from s3", slog.String("path", req.LocalFilePath))
 	return nil
@@ -84,10 +84,10 @@ func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileReq
 
 func (a *AWS) S3UploadFile(ctx context.Context, req *S3UploadFileRequest) error {
 	if req == nil {
-		return fmt.Errorf("req is nil")
+		return errorx.NewInternalError("aws", "req is nil")
 	}
 	if a.S3Client == nil {
-		return fmt.Errorf("s3 client is not configured")
+		return errorx.NewInternalError("aws", "s3 client is not configured")
 	}
 
 	file, err := os.Open(req.LocalFilePath)
