@@ -373,7 +373,7 @@ MODULES only for tag names and the post-tag verify loop, both order- and
 set-compatible with the discovered list, so no `RELEASE_MODULES` split was
 needed.
 
-### 4.4 [P2] Slim the README; move depth to `docs/` + `doc.go`  `docs`
+### 4.4 [P2] Slim the README; move depth to `docs/` + `doc.go`  `docs` — **done**
 
 At ~500 lines the README is a reference manual, which is why it drifted (§1.1).
 Keep: features list, install, quick start, one full example, links. Move
@@ -382,6 +382,18 @@ caching, modules deep-dive, pagination) into `docs/<topic>.md` and/or package
 `doc.go` files — pkg.go.dev renders those next to the code and they can't
 reference a wrong import path silently. Combine with 1.2 so what remains is
 compile-checked.
+
+- [x] Moved the per-topic depth out of the README (709 → 555 lines) into
+  `docs/querying.md` (pagination + aggregates/projections + atomic & guarded
+  updates), `docs/tenancy.md` (tenant resolution + cached lookups), and
+  `docs/modules.md` (module tree deep-dive).
+- [x] Added a README "Documentation" section linking the topic guides plus the
+  existing migrations/compatibility/security docs; repointed the Features
+  `[modules]` link from the removed `#modules` anchor to `docs/modules.md`.
+- [x] Combined with §1.2 as intended: `scripts/check-doc-snippets.sh` already
+  covers `docs/*.md`, so each moved `go` block keeps its imports and stays
+  compile-/symbol-checked (84 symbol references still resolve). `make docs`
+  green.
 
 ### 4.5 [P2] `SECURITY.md`  `docs` — **done**
 

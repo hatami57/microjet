@@ -12,7 +12,7 @@ import "github.com/hatami57/microjet/host"
 
 ## Features
 
-- **Application Orchestrator** — Fluent builder API (`MustNew().WithModules(gormx.Module(postgres.Driver()), httpx.Module()).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](#modules) for tree-structured feature wiring, and managed graceful shutdown. Every capability — database, HTTP, AWS, messaging, cache, tracing, outbox — is installed the same way, as a `host.Module`, so the `host` runtime itself depends on none of them: you pull in only the satellite modules you actually use.
+- **Application Orchestrator** — Fluent builder API (`MustNew().WithModules(gormx.Module(postgres.Driver()), httpx.Module()).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](docs/modules.md) for tree-structured feature wiring, and managed graceful shutdown. Every capability — database, HTTP, AWS, messaging, cache, tracing, outbox — is installed the same way, as a `host.Module`, so the `host` runtime itself depends on none of them: you pull in only the satellite modules you actually use.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, errorx.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI and `/debug/pprof` profiling (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), configurable timeouts and TLS, opt-in hardening middleware (security headers, body-size limit, per-request timeout), and Kubernetes-aware graceful shutdown (readiness flips to draining before the pod is torn down).
@@ -196,31 +196,8 @@ To run multiple databases side by side, pass a name to the same module:
 `gormx.Of(app, "analytics")`. Each named database reads its config from
 `[database.<name>]`.
 
-### Cached tenant lookups
-
-`middleware.Tenant(store)` resolves the tenant on every request from the
-`X-Tenant-ID` header or `tenantId` query param. To avoid a per-request store
-hit, wrap any `tenant.Store` in `tenant.NewCachedStore` — it caches both hits
-and "not found" results for the given TTL and exposes `Invalidate(id)` to drop
-a single entry (and `Clear()` to flush them all) when a tenant changes:
-
-```go
-import "github.com/hatami57/microjet/core/tenant"
-
-cached := tenant.NewCachedStore(dbStore, 5*time.Minute)
-router.Use(middleware.Tenant(cached))
-```
-
-Inside handlers, read the resolved tenant with the typed accessors. `Find*`
-returns the zero value when the tenant is absent, while `Get*` returns an
-`errorx` error:
-
-```go
-t := middleware.FindTenant[*MyTenant](c) // *MyTenant, or nil if absent
-t, err := middleware.GetTenant[*MyTenant](c) // err on absence or type mismatch
-base := middleware.FindTenantBase(c)     // *tenant.Base, or nil
-id, err := middleware.GetTenantID(c)     // uuid.UUID, err if absent
-```
+Cached tenant lookups and the typed tenant accessors are covered in
+[docs/tenancy.md](docs/tenancy.md).
 
 ## Configuration
 
@@ -410,92 +387,6 @@ body, _ := httpx.Body[CreateUserRequest](c)
 pagedReq := httpx.PagedRequest(c)
 ```
 
-## Pagination
-
-```go
-import (
-    "github.com/hatami57/microjet/httpx"
-    "github.com/hatami57/microjet/gormx"
-)
-
-// Cursor-based pagination by ID. Filter by chaining Where on the table — the same
-// Where/WhereIf/Order used by First, Count, and ListAll.
-req := gormx.NewPageRequest[User, uint](httpx.PagedRequest(c), "id", func(u User) uint { return u.ID })
-
-result, _ := userTable.Where("name ILIKE ?", "%john%").List(ctx, req)
-for _, user := range result.Items {
-    // ...
-}
-// result.NextPageToken is base64-encoded cursor for the next page
-
-// Offset (page-number) pagination: set Page on the request, or call ForceOffset()
-// to default a missing "page" query param to page 1 instead of cursor mode — for
-// SQL-backed endpoints that always want page jumps with a computed TotalCount.
-req = gormx.NewPageRequest[User, uint](httpx.PagedRequest(c).ForceOffset(), "id", func(u User) uint { return u.ID })
-```
-
-## Aggregates & projections
-
-```go
-// Aggregates scan a scalar into a dest pointer and compose with the chainable scopes.
-// Sum/Avg/Max/Min cover numeric columns (empty set → 0 via COALESCE); Aggregate takes
-// any raw SQL expression for the advanced cases.
-var total uint64
-orders.Where("is_confirmed = ?", true).Sum(ctx, "amount", &total)
-
-var spread int
-orders.Aggregate(ctx, "MAX(amount) - MIN(amount)", &spread, "is_confirmed = ?", true)
-
-// Project maps rows into a result type instead of the entity — pair it with Select to
-// pick or compute columns. dest is a *[]Result (or *[]map[string]any for ad-hoc shapes).
-type tally struct {
-    CampaignID uint
-    Total      uint64
-}
-var rows []tally
-orders.Select("campaign_id, COALESCE(SUM(amount), 0) AS total").
-    Where("is_confirmed = ?", true).
-    Group("campaign_id").
-    Project(ctx, &rows)
-
-// ProjectFirst is the single-row form; it reports whether a row was found.
-var one tally
-found, _ := orders.Select("campaign_id, amount AS total").Order("amount DESC").ProjectFirst(ctx, &one)
-```
-
-## Atomic & guarded updates
-
-```go
-// UpdateMap returns rows affected. Combine a gormx.Expr value (computed in-place by the
-// database, no read-then-write) with a guard in the WHERE clause for a lock-free atomic
-// compare-and-swap — a zero return means the guard rejected the update, not a failure.
-// Portable across engines, SQLite included.
-n, _ := campaigns.UpdateMap(ctx,
-    map[string]any{"used": gormx.Expr("used + 1")},
-    "id = ? AND used < capacity", id)
-if n == 0 {
-    // missing or at capacity
-}
-
-// For read-modify-write that can't be expressed as one statement, take a row lock inside
-// a transaction. LockForUpdate emits SELECT … FOR UPDATE on Postgres/MySQL; on SQLite the
-// clause is dropped (write safety comes from transaction-level serialization there).
-repo.RunTx(ctx, func(ctx context.Context) error {
-    acct, err := accounts.LockForUpdate().Get(ctx, "id = ?", id)
-    if err != nil {
-        return err
-    }
-    acct.Balance = recompute(acct.Balance)
-    _, err = accounts.Update(ctx, acct)
-    return err
-})
-
-// UpdateColumn(s) write raw columns without hooks or timestamp auto-updates; Raw/Exec are
-// the escape hatch for SQL the builder can't express (both honor the ctx transaction).
-var report []SalesRow
-campaigns.Raw(ctx, &report, "SELECT region, SUM(total) AS total FROM orders GROUP BY region")
-```
-
 ## Money
 
 ```go
@@ -551,66 +442,6 @@ n, ok := host.ResolveServiceBy(app, func(n Notifier) bool {
 Resolution is exact-type: an implementor is discoverable through an interface only
 if it was registered under that interface type.
 
-## Modules
-
-A **Module** bundles a slice of functionality — its services, routes, config, and
-workers — behind one `Register` hook, and may install further modules, forming a
-tree. This is how you compose a service out of self-contained features (and how a
-feature pulls in the features it depends on) without a giant `main()`.
-
-```go
-type Module interface {
-    Register(app *host.App) error
-}
-```
-
-Install modules with the fluent chain; `WithModule` runs the module's `Register`,
-and a module's `Register` installs its children the same way:
-
-```go
-type EmailModule struct{}
-
-func (EmailModule) Register(app *host.App) error {
-    host.ProvideService(app, &EmailSender{}) // a managed service
-    return nil
-}
-
-type UsersModule struct{}
-
-func (UsersModule) Register(app *host.App) error {
-    app.WithModule(EmailModule{}) // child module
-    host.ProvideService(app, &UserService{})
-    return app.Setup(func(a *host.App) error {
-        registerUserRoutes(a)
-        return nil
-    }).Err()
-}
-
-func main() {
-    host.MustNew().
-        WithModule(httpx.Module()).
-        WithModule(UsersModule{}). // brings EmailModule with it
-        MustRun()
-}
-```
-
-Key behaviors:
-
-- **Recursive** — a module's `Register` can install any number of child modules.
-- **Deduplicated** — struct modules install once per type, so a shared module
-  imported by several parents (the "diamond" case) is registered exactly once.
-  Implement `KeyedModule` (`ModuleKey() string`) to install the same type more
-  than once with different config; `host.ModuleFunc` wraps a plain function for
-  one-off modules and is never deduplicated.
-- **Register provides, `Init` wires** — `Register` should only *provide* services
-  and *import* child modules, never resolve dependencies (siblings and children
-  may register afterwards). Resolve dependencies in each service's `Init(app)` /
-  `Start(app)`, which runs after every module has registered, so registration
-  order doesn't matter. Provided services join the normal lifecycle (config →
-  init → start → close) regardless of how deeply they were nested.
-
-See [`examples/modules`](examples/modules) for a runnable three-level tree.
-
 ## Metrics
 
 `httpx.Module` serves Prometheus metrics at `GET /metrics` on a private registry
@@ -660,6 +491,21 @@ new requests stop arriving — before in-flight ones are drained. The default of
 `"0s"` flips readiness and proceeds immediately.
 
 `app.Close()` then drains messaging, stops the HTTP server, closes DB connections, and calls all registered `ServiceCloser` implementations — all running concurrently with a `sync.WaitGroup`. It is idempotent (guarded by `sync.Once`), so it is safe to call it via both `Run()`/`MustRun()` and a `defer app.Close()`.
+
+## Documentation
+
+Per-topic guides live in [`docs/`](docs/); their Go snippets are compile- and
+symbol-checked against the code, so they can't drift from the API:
+
+- [Composing an app from modules](docs/modules.md) — the module tree, dedup, and
+  the register-provides/init-wires rule.
+- [Querying with `gormx`](docs/querying.md) — pagination, aggregates &
+  projections, atomic & guarded updates.
+- [Multi-tenancy](docs/tenancy.md) — tenant resolution and cached lookups.
+- [Database migrations](docs/migrations.md) — running migrations in production.
+- [Compatibility and release policy](docs/compatibility.md) — Go version support
+  and the lockstep multi-module versioning.
+- [Security policy](SECURITY.md) — reporting a vulnerability and supported versions.
 
 ## Examples
 
