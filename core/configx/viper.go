@@ -2,7 +2,6 @@ package configx
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/spf13/viper"
 )
 
@@ -190,7 +190,7 @@ func newViper(envPrefix string) (*viper.Viper, error) {
 		// A missing config file is not fatal: defaults + env vars are enough to
 		// boot. Any other read error (malformed TOML, permissions) is fatal.
 		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
-			return nil, fmt.Errorf("reading config file: %w", err)
+			return nil, errorx.NewInternalError("config", "reading config file").WithInner(err)
 		}
 	}
 

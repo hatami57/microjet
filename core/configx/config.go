@@ -2,7 +2,7 @@
 // overlay, environment-variable overrides, and defaults — into typed structs.
 package configx
 
-import "fmt"
+import "github.com/hatami57/microjet/core/errorx"
 
 // Reader wraps a reader instance and exposes config-reading operations to
 // Configurable implementations.
@@ -46,7 +46,7 @@ func ReadAndValidate(r Reader, cfg Configurable) error {
 	}
 	if v, ok := cfg.(Validator); ok {
 		if err := v.Validate(); err != nil {
-			return fmt.Errorf("config validation failed: %w", err)
+			return errorx.NewInternalError("config", "config validation failed").WithInner(err)
 		}
 	}
 	return nil

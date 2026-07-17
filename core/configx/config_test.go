@@ -4,7 +4,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 func TestNewViperDoesNotErrorWithNoFile(t *testing.T) {
@@ -110,8 +113,11 @@ func TestReadAndValidateRunsValidate(t *testing.T) {
 	if err == nil {
 		t.Fatal("ReadAndValidate() = nil, want validation error")
 	}
-	if err.Error() != "config validation failed: port must be set" {
-		t.Fatalf("ReadAndValidate() error = %v, want wrapped validation error", err)
+	if !errors.Is(err, errorx.ErrInternal) {
+		t.Fatalf("ReadAndValidate() error = %v, want an errorx internal error", err)
+	}
+	if got := err.Error(); !strings.Contains(got, "config validation failed") || !strings.Contains(got, "port must be set") {
+		t.Fatalf("ReadAndValidate() error = %q, want it to mention the wrapper and the inner cause", got)
 	}
 }
 
