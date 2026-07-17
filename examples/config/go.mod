@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/examples/config
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.30.0
-	github.com/hatami57/microjet/host v0.30.0
+	github.com/hatami57/microjet/core v0.31.0
+	github.com/hatami57/microjet/host v0.31.0
 )
 
 require (

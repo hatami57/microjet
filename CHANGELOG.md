@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.31.0] - 2026-07-17
 
 ### Added
 
@@ -30,6 +30,46 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the default file reader as well as any reader implementing the new
   `configx.Setter`. Whatever an injected reader returns is authoritative — the
   env-var override shim applies only to the built-in file reader.
+- **gRPC support: new `grpcx` module** — a managed `*grpc.Server` with the same
+  operational surface as `httpx`. `grpcx.Module()` / `grpcx.Of(app)` install and
+  resolve the server; register generated services from a `Setup` hook via
+  `Server()`. The default unary+stream interceptor stack is recovery → request-id
+  → logging → errorx-to-status (mapping the six errorx categories to gRPC codes),
+  with an `otelgrpc` stats handler that is a no-op until `otelx` is installed. A
+  `grpc_health_v1` health service is driven by the same readiness checks as httpx
+  `/readyz`, reflection is enabled in debug mode, and `grpcx.Dial` installs the
+  matching client interceptors (request-id propagation + tracing). New `[grpc]`
+  config section; named servers read `[grpc.<name>]`.
+- **NATS JetStream: new `messaging/jetstream` module** — a `messaging.Client`
+  with durable, at-least-once delivery. It drops into
+  `messaging.Module(jetstream.New())` and upgrades the outbox end to end with no
+  outbox changes: `Publish` persists to a stream and blocks for the server ack, so
+  an event survives a consumer being offline. Durable pull consumers ack on
+  handler success, nak (redeliver) on error, and terminate to an optional
+  dead-letter subject after `maxDeliver`. New `[messaging.jetstream]` config
+  section with declarative, idempotent stream provisioning. Ships no new
+  dependencies beyond the `nats.go` client already used by the core NATS driver.
+- **Config validation hook** — a `Configurable` that also implements
+  `configx.Validator` (`Validate() error`) has `Validate` called immediately after
+  `ReadConfig` at startup (through the new `configx.ReadAndValidate`), so invalid
+  settings — an empty DSN, an out-of-range port — fail the boot with a wrapped
+  error instead of surfacing at first use.
+- **`SECURITY.md`** — a private vulnerability-disclosure policy and
+  supported-versions statement, surfaced in the repository Security tab.
+
+### Changed
+
+- **Internal errors are now typed `errorx` errors** — every internal `fmt.Errorf`
+  across the shipped modules now returns `errorx.NewInternalError(...)` carrying a
+  category and structured params, with `WithInner` preserving the wrapped cause.
+  This is behavior-compatible: functions still return `error`, and `errors.Is` /
+  `errors.As` chains are unchanged (the two `messaging.ErrTimeout` sentinel wraps
+  are kept verbatim so timeout detection still matches). One dependency change:
+  `gormx/migrate`, previously free of any microjet dependency, now imports
+  `core/errorx`.
+- **README slimmed** — per-topic depth (pagination, aggregates, atomic updates,
+  tenancy, modules) moved into snippet-checked `docs/*.md` guides; the README
+  keeps the overview, install, quick start, configuration, and links.
 
 ## [0.30.0] - 2026-07-14
 

@@ -3,7 +3,7 @@ module github.com/hatami57/microjet/gormx/migrate
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.30.0
+	github.com/hatami57/microjet/core v0.31.0
 	github.com/pressly/goose/v3 v3.27.1
 	gorm.io/gorm v1.31.1
 )
