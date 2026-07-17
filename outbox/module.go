@@ -2,10 +2,10 @@ package outbox
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/gormx"
 	"github.com/hatami57/microjet/host"
 	"github.com/hatami57/microjet/messaging"
@@ -177,11 +177,11 @@ type relayService struct {
 func (s *relayService) Setup(app *host.App) error {
 	db, ok := gormx.Lookup(app, s.cfg.dbName)
 	if !ok {
-		return fmt.Errorf("outbox: no database %q; install gormx.Module first", s.cfg.dbName)
+		return errorx.NewInternalError("outbox", "no database; install gormx.Module first", "database", s.cfg.dbName)
 	}
 	client, ok := messaging.Lookup(app)
 	if !ok {
-		return fmt.Errorf("outbox: no messaging client; install messaging.Module first")
+		return errorx.NewInternalError("outbox", "no messaging client; install messaging.Module first")
 	}
 	return s.wire(app, db, client)
 }
