@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/httpx/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	swaggerFiles "github.com/swaggo/files"
@@ -239,7 +240,7 @@ func (s *Server) Init() error {
 // error otherwise). Init must have run first.
 func (s *Server) Start() error {
 	if s.httpServer == nil {
-		return fmt.Errorf("http server not initialized; call Init before Start")
+		return errorx.NewInternalError("http", "http server not initialized; call Init before Start")
 	}
 	s.logger.Info("starting HTTP server", "addr", s.Addr(), "tls", s.config.CertFile != "" && s.config.KeyFile != "")
 	go func() {

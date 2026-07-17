@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -46,7 +45,7 @@ func JWT(cfg JWTConfig) gin.HandlerFunc {
 		secret := cfg.Secret
 		keyfunc = func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+				return nil, errorx.NewInternalError("jwt", "unexpected signing method", "alg", t.Header["alg"])
 			}
 			return secret, nil
 		}

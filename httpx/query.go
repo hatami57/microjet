@@ -30,7 +30,7 @@ func (q *QueryParamBase) GetMap() map[string]any { return q.data }
 func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) error {
 	rv := reflect.ValueOf(target)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() || rv.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("BindQueryParams: target must be a non-nil pointer to a struct, got %T", target)
+		return errorx.NewInternalError("http", "BindQueryParams: target must be a non-nil pointer to a struct", "target", fmt.Sprintf("%T", target))
 	}
 	v := rv.Elem()
 	t := v.Type()
@@ -68,7 +68,7 @@ func (q *QueryParamBase) BindQueryParams(c *gin.Context, target any) error {
 
 func parseQueryField(field reflect.Value, queryValue string) (any, error) {
 	if !field.CanSet() {
-		return nil, fmt.Errorf("cannot set field")
+		return nil, errorx.NewInternalError("http", "cannot set field")
 	}
 	if queryValue == "" {
 		field.SetZero()
@@ -100,5 +100,5 @@ func parseQueryField(field reflect.Value, queryValue string) (any, error) {
 			return field.Interface(), err
 		}
 	}
-	return nil, fmt.Errorf("unhandled type: %s", field.Kind())
+	return nil, errorx.NewInternalError("http", "unhandled type", "kind", field.Kind())
 }
