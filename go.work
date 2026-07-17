@@ -29,6 +29,7 @@ use (
 	./gormx/migrate
 	./gormx/postgres
 	./gormx/sqlite
+	./grpcx
 	./host
 	./httpx
 	./messaging

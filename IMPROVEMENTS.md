@@ -115,6 +115,25 @@ Scope for a first release:
   (request-id propagation, otel) — parity with what `httpx.Client` does for
   HTTP.
 
+Progress:
+
+- [x] New `grpcx` module (own `go.mod`, in `go.work`), `grpcx.Module()` /
+  `grpcx.Of(app)` returning a managed `*grpc.Server` via `Server()`; lifecycle
+  mirrors `httpx.Server` (Init builds, Start serves + exposes `ErrCh()`, Close
+  does `GracefulStop` bounded by a timeout with a forceful fallback).
+- [x] `[grpc]` config section (`host`/`port`/`debug`), named servers read
+  `[grpc.<name>]`.
+- [x] Unary + stream interceptor stack in `grpcx/interceptors`: recovery
+  (panic→Internal, logs stack), request-id (accept/generate, echo in trailer),
+  logging (per-RPC slog with code/duration/request_id), and the errorx→status
+  translator mapping the six categories. otelgrpc stats handler wired (no-op
+  until `otelx.Module()` is on).
+- [x] `grpc_health_v1` health service driven by the same readiness checks as
+  httpx `/readyz` (a poller + immediate flip on `SetReady`), and reflection when
+  `debug = true`. `CloseOrder` is `host.CloseEdge`.
+- [ ] Client dial helper (`grpcx.Dial`) with matching client interceptors —
+  next commit.
+
 ### 2.2 [P1] Runtime + custom metrics  `feat(httpx)` / `feat(gormx)` / `feat(cache)`
 
 `/metrics` currently serves only HTTP RED metrics on a private registry
