@@ -1,9 +1,9 @@
 package messaging
 
 import (
-	"fmt"
 	"log/slog"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/host"
 )
 
@@ -29,7 +29,7 @@ func Module(client Client, name ...string) host.Module {
 	n := first(name)
 	return host.KeyedModuleFunc(moduleKey("messaging.Client", n), func(app *host.App) error {
 		if client == nil {
-			return fmt.Errorf("messaging: nil client")
+			return errorx.NewInternalError("messaging", "nil client")
 		}
 		if la, ok := client.(loggerAware); ok {
 			la.SetLogger(app.Logger)

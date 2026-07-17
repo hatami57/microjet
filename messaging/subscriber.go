@@ -2,9 +2,9 @@ package messaging
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/host"
 )
 
@@ -34,7 +34,7 @@ type consumerService struct {
 func (s *consumerService) Start(app *host.App) error {
 	client, ok := Lookup(app)
 	if !ok {
-		return fmt.Errorf("subscriber: no messaging client configured; install messaging.Module")
+		return errorx.NewInternalError("messaging", "no messaging client configured; install messaging.Module")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -49,7 +49,7 @@ func (s *consumerService) Start(app *host.App) error {
 			sub, err = client.Subscribe(ctx, b.subject, b.handler)
 		}
 		if err != nil {
-			return fmt.Errorf("subscriber %q: subscribing to %q: %w", b.name, b.subject, err)
+			return errorx.NewInternalError("messaging", "subscribing failed", "subscriber", b.name, "subject", b.subject).WithInner(err)
 		}
 		s.subs = append(s.subs, sub)
 		s.logger.Info("subscribed", "subscriber", b.name, "subject", b.subject, "queue", b.queue)
@@ -105,7 +105,7 @@ func WithQueueGroup(queue string) SubscriberOption {
 func Subscribe(name, subject string, handler Handler, opts ...SubscriberOption) host.Module {
 	return host.ModuleFunc(func(app *host.App) error {
 		if handler == nil {
-			return fmt.Errorf("subscriber %q: nil handler", name)
+			return errorx.NewInternalError("messaging", "nil handler", "subscriber", name)
 		}
 		binding := subscriberBinding{name: name, subject: subject, handler: handler}
 		for _, opt := range opts {
