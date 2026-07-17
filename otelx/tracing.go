@@ -7,12 +7,12 @@ package otelx
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -90,7 +90,7 @@ func (t *Tracing) Init() error {
 	}
 	exporter, err := otlptracehttp.New(context.Background(), opts...)
 	if err != nil {
-		return fmt.Errorf("tracing: creating OTLP exporter: %w", err)
+		return errorx.NewInternalError("otelx", "creating OTLP exporter failed").WithInner(err)
 	}
 
 	res, err := resource.Merge(resource.Default(), resource.NewWithAttributes(
@@ -99,7 +99,7 @@ func (t *Tracing) Init() error {
 		semconv.ServiceVersion(t.resolvedServiceVersion()),
 	))
 	if err != nil {
-		return fmt.Errorf("tracing: building resource: %w", err)
+		return errorx.NewInternalError("otelx", "building resource failed").WithInner(err)
 	}
 
 	t.provider = sdktrace.NewTracerProvider(
