@@ -1,8 +1,9 @@
 package host
 
 import (
-	"fmt"
 	"reflect"
+
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // Module is a composable unit of functionality. Register installs the module's
@@ -83,7 +84,7 @@ func (a *App) WithModule(m Module) *App {
 	name := moduleName(m)
 	a.Logger.Debug("registering module", "module", name)
 	if err := m.Register(a); err != nil {
-		return a.fail(fmt.Errorf("registering module %q: %w", name, err))
+		return a.fail(errorx.NewInternalError("host", "registering module failed", "module", name).WithInner(err))
 	}
 	return a
 }

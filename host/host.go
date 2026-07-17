@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatami57/microjet/core"
 	"github.com/hatami57/microjet/core/configx"
+	"github.com/hatami57/microjet/core/errorx"
 	"github.com/hatami57/microjet/core/logx"
 )
 
@@ -145,7 +146,7 @@ func New(opts ...Option) (*App, error) {
 	if a.configReader == nil {
 		reader, err := configx.NewViperConfigReader(a.envPrefix)
 		if err != nil {
-			return nil, fmt.Errorf("creating config loader: %w", err)
+			return nil, errorx.NewInternalError("host", "creating config loader").WithInner(err)
 		}
 		a.configReader = reader
 	}
@@ -154,7 +155,7 @@ func New(opts ...Option) (*App, error) {
 	if len(a.configValues) > 0 {
 		setter, ok := a.configReader.(configx.Setter)
 		if !ok {
-			return nil, fmt.Errorf("config reader %T does not support programmatic values set via WithConfigValue/WithConfigValues", a.configReader)
+			return nil, errorx.NewInternalError("host", "config reader does not support programmatic values set via WithConfigValue/WithConfigValues", "readerType", fmt.Sprintf("%T", a.configReader))
 		}
 		for key, value := range a.configValues {
 			setter.Set(key, value)
@@ -162,7 +163,7 @@ func New(opts ...Option) (*App, error) {
 	}
 	cfg := &Config{}
 	if err := configx.ReadAndValidate(a.configReader, cfg); err != nil {
-		return nil, fmt.Errorf("reading config: %w", err)
+		return nil, errorx.NewInternalError("host", "reading config").WithInner(err)
 	}
 	a.Config = cfg
 	a.Logger = logx.NewLogger(cfg.Log, cfg.App.Debug)
@@ -173,7 +174,7 @@ func New(opts ...Option) (*App, error) {
 func MustNew(opts ...Option) *App {
 	a, err := New(opts...)
 	if err != nil {
-		panic(fmt.Errorf("host.MustNew: %w", err))
+		panic(errorx.NewInternalError("host", "host.MustNew failed").WithInner(err))
 	}
 	return a
 }

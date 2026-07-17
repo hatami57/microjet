@@ -2,7 +2,8 @@ package host
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // Start brings the app fully up — init, setup, start, workers — without
@@ -30,22 +31,22 @@ func (a *App) start(ctx context.Context) error {
 	}
 	if err := a.initServices(); err != nil {
 		a.Close()
-		return fmt.Errorf("initializing services: %w", err)
+		return errorx.NewInternalError("host", "initializing services").WithInner(err)
 	}
 	// Resources are connected; run setup (migrations, route registration) before
 	// anything begins serving — first the services' own Setup hooks, then the
 	// queued app.Setup handlers, which observe the services' setup.
 	if err := a.setupServices(); err != nil {
 		a.Close()
-		return fmt.Errorf("setting up services: %w", err)
+		return errorx.NewInternalError("host", "setting up services").WithInner(err)
 	}
 	if err := a.runSetups(); err != nil {
 		a.Close()
-		return fmt.Errorf("running setup: %w", err)
+		return errorx.NewInternalError("host", "running setup").WithInner(err)
 	}
 	if err := a.startServices(); err != nil {
 		a.Close()
-		return fmt.Errorf("starting services: %w", err)
+		return errorx.NewInternalError("host", "starting services").WithInner(err)
 	}
 
 	workerCtx, cancel := context.WithCancel(ctx)

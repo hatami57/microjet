@@ -2,11 +2,12 @@ package host
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"github.com/hatami57/microjet/core/errorx"
 )
 
 // AsyncWorker is implemented by DI-registered services that should run as a
@@ -118,7 +119,7 @@ func (a *App) safeRun(ctx context.Context, name string, fn func(context.Context,
 	defer func() {
 		if r := recover(); r != nil {
 			a.Logger.Error("worker panic recovered", "worker", name, "panic", r, "stack", string(debug.Stack()))
-			err = fmt.Errorf("worker %q panicked: %v", name, r)
+			err = errorx.NewInternalError("host", "worker panicked", "worker", name, "panic", r)
 		}
 	}()
 	return fn(ctx, a)
