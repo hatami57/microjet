@@ -243,12 +243,24 @@ func (t *Table[TEntity]) Select(query any, args ...any) *Table[TEntity] {
 
 // Omit returns a copy of the Table that omits the given columns, wrapping GORM's Omit.
 // On reads it excludes those columns from the SELECT; on Create/Save/Update it excludes
-// them from the written columns. It is the complement of Select. Pass clause.Associations
+// them from the written columns. It is the complement of Select. Pass Associations
 // ("*") to skip auto-saving all associations on a write.
 func (t *Table[TEntity]) Omit(columns ...string) *Table[TEntity] {
 	return t.withScope(func(db *gorm.DB) *gorm.DB {
 		return db.Omit(columns...)
 	})
+}
+
+// OmitAssociations returns a copy of the Table that skips auto-saving associations on a
+// Create/Save/Update — only the entity's own columns are written. It is shorthand for
+// Omit(Associations).
+//
+// Use it when the entity was loaded with associations preloaded but only its own row
+// changed: GORM would otherwise re-upsert each association with ON CONFLICT DO NOTHING,
+// which is wasted work and, since it never updates an existing associated row, a trap if
+// you expected those child changes to persist (save them explicitly instead).
+func (t *Table[TEntity]) OmitAssociations() *Table[TEntity] {
+	return t.Omit(clause.Associations)
 }
 
 // Distinct returns a copy of the Table that selects distinct rows, optionally over the

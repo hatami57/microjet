@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`gormx.Table.OmitAssociations()`** — shorthand for `Omit(gormx.Associations)`
+  that skips auto-saving associations on `Create`/`Save`/`Update`, writing only the
+  entity's own columns. Use it when an entity was loaded with associations preloaded
+  but only its own row changed: GORM would otherwise re-upsert each association with
+  `ON CONFLICT DO NOTHING`, wasted work that never updates an existing associated row.
+
 ## [0.31.0] - 2026-07-17
 
 ### Added

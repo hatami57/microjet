@@ -21,7 +21,8 @@ type DB = gorm.DB
 type OrderByColumn = clause.OrderByColumn
 
 // Associations is clause.Associations ("*"), the wildcard passed to Table.Preload to
-// eager-load every association.
+// eager-load every association, or to Table.Omit to skip auto-saving every association
+// on a write.
 const Associations = clause.Associations
 
 // Expr builds a raw SQL expression. Pass it as an UpdateMap value so the database
