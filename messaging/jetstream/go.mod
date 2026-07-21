@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/messaging/jetstream
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.31.0
-	github.com/hatami57/microjet/messaging v0.31.0
+	github.com/hatami57/microjet/core v0.32.0
+	github.com/hatami57/microjet/messaging v0.32.0
 	github.com/nats-io/nats.go v1.52.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
@@ -16,7 +16,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/hatami57/microjet/host v0.31.0 // indirect
+	github.com/hatami57/microjet/host v0.32.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
