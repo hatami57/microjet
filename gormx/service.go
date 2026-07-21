@@ -28,6 +28,7 @@ type Service struct {
 	driver  Driver
 	config  Config
 	logger  *slog.Logger
+	clock   core.TimeProvider
 	db      *gorm.DB
 }
 
@@ -57,6 +58,20 @@ func (s *Service) SetLogger(l *slog.Logger) {
 	}
 }
 
+// SetClock sets the time source GORM uses to stamp CreatedAt/UpdatedAt, wiring it
+// to db.Config.NowFunc. For driver-opened connections it takes effect during
+// Init; for an already-open (injected) connection it applies immediately. A nil
+// clock is ignored, leaving GORM's default (time.Now).
+func (s *Service) SetClock(c core.TimeProvider) {
+	if c == nil {
+		return
+	}
+	s.clock = c
+	if s.db != nil {
+		s.db.Config.NowFunc = c.Now
+	}
+}
+
 // DB returns the underlying *gorm.DB, nil until Init is called.
 func (s *Service) DB() *gorm.DB { return s.db }
 
@@ -82,6 +97,13 @@ func (s *Service) Init() error {
 	// connections (NewServiceFromDB) are left untouched — their owner decides.
 	if err := UseTracing(db); err != nil {
 		return err
+	}
+	// Route GORM's CreatedAt/UpdatedAt stamping through the host's clock so
+	// timestamps honor the injected TimeProvider (core.UTC by default) and can be
+	// frozen with a FixedClock in tests. NowFunc is read per operation, so setting
+	// it after Open takes effect immediately.
+	if s.clock != nil {
+		db.Config.NowFunc = s.clock.Now
 	}
 	s.db = db
 	return nil

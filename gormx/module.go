@@ -48,6 +48,7 @@ func Module(driver Driver, name ...string) host.Module {
 		}
 		svc := NewService(displayName(n), dbSection(n), driver)
 		svc.SetLogger(app.Logger)
+		svc.SetClock(app.Clock)
 		host.ProvideService(app, svc, canonicalName(n))
 		return nil
 	})
@@ -65,6 +66,7 @@ func Inject(db *gorm.DB, name ...string) host.Module {
 		}
 		svc := NewServiceFromDB(displayName(n), db)
 		svc.SetLogger(app.Logger)
+		svc.SetClock(app.Clock)
 		host.ProvideService(app, svc, canonicalName(n))
 		return nil
 	})

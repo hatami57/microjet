@@ -8,6 +8,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **gormx timestamps honor the host clock** — the database Service now wires the
+  App's injected `core.TimeProvider` (`host.WithClock`, `core.UTC` by default) into
+  GORM's `Config.NowFunc`, so auto-managed `CreatedAt`/`UpdatedAt` columns are
+  stamped through the same clock as the rest of the app instead of GORM's internal
+  `time.Now()`. This applies to both driver-opened connections (`gormx.Module`) and
+  injected ones (`gormx.Inject`), and lets a `core.FixedClock` freeze timestamps in
+  tests. `Service.SetClock` exposes the wiring for direct use.
+
 - **`gormx.Table.OmitAssociations()`** — shorthand for `Omit(gormx.Associations)`
   that skips auto-saving associations on `Create`/`Save`/`Update`, writing only the
   entity's own columns. Use it when an entity was loaded with associations preloaded
