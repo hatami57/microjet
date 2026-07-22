@@ -4,8 +4,8 @@ go 1.26.2
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.32.0
-	github.com/hatami57/microjet/host v0.32.0
+	github.com/hatami57/microjet/core v0.33.0
+	github.com/hatami57/microjet/host v0.33.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0
 	google.golang.org/grpc v1.81.1
 )

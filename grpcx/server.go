@@ -31,6 +31,13 @@ type ServerConfig struct {
 	Host  string `mapstructure:"host"`
 	Port  int    `mapstructure:"port"`
 	Debug bool   `mapstructure:"debug"`
+
+	// LogLevel optionally raises the floor for per-RPC request logs, independent
+	// of the global log level. Leave empty to follow the global level (the
+	// default). Set it to "error" to keep the app at debug while logging only
+	// failed RPCs (a code of OK logs at Info, anything else at Error). Valid
+	// values: debug, info, warn, error.
+	LogLevel string `mapstructure:"logLevel"`
 }
 
 // healthPollInterval is how often the health service re-runs the readiness
@@ -145,13 +152,13 @@ func (s *Server) Init() error {
 		grpc.ChainUnaryInterceptor(
 			interceptors.RecoveryUnary(s.logger),
 			interceptors.RequestIDUnary(),
-			interceptors.LoggingUnary(s.logger),
+			interceptors.LoggingUnary(s.logger, s.config.LogLevel),
 			interceptors.ErrorUnary(s.config.Debug),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptors.RecoveryStream(s.logger),
 			interceptors.RequestIDStream(),
-			interceptors.LoggingStream(s.logger),
+			interceptors.LoggingStream(s.logger, s.config.LogLevel),
 			interceptors.ErrorStream(s.config.Debug),
 		),
 	)

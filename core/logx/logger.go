@@ -107,6 +107,65 @@ func getLogLevel(defaultLevel string, level string, forceDebug bool) string {
 	}
 }
 
+// WithMinLevel returns a logger that additionally drops records below level, on
+// top of whatever the underlying handler already filters. An empty or
+// unrecognized level returns logger unchanged. Use it to raise the floor for a
+// noisy component — e.g. HTTP access logs or gRPC request logs — independently of
+// the global level, so the app can run at debug while a component logs only
+// warnings and errors. Valid levels: debug, info, warn, error.
+func WithMinLevel(logger *slog.Logger, level string) *slog.Logger {
+	if logger == nil {
+		return logger
+	}
+	min, ok := parseLevelStrict(level)
+	if !ok {
+		return logger
+	}
+	return slog.New(&levelFilterHandler{next: logger.Handler(), min: min})
+}
+
+// parseLevelStrict parses a level name, reporting ok=false for empty or
+// unrecognized input (unlike parseSlogLevel, which falls back to Info).
+func parseLevelStrict(s string) (slog.Level, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "debug", "trace":
+		return slog.LevelDebug, true
+	case "info":
+		return slog.LevelInfo, true
+	case "warn", "warning":
+		return slog.LevelWarn, true
+	case "error", "fatal", "panic":
+		return slog.LevelError, true
+	default:
+		return 0, false
+	}
+}
+
+// levelFilterHandler drops records below min before delegating to next.
+type levelFilterHandler struct {
+	next slog.Handler
+	min  slog.Level
+}
+
+func (h *levelFilterHandler) Enabled(ctx context.Context, l slog.Level) bool {
+	return l >= h.min && h.next.Enabled(ctx, l)
+}
+
+func (h *levelFilterHandler) Handle(ctx context.Context, r slog.Record) error {
+	if r.Level < h.min {
+		return nil
+	}
+	return h.next.Handle(ctx, r)
+}
+
+func (h *levelFilterHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &levelFilterHandler{next: h.next.WithAttrs(attrs), min: h.min}
+}
+
+func (h *levelFilterHandler) WithGroup(name string) slog.Handler {
+	return &levelFilterHandler{next: h.next.WithGroup(name), min: h.min}
+}
+
 func newSlogHandler(w io.Writer, levelStr, format string) slog.Handler {
 	opts := &slog.HandlerOptions{Level: parseSlogLevel(levelStr)}
 	if strings.ToLower(format) == "json" {

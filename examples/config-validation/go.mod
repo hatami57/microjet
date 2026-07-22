@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/config-validation
 
 go 1.26.2
 
-require github.com/hatami57/microjet/core v0.32.0
+require github.com/hatami57/microjet/core v0.33.0
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

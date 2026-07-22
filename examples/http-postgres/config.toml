@@ -6,6 +6,10 @@ debug = true
 [http]
 host = "0.0.0.0"
 port = 8080
+# Optionally raise the floor for per-request access logs, independent of the
+# global [log] level. Omit to follow the global level; set to "warn" to log only
+# 4xx/5xx requests, or "error" for 5xx only. Values: debug, info, warn, error.
+# logLevel = "warn"
 
 [database]
 driver = "postgres"
@@ -15,6 +19,10 @@ user = "postgres"
 password = "postgres"
 name = "users"
 sslMode = "disable"
+# Optionally override SQL-log verbosity for this database, independent of the
+# global [log] level. Omit to follow the global level; set to "warn" to keep the
+# app at debug without logging every SQL query. Values: debug, warn, error, silent.
+# logLevel = "warn"
 
 [log]
 level = "info"

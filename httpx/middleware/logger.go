@@ -5,10 +5,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hatami57/microjet/core/logx"
 	"go.opentelemetry.io/otel/trace"
 )
 
-func Logger(logger *slog.Logger) gin.HandlerFunc {
+// Logger logs one access-log line per request. minLevel optionally raises the
+// floor for those lines (see ServerConfig.LogLevel): "warn" logs only 4xx/5xx,
+// "error" only 5xx. It gates just the access-log line — the request-scoped logger
+// seeded into the context for handlers is never filtered.
+func Logger(logger *slog.Logger, minLevel string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
@@ -44,13 +49,16 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 			slog.String("user-agent", c.Request.UserAgent()),
 		}
 
+		// Gate only the access-log line by the component level; the context
+		// logger handlers use stays unfiltered.
+		emitLogger := logx.WithMinLevel(reqLogger, minLevel)
 		switch {
 		case status >= 500:
-			reqLogger.LogAttrs(c.Request.Context(), slog.LevelError, "Server error", attrs...)
+			emitLogger.LogAttrs(c.Request.Context(), slog.LevelError, "Server error", attrs...)
 		case status >= 400:
-			reqLogger.LogAttrs(c.Request.Context(), slog.LevelWarn, "Client error", attrs...)
+			emitLogger.LogAttrs(c.Request.Context(), slog.LevelWarn, "Client error", attrs...)
 		default:
-			reqLogger.LogAttrs(c.Request.Context(), slog.LevelInfo, "Success", attrs...)
+			emitLogger.LogAttrs(c.Request.Context(), slog.LevelInfo, "Success", attrs...)
 		}
 	}
 }

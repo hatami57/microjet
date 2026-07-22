@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2026-07-22
+
+### Added
+
+- **Per-component log levels** — the `[http]`, `[grpc]`, and `[database]` config
+  sections each accept an optional `logLevel` that raises the floor for that
+  component's own logging, independent of the global `[log]` level. Leave it unset
+  to follow the global level (unchanged behavior); set it to quiet a noisy
+  component while the rest of the app stays verbose. `[database]` `logLevel = "warn"`
+  keeps the app at `debug` without logging every SQL query (values: `debug`, `warn`,
+  `error`, `silent`); `[http]` `logLevel = "warn"` logs only 4xx/5xx access lines
+  (`"error"` only 5xx), gating just the access-log line and never the request-scoped
+  logger handlers use; `[grpc]` `logLevel = "error"` logs only failed RPCs. A new
+  `logx.WithMinLevel(logger, level)` helper backs the HTTP/gRPC filtering and is
+  exported for reuse; `gormx.NewGormLogger(logger, levelOverride)` exposes the GORM
+  logger builder so custom drivers honor the same override.
+
+- **HTTP errors are logged server-side** — the `httpx` `Error` middleware now logs
+  every error a handler attaches to the request, each on its own line through the
+  request-scoped logger, at a level derived from its type (client-caused 4xx types
+  at Warn, internal or untyped faults at Error). A typed `*errorx.Error` is logged
+  with its structured fields (subject, message, code, inner cause) rather than a
+  flattened string. Because the response renders only the last error and scrubs
+  inner causes in production, this is the only place the underlying failures — and
+  all of them when a handler attaches several — are captured.
+
+### Changed
+
+- **`httpx/middleware.Logger`** now takes a `minLevel string` argument, and
+  **`grpcx/interceptors.LoggingUnary` / `LoggingStream`** now take a trailing
+  `minLevel string` argument, threading the per-component level through. Callers
+  using the managed `httpx`/`grpcx` servers are unaffected; direct callers of these
+  constructors must pass `""` to keep prior behavior.
+
 ## [0.32.0] - 2026-07-21
 
 ### Added

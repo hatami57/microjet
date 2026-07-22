@@ -45,6 +45,14 @@ type ServerConfig struct {
 	// via ListenAndServeTLS; otherwise it serves plain HTTP.
 	CertFile string `mapstructure:"certFile"`
 	KeyFile  string `mapstructure:"keyFile"`
+
+	// LogLevel optionally raises the floor for per-request access logs,
+	// independent of the global log level. Leave empty to follow the global
+	// level (the default). Set it to "warn" to keep the app at debug while
+	// logging only 4xx/5xx requests, or "error" for 5xx only. It gates only the
+	// access-log line, not logs handlers emit through the request logger. Valid
+	// values: debug, info, warn, error.
+	LogLevel string `mapstructure:"logLevel"`
 }
 
 // ReadinessFunc reports whether a dependency is ready to serve traffic. It
@@ -143,7 +151,7 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	router.Use(middleware.RequestID())
 	router.Use(middleware.Tracing())
 	router.Use(metrics.Middleware())
-	router.Use(middleware.Logger(logger))
+	router.Use(middleware.Logger(logger, cfg.LogLevel))
 	router.Use(middleware.Error(cfg.Debug))
 	router.Use(gin.Recovery())
 

@@ -230,6 +230,9 @@ maxHeaderBytes = 1048576 # 1 MiB
 # TLS: when both are set the server serves HTTPS.
 # certFile = "/etc/tls/tls.crt"
 # keyFile = "/etc/tls/tls.key"
+# Per-component log level, independent of the global [log] level below. Omit to
+# follow it; "warn" logs only 4xx/5xx access lines, "error" only 5xx.
+# logLevel = "warn"
 
 [database]
 driver = "postgres"
@@ -239,6 +242,9 @@ user = "myuser"
 password = "mypassword"
 name = "mydb"
 sslMode = "disable"
+# Per-component override of SQL-log verbosity, independent of [log]. Omit to
+# follow it; "warn" silences per-query traces while the app stays at debug.
+# logLevel = "warn"
 
 [messaging]
 url = "nats://localhost:4222"
@@ -256,6 +262,8 @@ format = "json"
 ```
 
 Override via env vars: `APP_DATABASE_HOST=prodhost`, `APP_HTTP_PORT=443` (prefix defaults to `APP`, configurable via `host.WithEnvPrefix`).
+
+Noisy components can be quieted independently of the global level: the `[http]`, `[grpc]`, and `[database]` sections accept an optional `logLevel` that raises the floor for that component's logs only (leave it unset to follow `[log]`). Handy for keeping the app at `debug` while silencing per-query SQL traces or 2xx access-log lines.
 
 ### Extra Config
 

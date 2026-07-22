@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -70,7 +71,55 @@ func Error(debug bool) gin.HandlerFunc {
 			}
 		}
 
+		// Log the causes server-side. The response only renders the last error
+		// and scrubs inner causes in production, so this is the only place the
+		// underlying failures are captured — and a handler may attach several.
+		logErrors(c)
+
 		c.JSON(status, response)
 		c.Abort()
+	}
+}
+
+// logErrors writes every error accumulated on the gin context to the
+// request-scoped logger. Each is logged on its own line at a level derived from
+// its type — internal/untyped faults at Error, client-caused (4xx) errors at
+// Warn. For a typed *errorx.Error the structured fields (subject, code, message,
+// inner cause) are logged individually; err.Error() is not, because it already
+// embeds those and would duplicate them.
+func logErrors(c *gin.Context) {
+	ctx := c.Request.Context()
+	logger := LoggerFromContext(ctx)
+
+	for _, ginErr := range c.Errors {
+		err := ginErr.Err
+
+		var v *errorx.Error
+		if errors.As(err, &v) {
+			attrs := []slog.Attr{
+				slog.String("subject", v.Subject),
+				slog.String("message", v.Message),
+				slog.Int("code", v.Code),
+			}
+			if v.Inner != nil {
+				attrs = append(attrs, slog.String("cause", v.Inner.Error()))
+			}
+			logger.LogAttrs(ctx, errorLevel(v), "request failed", attrs...)
+		} else {
+			logger.LogAttrs(ctx, slog.LevelError, "request failed", slog.String("error", err.Error()))
+		}
+	}
+}
+
+// errorLevel maps a typed error to a log level: client-caused (4xx) types are
+// logged at Warn, internal or unknown types at Error.
+func errorLevel(v *errorx.Error) slog.Level {
+	switch v.Type {
+	case errorx.NotFoundErrorType, errorx.BadRequestErrorType,
+		errorx.BusinessErrorType, errorx.UnauthorizedErrorType,
+		errorx.ForbiddenErrorType:
+		return slog.LevelWarn
+	default:
+		return slog.LevelError
 	}
 }
