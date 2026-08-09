@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`aws.SQSSendMessageTo(ctx, queueURL, message)`** — sends to an explicit queue
+  for callers that publish somewhere other than the configured default. It holds
+  the send logic; `SQSSendMessage` is now a thin wrapper that targets `[aws]`
+  `sqsQueueURL`. The success log line now carries the `queueURL` it published to.
+
+### Changed
+
+- **`aws.SQSSendMessage` fails fast when no default queue is configured** —
+  previously an unset `[aws]` `sqsQueueURL` was passed to the SDK as a nil
+  `QueueUrl`; it now returns an internal error naming the missing config.
+
 ## [0.33.0] - 2026-07-22
 
 ### Added
