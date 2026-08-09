@@ -3,7 +3,7 @@ module github.com/hatami57/microjet/messaging
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/host v0.33.0
+	github.com/hatami57/microjet/host v0.34.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 )
@@ -31,6 +31,6 @@ require (
 )
 
 require (
-	github.com/hatami57/microjet/core v0.33.0
+	github.com/hatami57/microjet/core v0.34.0
 	golang.org/x/sys v0.45.0 // indirect
 )

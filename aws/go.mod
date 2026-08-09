@@ -13,8 +13,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.26
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.33.0
-	github.com/hatami57/microjet/host v0.33.0
+	github.com/hatami57/microjet/core v0.34.0
+	github.com/hatami57/microjet/host v0.34.0
 	golang.org/x/sync v0.20.0
 )
 

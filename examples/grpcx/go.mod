@@ -3,9 +3,9 @@ module github.com/hatami57/microjet/examples/grpcx
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.33.0
-	github.com/hatami57/microjet/grpcx v0.33.0
-	github.com/hatami57/microjet/host v0.33.0
+	github.com/hatami57/microjet/core v0.34.0
+	github.com/hatami57/microjet/grpcx v0.34.0
+	github.com/hatami57/microjet/host v0.34.0
 	google.golang.org/grpc v1.81.1
 )
 
