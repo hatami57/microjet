@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/cache
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.34.0
-	github.com/hatami57/microjet/host v0.34.0
+	github.com/hatami57/microjet/core v0.35.0
+	github.com/hatami57/microjet/host v0.35.0
 	github.com/redis/go-redis/v9 v9.20.0
 )
 
