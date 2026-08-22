@@ -18,5 +18,18 @@ region = "us-east-1"
 # s3BucketName = "my-bucket"
 # sqsQueueURL  = "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
 #
-# For a local stack (e.g. LocalStack) set an override endpoint:
+# For a local stack (e.g. LocalStack) set an override endpoint. It applies to
+# every client; a single service can still be pointed elsewhere with its own
+# setting (dynamoDBEndpointURL, [aws.ses] endpointURL).
 # endpointURL = "http://localhost:4566"
+#
+# A local S3 (MinIO, LocalStack) usually needs path-style bucket URLs:
+# s3UsePathStyle = true
+
+# Sending defaults for SES. senderEmail (or its domain) must be a verified SES
+# identity; configurationSet is what publishes delivery/bounce events.
+# [aws.ses]
+# senderEmail      = "no-reply@example.com"
+# senderName       = "Example Support"
+# configurationSet = "my-config-set"
+# endpointURL      = "http://localhost:4566"

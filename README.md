@@ -18,7 +18,7 @@ import "github.com/hatami57/microjet/host"
 - **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI and `/debug/pprof` profiling (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), configurable timeouts and TLS, opt-in hardening middleware (security headers, body-size limit, per-request timeout), and Kubernetes-aware graceful shutdown (readiness flips to draining before the pod is torn down).
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `errorx.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
 - **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD (incl. `UpdateMap`/`UpdateColumn(s)` partial updates and `Raw`/`Exec` SQL escape hatches), a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Omit`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`/`LockForUpdate`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), collectors (`Pluck`/`PluckDistinct`), aggregates (`Count`/`Sum`/`Avg`/`Max`/`Min`/`Aggregate`), struct or map projections (`Project`/`ProjectFirst`), cursor- and offset-based pagination, transactions, batch inserts and batched reads (`FindInBatches`), and eager loading. Portable constraint-error classifiers (`IsDuplicateKey`/`IsForeignKeyViolation`/`IsCheckConstraintViolation`/`IsRecordNotFound`) map driver-specific violations without importing gorm or sniffing SQLSTATE codes. `gormx.Module(driver, name)` supports multiple databases side by side. Auto-managed `CreatedAt`/`UpdatedAt` timestamps are stamped through the App's injected `TimeProvider` (`host.WithClock`), so they honor the same clock as the rest of the app and can be frozen in tests.
-- **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), and DynamoDB client initialization.
+- **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), SES (send HTML/text email, with permanent-vs-retryable failure classification), and DynamoDB client initialization.
 - **NATS Messaging** — Pub/sub with raw-byte delivery; pair with `types.Message` for structured JSON envelopes and graceful drain. `messaging.Subscribe` ties subscriptions to the app lifecycle (subscribe on start, drain on shutdown); `messaging.HandleJSON` / `HandleEnvelope` give typed handlers (`func(ctx, T) error`) with automatic decoding, and `messaging.WithQueueGroup` load-balances a subject across replicas.
 - **Transactional Outbox** — `outbox.Of(app).EnqueueJSON(ctx, ...)` records an event in the same gormx transaction (`RunTx`) as your domain write, capturing the caller's trace/correlation context so the relayed event keeps its lineage; `outbox.Module()` migrates the table and runs a relay that publishes pending events to the broker with at-least-once delivery (draining on an interval and promptly after each enqueue), so events are never lost on a crash between commit and publish. Tune durability with `MaxAttempts` (quarantine poison messages) and `Retention` (prune long-published rows).
 - **Idempotency** — `middleware.Idempotency` replays the stored response for a repeated non-safe request carrying the same `Idempotency-Key`, so client retries don't act twice. Keys are scoped by method+route; backed by any store satisfying a small Get/Set interface (the app cache fits directly).
@@ -44,7 +44,7 @@ import "github.com/hatami57/microjet/host"
 | `gormx/migrate` | `github.com/hatami57/microjet/gormx/migrate` | Opt-in versioned SQL migrations (goose wrapper) |
 | `outbox` | `github.com/hatami57/microjet/outbox` | Transactional outbox: enqueue events in a DB tx, relay to the broker |
 | `testx` | `github.com/hatami57/microjet/testx` | Test helpers: in-memory app builder, fake broker, HTTP request helpers |
-| `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, DynamoDB clients |
+| `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, SES, DynamoDB clients |
 | `core/types` | `github.com/hatami57/microjet/core/types` | Message envelope, pagination types |
 | `core/types/money` | `github.com/hatami57/microjet/core/types/money` | Currency-aware decimal money |
 | `core/utils` | `github.com/hatami57/microjet/core/utils` | JSON, converters, env, disk |
@@ -558,7 +558,7 @@ core ─ errorx, configx, logx, jsonx, time, tenant, types (money), utils
         ├── messaging  pub/sub abstraction  ── messaging/nats (driver)
         ├── cache      memory / Redis
         ├── otelx      OpenTelemetry tracing
-        ├── aws        S3, SQS, DynamoDB
+        ├── aws        S3, SQS, SES, DynamoDB
         ├── outbox     transactional outbox   (+ gormx, messaging)
         └── testx      test harness           (+ httpx, gormx/sqlite, messaging, cache)
 ```

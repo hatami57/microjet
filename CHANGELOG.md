@@ -4,6 +4,56 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **SES support in the `aws` module** — `aws.Module(aws.SES)` initializes an SES v2
+  client (`aws.Of(app).SESClient`) alongside the S3/SQS/DynamoDB ones, and
+  `aws.SESSendEmail(ctx, req)` sends a simple HTML and/or text email, returning the
+  provider message ID that later delivery/bounce/complaint events carry. The request
+  covers To/CC/BCC, Reply-To, a per-message configuration set and SES message tags;
+  the sender falls back to configuration, so a caller normally passes recipients,
+  subject and body only. Malformed requests (no recipient, no subject, no body) are
+  rejected as bad-request errors before any call goes out.
+
+- **`aws.SESIsPermanentFailure(err)`** — reports whether a failed send is worth
+  retrying: a rejected message, an unverified sender domain, a malformed request or
+  a suspended account is permanent, while throttling, service errors and transport
+  failures are transient. Retry loops (a delivery sweeper, say) use it to decide
+  between another attempt and a final failure.
+
+- **`aws.SESFormatAddress(name, email)`** — renders an RFC 5322 address, quoting an
+  ASCII display name and MIME-encoding a non-ASCII one. It backs the sender
+  formatting and is exported for callers building their own address lists.
+
+- **`[aws.ses]` config section** — `senderEmail` and `senderName` set the default
+  From address and display name, `configurationSet` the configuration set applied to
+  every send, and `endpointURL` overrides the SES endpoint for a local stack. All are
+  optional; a request may override the sender and the configuration set per message.
+
+- **`[aws]` `s3UsePathStyle`** — addresses buckets as `endpoint/bucket/key` instead
+  of `bucket.endpoint/key`. Off by default (AWS needs the virtual-host form); turn
+  it on for a local S3 reached through `endpointURL`, where the per-bucket hostname
+  does not resolve.
+
+### Fixed
+
+- **`[aws]` `endpointURL` now reaches the clients** — the field was read into the
+  config and then never used, so an application pointing the module at LocalStack (or
+  any AWS-compatible gateway) silently kept talking to AWS; only `dynamoDBEndpointURL`
+  worked. It is now applied as the SDK base endpoint, inherited by every client the
+  module builds, with the per-service endpoints (`dynamoDBEndpointURL`,
+  `[aws.ses]` `endpointURL`) overriding it for their own client. A blank or
+  whitespace-only value is ignored rather than turned into an unreachable base URL.
+
+### Changed
+
+- **`aws` module dependency bump** — pulling in `service/sesv2` upgrades the shared
+  AWS SDK core (`aws-sdk-go-v2` 1.41.12 → 1.43.7, `smithy-go` 1.27.1 → 1.27.8) and
+  its internal endpoint/config packages. No API change in the existing S3, SQS or
+  DynamoDB wrappers.
+
 ## [0.34.0] - 2026-08-09
 
 ### Added

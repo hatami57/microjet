@@ -1,15 +1,17 @@
 // Command aws demonstrates MicroJet's AWS integration (aws.Module): unified
-// initialization of S3, SQS, and DynamoDB clients from the [aws] config section,
-// reached with aws.Of(app).
+// initialization of S3, SQS, DynamoDB, and SES clients from the [aws] config
+// section, reached with aws.Of(app).
 //
-// It wires the clients and shows the call sites for an S3 upload/download and an
-// SQS send. The actual network calls only run when you point [aws] at real
-// infrastructure (AWS, or a local stack), so the program is safe to run offline:
+// It wires the clients and shows the call sites for an S3 upload/download, an
+// SQS send and an SES email. The actual network calls only run when you point
+// [aws] at real infrastructure (AWS, or a local stack), so the program is safe
+// to run offline:
 //
 //	go run .
 //
-// To exercise the calls, set a bucket and queue in config.toml (and valid
-// credentials/region or an endpointURL for a local stack such as LocalStack).
+// To exercise the calls, set a bucket, a queue and a sender in config.toml (and
+// valid credentials/region or an endpointURL for a local stack such as
+// LocalStack).
 package main
 
 import (
@@ -26,7 +28,7 @@ func main() {
 	// InitServices runs config + connect and returns. Add or drop services here
 	// to control which SDK clients are built.
 	app := host.MustNew().
-		WithModule(aws.Module(aws.S3, aws.SQS, aws.DynamoDB)).
+		WithModule(aws.Module(aws.S3, aws.SQS, aws.DynamoDB, aws.SES)).
 		InitServices()
 	if err := app.Err(); err != nil {
 		panic(err)
@@ -70,6 +72,29 @@ func main() {
 		}
 	} else {
 		app.Logger.Info("SQS skipped: set [aws].sqsQueueURL to send a message")
+	}
+
+	// SES: send an email. The sender defaults to [aws.ses].senderEmail, which has
+	// to be a verified SES identity; SESSendEmail returns the provider message ID
+	// that later delivery/bounce events carry.
+	if client.DefaultSES.SenderEmail != "" {
+		messageID, err := client.SESSendEmail(ctx, &aws.SESSendEmailRequest{
+			To:       []string{"recipient@example.com"},
+			Subject:  "Hello from microjet",
+			HTMLBody: "<h1>Hello</h1><p>Sent through SES.</p>",
+			TextBody: "Hello — sent through SES.",
+		})
+		switch {
+		case err == nil:
+			app.Logger.Info("ses send succeeded", "messageID", messageID)
+		case aws.SESIsPermanentFailure(err):
+			// Retrying would fail the same way: a sweeper would mark this one failed.
+			app.Logger.Error("ses send rejected", "error", err)
+		default:
+			app.Logger.Error("ses send failed, retryable", "error", err)
+		}
+	} else {
+		app.Logger.Info("SES skipped: set [aws.ses].senderEmail to send an email")
 	}
 
 	// DynamoDB: aws.Of(app).DynamoDBClient is a ready *dynamodb.Client you can use
