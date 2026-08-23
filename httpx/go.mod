@@ -7,8 +7,8 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.35.0
-	github.com/hatami57/microjet/host v0.35.0
+	github.com/hatami57/microjet/core v0.36.0
+	github.com/hatami57/microjet/host v0.36.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
