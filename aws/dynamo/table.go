@@ -16,6 +16,7 @@
 //
 //	pk              – this field is the partition key
 //	sk              – this field is the sort key
+//	format=P        – build the key from pattern P (see below)
 //	prefix=X        – prepend X when encoding to DynamoDB; strip X on decode
 //	const=X         – key component is always X; the field value is ignored on write
 //	auto_create     – set to time.Now() on Put if the field is zero
@@ -23,12 +24,34 @@
 //
 // PK/SK fields must also carry dynamodbav:"-" so the AWS marshaler ignores them;
 // the Table handles encoding and decoding them directly via the dynamo tag.
+//
+// # Composite keys with format=
+//
+// format=P builds a key from a pattern of literals and {FieldName} placeholders,
+// and is the only way to compose a key from more than one struct field:
+//
+//	TenantID uuid.UUID `dynamo:"pk,format=T:{TenantID}#U:{UserID}" dynamodbav:"-"`
+//
+// {FieldName} may reference any field of the struct, not just the tagged one, and
+// the bare {} refers to the tagged field's own value. prefix= and const= are sugar
+// over it: prefix=X means format=X{}, const=X means format=X (a pure literal that
+// ignores the field's value entirely).
+//
+// Every field a pattern references is encoded on write and decoded back on read,
+// so it must be of a supported key type: string, uuid.UUID, or a type implementing
+// encoding.TextMarshaler and encoding.TextUnmarshaler (ulid.ULID, netip.Addr,
+// time.Time, and user types that implement the pair). New rejects anything else.
+//
+// Decoding splits the stored key on the literal segments, so two placeholders with
+// no literal between them ("{TenantID}{UserID}") cannot be decoded — always keep a
+// separator between adjacent placeholders.
 package dynamo
 
 import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"reflect"
 
@@ -117,20 +140,30 @@ func (t *Table[T]) unmarshalItem(raw map[string]dynamoTypes.AttributeValue) (*T,
 	return &item, nil
 }
 
-// Put writes item to DynamoDB. auto_create fields are set to time.Now() when zero;
-// auto_update fields are always overwritten with time.Now().
-func (t *Table[T]) Put(ctx context.Context, item *T) error {
+// marshalItem applies the write timestamps to item and marshals it into a full
+// attribute map, with the encoded PK/SK attributes merged in. Shared by Put and PutTx.
+func (t *Table[T]) marshalItem(item *T) (map[string]dynamoTypes.AttributeValue, error) {
 	applyTimestamps(reflect.ValueOf(item).Elem(), t.meta, false, t.clock.Now())
 
 	key, err := t.buildKey(item)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
-		return errorx.ErrInternal.WithInner(err)
+		return nil, errorx.ErrInternal.WithInner(err)
 	}
 	maps.Copy(av, key)
+	return av, nil
+}
+
+// Put writes item to DynamoDB. auto_create fields are set to time.Now() when zero;
+// auto_update fields are always overwritten with time.Now().
+func (t *Table[T]) Put(ctx context.Context, item *T) error {
+	av, err := t.marshalItem(item)
+	if err != nil {
+		return err
+	}
 	_, err = t.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(t.tableName),
 		Item:      av,
@@ -184,62 +217,11 @@ func (t *Table[T]) Delete(ctx context.Context, key *T) error {
 // Update applies a partial update to the item identified by item's pk/sk fields.
 // Only the DynamoDB attribute names listed in fields are written; all auto_update fields
 // are always included automatically. Fields are DynamoDB attribute names (from dynamodbav tags).
+//
+// Update is the SET-only form of UpdateWith; use UpdateWith to also REMOVE
+// attributes or to guard the write with a condition.
 func (t *Table[T]) Update(ctx context.Context, item *T, fields ...string) error {
-	applyTimestamps(reflect.ValueOf(item).Elem(), t.meta, true, t.clock.Now())
-
-	key, err := t.buildKey(item)
-	if err != nil {
-		return err
-	}
-	av, err := attributevalue.MarshalMap(item)
-	if err != nil {
-		return errorx.ErrInternal.WithInner(err)
-	}
-
-	// Merge caller-supplied field names with auto_update field names.
-	updateSet := make(map[string]struct{}, len(fields)+len(t.meta.autoFields))
-	for _, f := range fields {
-		updateSet[f] = struct{}{}
-	}
-	for _, fm := range t.meta.autoFields {
-		if fm.autoUpdate && fm.attrName != "" {
-			updateSet[fm.attrName] = struct{}{}
-		}
-	}
-
-	var update expression.UpdateBuilder
-	first := true
-	for name := range updateSet {
-		val, ok := av[name]
-		if !ok {
-			continue
-		}
-		if first {
-			update = expression.Set(expression.Name(name), expression.Value(val))
-			first = false
-		} else {
-			update = update.Set(expression.Name(name), expression.Value(val))
-		}
-	}
-	if first {
-		return nil
-	}
-
-	expr, err := expression.NewBuilder().WithUpdate(update).Build()
-	if err != nil {
-		return errorx.ErrInternal.WithInner(err)
-	}
-	_, err = t.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-		TableName:                 aws.String(t.tableName),
-		Key:                       key,
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-		UpdateExpression:          expr.Update(),
-	})
-	if err != nil {
-		return errorx.ErrInternal.WithInner(err)
-	}
-	return nil
+	return t.UpdateWith(ctx, item, UpdateSpec{Set: fields})
 }
 
 // BatchGet fetches all items identified by keys, automatically batching into 100-item
@@ -284,104 +266,140 @@ func (t *Table[T]) BatchGet(ctx context.Context, keys []*T) ([]*T, error) {
 	return result, nil
 }
 
-// QueryGSIPage fetches one page of items from a GSI whose partition key attribute equals
-// pkValue. An optional skCond narrows results by the GSI sort key; pass nil to match all
-// items under the partition key. Pagination tokens are automatically decoded on input and
-// encoded on output.
-func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue string, skCond *SKCondition, pageSize int32, token *string) ([]*T, *string, error) {
-	var startKey map[string]dynamoTypes.AttributeValue
-	if token != nil {
-		decoded, err := base64.StdEncoding.DecodeString(*token)
-		if err != nil {
-			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
-		}
-		if err = json.Unmarshal(decoded, &startKey); err != nil {
-			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
-		}
-	}
-
-	keyEx := expression.Key(pkAttr).Equal(expression.Value(pkValue))
-	if skCond != nil {
-		keyEx = skCond.apply(keyEx)
-	}
-	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
-	if err != nil {
-		return nil, nil, errorx.ErrInternal.WithInner(err)
-	}
-
-	paginator := dynamodb.NewQueryPaginator(t.client, &dynamodb.QueryInput{
-		TableName:                 aws.String(t.tableName),
-		IndexName:                 aws.String(indexName),
-		ExpressionAttributeNames:  expr.Names(),
-		ExpressionAttributeValues: expr.Values(),
-		KeyConditionExpression:    expr.KeyCondition(),
-		ExclusiveStartKey:         startKey,
-		Limit:                     aws.Int32(pageSize),
-	})
-	output, err := paginator.NextPage(ctx)
-	if err != nil {
-		return nil, nil, errorx.ErrInternal.WithInner(err)
-	}
-
-	items := make([]*T, 0, len(output.Items))
-	for _, raw := range output.Items {
-		item, err := t.unmarshalItem(raw)
-		if err != nil {
-			return nil, nil, err
-		}
-		items = append(items, item)
-	}
-
-	var nextToken *string
-	if output.LastEvaluatedKey != nil {
-		encoded, err := json.Marshal(output.LastEvaluatedKey)
-		if err != nil {
-			return nil, nil, errorx.ErrInternal.WithInner(err)
-		}
-		s := base64.StdEncoding.EncodeToString(encoded)
-		nextToken = &s
-	}
-	return items, nextToken, nil
+// pageKeyAttr is the JSON form of one key attribute inside a pagination token.
+// AttributeValue is an interface, which encoding/json cannot decode into, so the
+// token stores the DynamoDB wire shape instead — a key attribute is always a
+// string, a number or binary.
+type pageKeyAttr struct {
+	S *string `json:"S,omitempty"`
+	N *string `json:"N,omitempty"`
+	B []byte  `json:"B,omitempty"`
 }
 
-// QueryPage fetches one page of items whose PK matches the pk-tagged field of pkItem,
-// optionally filtered by an SK prefix. Pagination tokens are automatically decoded on
-// input and encoded on output.
-func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pageSize int32, token *string) ([]*T, *string, error) {
-	pkStr, err := t.meta.pkField.format.encode(reflect.ValueOf(pkItem).Elem())
-	if err != nil {
-		return nil, nil, errorx.ErrInternal.WithInner(err)
+// decodePageToken decodes a base64 pagination token into an ExclusiveStartKey.
+func decodePageToken(token *string) (map[string]dynamoTypes.AttributeValue, error) {
+	if token == nil {
+		return nil, nil
+	}
+	badToken := func(err error) error {
+		return errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
 	}
 
-	var startKey map[string]dynamoTypes.AttributeValue
-	if token != nil {
-		decoded, err := base64.StdEncoding.DecodeString(*token)
-		if err != nil {
-			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+	decoded, err := base64.StdEncoding.DecodeString(*token)
+	if err != nil {
+		return nil, badToken(err)
+	}
+	var raw map[string]pageKeyAttr
+	if err = json.Unmarshal(decoded, &raw); err != nil {
+		return nil, badToken(err)
+	}
+
+	startKey := make(map[string]dynamoTypes.AttributeValue, len(raw))
+	for name, attr := range raw {
+		switch {
+		case attr.S != nil:
+			startKey[name] = &dynamoTypes.AttributeValueMemberS{Value: *attr.S}
+		case attr.N != nil:
+			startKey[name] = &dynamoTypes.AttributeValueMemberN{Value: *attr.N}
+		case attr.B != nil:
+			startKey[name] = &dynamoTypes.AttributeValueMemberB{Value: attr.B}
+		default:
+			return nil, badToken(errorx.NewBadRequestError("dynamo", "empty key attribute", "attribute", name))
 		}
-		if err = json.Unmarshal(decoded, &startKey); err != nil {
-			return nil, nil, errorx.ErrBadRequest.WithSubject("NextPageToken").WithInner(err)
+	}
+	return startKey, nil
+}
+
+// encodePageToken encodes a LastEvaluatedKey into a base64 pagination token,
+// returning nil when the last page has been reached.
+func encodePageToken(lastKey map[string]dynamoTypes.AttributeValue) (*string, error) {
+	if lastKey == nil {
+		return nil, nil
+	}
+
+	raw := make(map[string]pageKeyAttr, len(lastKey))
+	for name, attr := range lastKey {
+		switch v := attr.(type) {
+		case *dynamoTypes.AttributeValueMemberS:
+			raw[name] = pageKeyAttr{S: &v.Value}
+		case *dynamoTypes.AttributeValueMemberN:
+			raw[name] = pageKeyAttr{N: &v.Value}
+		case *dynamoTypes.AttributeValueMemberB:
+			raw[name] = pageKeyAttr{B: v.Value}
+		default:
+			return nil, errorx.NewInternalError("dynamo", "unsupported key attribute type",
+				"attribute", name, "type", fmt.Sprintf("%T", attr))
 		}
+	}
+
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return nil, errorx.ErrInternal.WithInner(err)
+	}
+	s := base64.StdEncoding.EncodeToString(encoded)
+	return &s, nil
+}
+
+// tableQueryInput builds the QueryInput shared by QueryPage and Count.
+func (t *Table[T]) tableQueryInput(pkItem *T, skPrefix string, opts *queryOptions) (*dynamodb.QueryInput, error) {
+	pkStr, err := t.meta.pkField.format.encode(reflect.ValueOf(pkItem).Elem())
+	if err != nil {
+		return nil, errorx.ErrInternal.WithInner(err)
 	}
 
 	keyEx := expression.Key("PK").Equal(expression.Value(pkStr))
 	if skPrefix != "" {
 		keyEx = keyEx.And(expression.Key("SK").BeginsWith(skPrefix))
 	}
-	expr, err := expression.NewBuilder().WithKeyCondition(keyEx).Build()
+	expr, err := opts.buildExpression(keyEx)
 	if err != nil {
-		return nil, nil, errorx.ErrInternal.WithInner(err)
+		return nil, err
 	}
 
-	paginator := dynamodb.NewQueryPaginator(t.client, &dynamodb.QueryInput{
+	in := &dynamodb.QueryInput{
 		TableName:                 aws.String(t.tableName),
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		KeyConditionExpression:    expr.KeyCondition(),
-		ExclusiveStartKey:         startKey,
-		Limit:                     aws.Int32(pageSize),
-	})
-	output, err := paginator.NextPage(ctx)
+		FilterExpression:          expr.Filter(),
+	}
+	opts.applyTo(in)
+	return in, nil
+}
+
+// gsiQueryInput builds the QueryInput shared by QueryGSIPage and CountGSI.
+func (t *Table[T]) gsiQueryInput(indexName, pkAttr, pkValue string, skCond *SKCondition, opts *queryOptions) (*dynamodb.QueryInput, error) {
+	if opts.consistent {
+		// DynamoDB only serves eventually consistent reads from a GSI; fail here
+		// rather than letting the request be rejected at the far end.
+		return nil, errorx.NewInternalError("dynamo",
+			"ConsistentRead is not supported on a global secondary index", "index", indexName)
+	}
+
+	keyEx := expression.Key(pkAttr).Equal(expression.Value(pkValue))
+	if skCond != nil {
+		keyEx = skCond.apply(keyEx)
+	}
+	expr, err := opts.buildExpression(keyEx)
+	if err != nil {
+		return nil, err
+	}
+
+	in := &dynamodb.QueryInput{
+		TableName:                 aws.String(t.tableName),
+		IndexName:                 aws.String(indexName),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		KeyConditionExpression:    expr.KeyCondition(),
+		FilterExpression:          expr.Filter(),
+	}
+	opts.applyTo(in)
+	return in, nil
+}
+
+// queryPage runs one page of in and decodes the items and the next-page token.
+func (t *Table[T]) queryPage(ctx context.Context, in *dynamodb.QueryInput) ([]*T, *string, error) {
+	output, err := dynamodb.NewQueryPaginator(t.client, in).NextPage(ctx)
 	if err != nil {
 		return nil, nil, errorx.ErrInternal.WithInner(err)
 	}
@@ -395,14 +413,107 @@ func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pa
 		items = append(items, item)
 	}
 
-	var nextToken *string
-	if output.LastEvaluatedKey != nil {
-		encoded, err := json.Marshal(output.LastEvaluatedKey)
-		if err != nil {
-			return nil, nil, errorx.ErrInternal.WithInner(err)
-		}
-		s := base64.StdEncoding.EncodeToString(encoded)
-		nextToken = &s
+	nextToken, err := encodePageToken(output.LastEvaluatedKey)
+	if err != nil {
+		return nil, nil, err
 	}
 	return items, nextToken, nil
+}
+
+// countItems sums Count over every page of in, stopping early once maxItems have
+// been counted (maxItems <= 0 counts the whole partition).
+func (t *Table[T]) countItems(ctx context.Context, in *dynamodb.QueryInput, maxItems int64) (int64, error) {
+	in.Select = dynamoTypes.SelectCount
+
+	var total int64
+	paginator := dynamodb.NewQueryPaginator(t.client, in)
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, errorx.ErrInternal.WithInner(err)
+		}
+		total += int64(output.Count)
+		if maxItems > 0 && total >= maxItems {
+			return maxItems, nil
+		}
+	}
+	return total, nil
+}
+
+// QueryGSIPage fetches one page of items from a GSI whose partition key attribute equals
+// pkValue. An optional skCond narrows results by the GSI sort key; pass nil to match all
+// items under the partition key. Pagination tokens are automatically decoded on input and
+// encoded on output.
+//
+// Options tune the query: Descending reverses the sort order and WithFilter adds a
+// FilterExpression. ConsistentRead is rejected — a GSI cannot be read consistently.
+//
+// A filter is applied after the key condition and after pageSize is counted, so a
+// filtered page can hold fewer items than pageSize — even none — and still return a
+// non-nil next-page token. Keep following the token until it is nil instead of
+// treating a short or empty page as the end of the results.
+func (t *Table[T]) QueryGSIPage(ctx context.Context, indexName, pkAttr, pkValue string, skCond *SKCondition, pageSize int32, token *string, opts ...QueryOption) ([]*T, *string, error) {
+	startKey, err := decodePageToken(token)
+	if err != nil {
+		return nil, nil, err
+	}
+	in, err := t.gsiQueryInput(indexName, pkAttr, pkValue, skCond, newQueryOptions(opts))
+	if err != nil {
+		return nil, nil, err
+	}
+	in.ExclusiveStartKey = startKey
+	in.Limit = aws.Int32(pageSize)
+	return t.queryPage(ctx, in)
+}
+
+// QueryPage fetches one page of items whose PK matches the pk-tagged field of pkItem,
+// optionally filtered by an SK prefix. Pagination tokens are automatically decoded on
+// input and encoded on output.
+//
+// Options tune the query: Descending reverses the sort order, WithFilter adds a
+// FilterExpression and ConsistentRead makes the read strongly consistent.
+//
+// A filter is applied after the key condition and after pageSize is counted, so a
+// filtered page can hold fewer items than pageSize — even none — and still return a
+// non-nil next-page token. Keep following the token until it is nil instead of
+// treating a short or empty page as the end of the results.
+func (t *Table[T]) QueryPage(ctx context.Context, pkItem *T, skPrefix string, pageSize int32, token *string, opts ...QueryOption) ([]*T, *string, error) {
+	in, err := t.tableQueryInput(pkItem, skPrefix, newQueryOptions(opts))
+	if err != nil {
+		return nil, nil, err
+	}
+	startKey, err := decodePageToken(token)
+	if err != nil {
+		return nil, nil, err
+	}
+	in.ExclusiveStartKey = startKey
+	in.Limit = aws.Int32(pageSize)
+	return t.queryPage(ctx, in)
+}
+
+// Count returns how many items match the same key condition as QueryPage, without
+// fetching them: it pages through the partition with Select=COUNT and sums the
+// per-page counts.
+//
+// WithFilter narrows what is counted and WithMaxItems caps the work — a bounded
+// count for a "99+" badge, say. Descending has no effect on a total.
+func (t *Table[T]) Count(ctx context.Context, pkItem *T, skPrefix string, opts ...QueryOption) (int64, error) {
+	o := newQueryOptions(opts)
+	in, err := t.tableQueryInput(pkItem, skPrefix, o)
+	if err != nil {
+		return 0, err
+	}
+	return t.countItems(ctx, in, o.maxItems)
+}
+
+// CountGSI returns how many items match the same key condition as QueryGSIPage,
+// without fetching them. See Count for the available options; ConsistentRead is
+// rejected, as it is for QueryGSIPage.
+func (t *Table[T]) CountGSI(ctx context.Context, indexName, pkAttr, pkValue string, skCond *SKCondition, opts ...QueryOption) (int64, error) {
+	o := newQueryOptions(opts)
+	in, err := t.gsiQueryInput(indexName, pkAttr, pkValue, skCond, o)
+	if err != nil {
+		return 0, err
+	}
+	return t.countItems(ctx, in, o.maxItems)
 }

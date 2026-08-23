@@ -1,6 +1,7 @@
 package dynamo
 
 import (
+	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
@@ -228,6 +229,9 @@ func buildStructMeta(t reflect.Type) (*structMeta, error) {
 			if err != nil {
 				return nil, err
 			}
+			if err = validateKeyFields(fm.format, t); err != nil {
+				return nil, err
+			}
 		}
 
 		switch fm.keyRole {
@@ -247,6 +251,25 @@ func buildStructMeta(t reflect.Type) (*structMeta, error) {
 		return nil, errorx.NewInternalError("dynamo", "no field tagged with dynamo:\"sk,...\"", "type", t.Name())
 	}
 	return meta, nil
+}
+
+// validateKeyFields checks that every field a key pattern references can be both
+// encoded and decoded. A const= key references no field at all, so its tagged
+// field's type is free. Reporting this from New turns what used to be a silent
+// write-then-fail-on-every-read into a startup error.
+func validateKeyFields(kf *keyFormat, t reflect.Type) error {
+	for _, seg := range kf.segments {
+		if seg.fieldIndex < 0 {
+			continue
+		}
+		f := t.Field(seg.fieldIndex)
+		if !supportedKeyFieldType(f.Type) {
+			return errorx.NewInternalError("dynamo",
+				"unsupported key field type: want string, uuid.UUID, or encoding.TextMarshaler+TextUnmarshaler",
+				"type", t.Name(), "field", f.Name, "fieldType", f.Type.String())
+		}
+	}
+	return nil
 }
 
 // applyTimestamps sets auto_create (if zero and not isUpdate) and auto_update fields to now.
@@ -299,6 +322,26 @@ func structFieldIndex(t reflect.Type, name string) (int, error) {
 	return -1, errorx.NewInternalError("dynamo", "field not found", "field", name, "type", t.Name())
 }
 
+var (
+	uuidType            = reflect.TypeFor[uuid.UUID]()
+	stringType          = reflect.TypeFor[string]()
+	textMarshalerType   = reflect.TypeFor[encoding.TextMarshaler]()
+	textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
+)
+
+// supportedKeyFieldType reports whether values of ft round-trip through
+// fieldToString and setFieldFromString. Anything beyond the string and uuid.UUID
+// fast paths has to implement the standard text encoding interfaces — encoding
+// alone is not enough, since a key that cannot be decoded fails on every read.
+func supportedKeyFieldType(ft reflect.Type) bool {
+	if ft == uuidType || ft == stringType {
+		return true
+	}
+	ptr := reflect.PointerTo(ft)
+	marshals := ft.Implements(textMarshalerType) || ptr.Implements(textMarshalerType)
+	return marshals && ptr.Implements(textUnmarshalerType)
+}
+
 // fieldToString converts a struct field value to its string key representation.
 func fieldToString(v reflect.Value) (string, error) {
 	switch val := v.Interface().(type) {
@@ -306,9 +349,26 @@ func fieldToString(v reflect.Value) (string, error) {
 		return val.String(), nil
 	case string:
 		return val, nil
-	default:
-		return fmt.Sprintf("%v", v.Interface()), nil
+	case encoding.TextMarshaler:
+		return marshalText(val, v.Type())
 	}
+	// A type whose MarshalText has a pointer receiver: the field comes from an
+	// addressable struct, so the pointer is reachable.
+	if v.CanAddr() {
+		if tm, ok := v.Addr().Interface().(encoding.TextMarshaler); ok {
+			return marshalText(tm, v.Type())
+		}
+	}
+	return fmt.Sprintf("%v", v.Interface()), nil
+}
+
+// marshalText encodes tm, reporting the failing field type on error.
+func marshalText(tm encoding.TextMarshaler, ft reflect.Type) (string, error) {
+	b, err := tm.MarshalText()
+	if err != nil {
+		return "", errorx.NewInternalError("dynamo", "marshal key field failed", "type", ft.String()).WithInner(err)
+	}
+	return string(b), nil
 }
 
 // setFieldFromString parses s and assigns it to dest based on its type.
@@ -320,10 +380,24 @@ func setFieldFromString(dest reflect.Value, s string) error {
 			return errorx.NewInternalError("dynamo", "parse uuid failed", "value", s).WithInner(err)
 		}
 		dest.Set(reflect.ValueOf(id))
+		return nil
 	case string:
 		dest.SetString(s)
-	default:
-		return errorx.NewInternalError("dynamo", "unsupported key field type", "type", dest.Type())
+		return nil
+	}
+	// UnmarshalText is always defined on the pointer, so the destination has to be
+	// addressable. Every decode path reaches it through a pointer's Elem, so this
+	// holds — but assert it rather than trusting the caller.
+	if !dest.CanAddr() {
+		return errorx.NewInternalError("dynamo", "key field is not addressable", "type", dest.Type().String())
+	}
+	tu, ok := dest.Addr().Interface().(encoding.TextUnmarshaler)
+	if !ok {
+		return errorx.NewInternalError("dynamo", "unsupported key field type", "type", dest.Type().String())
+	}
+	if err := tu.UnmarshalText([]byte(s)); err != nil {
+		return errorx.NewInternalError("dynamo", "parse key field failed",
+			"type", dest.Type().String(), "value", s).WithInner(err)
 	}
 	return nil
 }

@@ -4,6 +4,76 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Query options for `aws/dynamo`** — `QueryPage` and `QueryGSIPage` now take a
+  trailing `...QueryOption`. `Descending()` lists newest-first, `WithFilter(cond)`
+  adds a `FilterExpression`, and `ConsistentRead()` makes a table query strongly
+  consistent (it is rejected on a GSI, which DynamoDB cannot read consistently).
+  Options compose, and passing none leaves the request exactly as it was. A filter
+  is applied after the page size is counted, so a filtered page can come back short
+  or empty and still carry a next-page token — keep following the token until it is
+  nil.
+
+- **`Table.Count` and `Table.CountGSI`** — issue the same key condition as their
+  `Query` counterpart with `Select: COUNT` and sum the pages, without fetching any
+  items. `WithMaxItems(n)` stops at n, so an unread badge can show "99+" without
+  scanning an unbounded partition.
+
+- **`Table.UpdateWith(ctx, item, UpdateSpec)`** — the extended form of `Update`:
+  `Set` and `Remove` in one `UpdateExpression` (clearing a sparse-index attribute
+  is now expressible) plus an optional `Condition`. An attribute named in both
+  `Set` and `Remove` is rejected as a bad request instead of by DynamoDB, and a
+  spec with nothing to write returns without a round trip. `Update` is now a thin
+  wrapper over it, with unchanged behaviour.
+
+- **`dynamo.ErrConditionFailed`** — a failed `ConditionExpression` is reported as a
+  matchable business error rather than an internal one, so optimistic-concurrency
+  and idempotent-write callers can branch on `errors.Is(err, dynamo.ErrConditionFailed)`
+  without matching on message text.
+
+- **Transactions** — `PutTx`, `UpdateTx`, `DeleteTx` and `ConditionCheckTx` build
+  `types.TransactWriteItem` values using the same keys, timestamps and marshalling
+  as their non-transactional counterparts, and the package-level
+  `dynamo.TransactWrite(ctx, client, items...)` commits a mixed batch spanning
+  several item types. A batch over DynamoDB's 100-item limit is rejected before the
+  request goes out, and a cancelled transaction reports which item index failed and
+  why instead of a bare "transaction cancelled".
+
+- **Text-encoded key fields** — a pk/sk field may now be any type implementing
+  `encoding.TextMarshaler` and `encoding.TextUnmarshaler` (`ulid.ULID`,
+  `netip.Addr`, `time.Time`, user types), alongside the existing `string` and
+  `uuid.UUID`. Previously the encode path accepted anything through `fmt.Sprintf`
+  while the decode path rejected it, so such a key wrote correctly and failed on
+  every read.
+
+### Changed
+
+- **`dynamo.New[T]` validates key field types** — every field a `pk`/`sk` pattern
+  references must be decodable, and `New` now returns an error naming the field and
+  type when it is not. This turns what used to be a runtime read failure into a
+  startup failure. A `const=` key references no field, so its field's type is still
+  free.
+
+### Fixed
+
+- **`aws/dynamo` pagination tokens could not be decoded** — the token held a
+  JSON-marshalled `map[string]types.AttributeValue`, and `AttributeValue` is an
+  interface that `encoding/json` cannot unmarshal into, so passing a returned token
+  back into `QueryPage`/`QueryGSIPage` always failed with a `NextPageToken`
+  bad-request error. Tokens now store the DynamoDB wire shape (`{"S": …}`) and round
+  trip. Tokens issued by earlier versions are not accepted — they never worked.
+
+### Documentation
+
+- The `aws/dynamo` package doc now documents the `format=` tag option — the only
+  way to build a composite key from several struct fields — including `{FieldName}`
+  references, the bare `{}` self-reference, `prefix=`/`const=` as sugar over it, the
+  supported key field types, and the constraint that two adjacent placeholders with
+  no literal between them cannot be decoded.
+
 ## [0.35.0] - 2026-08-22
 
 ### Added
