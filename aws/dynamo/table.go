@@ -16,18 +16,21 @@
 //
 //	pk              – this field is the partition key
 //	sk              – this field is the sort key
-//	format=P        – build the key from pattern P (see below)
-//	prefix=X        – prepend X when encoding to DynamoDB; strip X on decode
-//	const=X         – key component is always X; the field value is ignored on write
+//	format=P        – build the value from pattern P (see below)
+//	prefix=X        – prepend X when encoding to DynamoDB; strip X on decode (pk/sk only)
+//	const=X         – value is always the literal X; the field's own value is ignored
 //	auto_create     – set to time.Now() on Put if the field is zero
 //	auto_update     – set to time.Now() on Put and Update (always)
+//
+// An option the package does not recognise is rejected by New rather than ignored,
+// so a typo such as format:X cannot silently fall back to a bare key.
 //
 // PK/SK fields must also carry dynamodbav:"-" so the AWS marshaler ignores them;
 // the Table handles encoding and decoding them directly via the dynamo tag.
 //
 // # Composite keys with format=
 //
-// format=P builds a key from a pattern of literals and {FieldName} placeholders,
+// format=P builds a value from a pattern of literals and {FieldName} placeholders,
 // and is the only way to compose a key from more than one struct field:
 //
 //	TenantID uuid.UUID `dynamo:"pk,format=T:{TenantID}#U:{UserID}" dynamodbav:"-"`
@@ -37,7 +40,7 @@
 // over it: prefix=X means format=X{}, const=X means format=X (a pure literal that
 // ignores the field's value entirely).
 //
-// Every field a pattern references is encoded on write and decoded back on read,
+// Every field a key pattern references is encoded on write and decoded back on read,
 // so it must be of a supported key type: string, uuid.UUID, or a type implementing
 // encoding.TextMarshaler and encoding.TextUnmarshaler (ulid.ULID, netip.Addr,
 // time.Time, and user types that implement the pair). New rejects anything else.
@@ -45,6 +48,31 @@
 // Decoding splits the stored key on the literal segments, so two placeholders with
 // no literal between them ("{TenantID}{UserID}") cannot be decoded — always keep a
 // separator between adjacent placeholders.
+//
+// # Derived attributes
+//
+// const= and format= also work on ordinary, non-key fields, which is how a type
+// discriminator or a GSI key stops being something every caller has to remember to
+// fill in:
+//
+//	Type   string `dynamo:"const=MESSAGE"           dynamodbav:"Type"`
+//	GSI1PK string `dynamo:"format=T:{TenantID}#MSG" dynamodbav:"GSI1_PK,omitempty"`
+//	GSI1SK string `dynamo:"format=M:{ID}"           dynamodbav:"GSI1_SK,omitempty"`
+//
+// Such a field is recomputed from its source fields on every Put and Update, so it
+// cannot drift from the data it is built out of. Unlike a key, it is stored and read
+// back as a normal attribute — it is never decoded, so its source fields only need to
+// implement encoding.TextMarshaler, not the unmarshaling half.
+//
+// A derived field must be a string, must be persisted (not dynamodbav:"-"), and must
+// not reference itself: a pattern that read its own value would re-encode what the
+// previous write produced and grow the value every time. That rules out prefix= and
+// the bare {} on a non-key field; both are rejected by New.
+//
+// Update writes a derived attribute only when the attribute is named in the update —
+// recomputing it does not by itself add it to the UpdateExpression:
+//
+//	table.Update(ctx, msg, "Title", "GSI1_SK")
 package dynamo
 
 import (
@@ -140,10 +168,15 @@ func (t *Table[T]) unmarshalItem(raw map[string]dynamoTypes.AttributeValue) (*T,
 	return &item, nil
 }
 
-// marshalItem applies the write timestamps to item and marshals it into a full
-// attribute map, with the encoded PK/SK attributes merged in. Shared by Put and PutTx.
+// marshalItem applies the write timestamps and derived attributes to item and marshals
+// it into a full attribute map, with the encoded PK/SK attributes merged in.
+// Shared by Put and PutTx.
 func (t *Table[T]) marshalItem(item *T) (map[string]dynamoTypes.AttributeValue, error) {
-	applyTimestamps(reflect.ValueOf(item).Elem(), t.meta, false, t.clock.Now())
+	v := reflect.ValueOf(item).Elem()
+	applyTimestamps(v, t.meta, false, t.clock.Now())
+	if err := applyDerived(v, t.meta); err != nil {
+		return nil, errorx.ErrInternal.WithInner(err)
+	}
 
 	key, err := t.buildKey(item)
 	if err != nil {

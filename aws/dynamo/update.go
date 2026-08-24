@@ -95,7 +95,13 @@ func (t *Table[T]) buildUpdate(item *T, spec UpdateSpec) (*updateRequest, error)
 
 	// Only now that the spec is known to be valid: a rejected update must not
 	// leave the caller's item carrying a new timestamp.
-	applyTimestamps(reflect.ValueOf(item).Elem(), t.meta, true, t.clock.Now())
+	v := reflect.ValueOf(item).Elem()
+	applyTimestamps(v, t.meta, true, t.clock.Now())
+	// Derived attributes are recomputed so that one named in spec.Set is written from
+	// the item's current fields; an update never writes one the caller did not name.
+	if err := applyDerived(v, t.meta); err != nil {
+		return nil, errorx.ErrInternal.WithInner(err)
+	}
 
 	key, err := t.buildKey(item)
 	if err != nil {

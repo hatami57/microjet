@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Derived attributes for `aws/dynamo`** — `const=` and `format=` now work on
+  ordinary, non-key fields, so a type discriminator or a GSI key is declared once on
+  the struct instead of being filled in by every caller:
+
+  ```go
+  Type   string `dynamo:"const=MESSAGE"           dynamodbav:"Type"`
+  GSI1PK string `dynamo:"format=T:{TenantID}#MSG" dynamodbav:"GSI1_PK,omitempty"`
+  GSI1SK string `dynamo:"format=M:{ID}"           dynamodbav:"GSI1_SK,omitempty"`
+  ```
+
+  Such a field is recomputed from its source fields on every `Put` and `Update`, so
+  a derived index entry cannot drift from the data it is built out of. It is stored
+  and read back as a normal attribute — never decoded — so its source fields only
+  need `encoding.TextMarshaler`, not the unmarshaling half that a pk/sk component
+  requires. An `Update` still writes a derived attribute only when the update names
+  it. `New` rejects a derived field that is not a string, is not persisted
+  (`dynamodbav:"-"`), or references itself — the last rules out `prefix=` and a bare
+  `{}` on a non-key field, both of which would re-encode the previous write and grow
+  the value every time.
+
+### Changed
+
+- **`aws/dynamo` rejects unknown `dynamo` tag options** — an option the package does
+  not recognise is now an error from `New` instead of being silently ignored. A typo
+  such as `dynamo:"pk,format:T:{TenantID}"` (a colon instead of `=`) used to drop the
+  whole pattern and write a bare key value, which is invisible until the data is
+  already wrong. Structs carrying an unrecognised option will now fail at startup;
+  the error names the type, the field and the offending option.
+
 ## [0.36.0] - 2026-08-23
 
 ### Added

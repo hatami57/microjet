@@ -139,16 +139,17 @@ type fieldMeta struct {
 	structIndex int
 	attrName    string // dynamodbav attribute name (empty if dynamodbav:"-")
 	keyRole     keyRole
-	format      *keyFormat // non-nil for pk/sk fields
+	format      *keyFormat // non-nil for pk/sk fields and for derived attributes
 	autoCreate  bool       // set to time.Now() on Put if the field is zero
 	autoUpdate  bool       // set to time.Now() on Put and Update (always)
 }
 
 // structMeta holds all tag-derived metadata for a struct type T.
 type structMeta struct {
-	pkField    *fieldMeta
-	skField    *fieldMeta
-	autoFields []*fieldMeta // fields with auto_create or auto_update
+	pkField       *fieldMeta
+	skField       *fieldMeta
+	autoFields    []*fieldMeta // fields with auto_create or auto_update
+	derivedFields []*fieldMeta // non-key fields with const= or format=
 }
 
 var metaCache sync.Map // map[reflect.Type]*structMeta
@@ -193,6 +194,8 @@ func buildStructMeta(t reflect.Type) (*structMeta, error) {
 		for part := range strings.SplitSeq(tag, ",") {
 			part = strings.TrimSpace(part)
 			switch {
+			case part == "":
+				// Tolerate a stray or trailing comma.
 			case part == "pk":
 				fm.keyRole = keyRolePK
 			case part == "sk":
@@ -207,29 +210,41 @@ func buildStructMeta(t reflect.Type) (*structMeta, error) {
 				fm.autoCreate = true
 			case part == "auto_update":
 				fm.autoUpdate = true
+			default:
+				// An unrecognised option is almost always a typo ("format:X" for
+				// "format=X"), and silently ignoring it writes a silently wrong key.
+				return nil, errorx.NewInternalError("dynamo",
+					"unknown dynamo tag option: want pk, sk, format=, prefix=, const=, auto_create or auto_update",
+					"type", t.Name(), "field", f.Name, "option", part)
 			}
 		}
 
-		if fm.keyRole != keyRoleNone {
-			// Resolve the format string from whichever option was provided.
-			// format= wins; prefix= and const= are sugar for simple cases.
-			var pattern string
-			switch {
-			case rawFormat != "":
-				pattern = rawFormat
-			case prefix != "":
-				pattern = prefix + "{}" // {} expands to this field's own value
-			case constVal != "":
-				pattern = constVal // pure literal, no field reference
-			default:
-				pattern = "{}" // bare pk/sk: just the field value
-			}
+		// Resolve the pattern from whichever option was provided.
+		// format= wins; prefix= and const= are sugar for simple cases.
+		var pattern string
+		switch {
+		case rawFormat != "":
+			pattern = rawFormat
+		case prefix != "":
+			pattern = prefix + "{}" // {} expands to this field's own value
+		case constVal != "":
+			pattern = constVal // pure literal, no field reference
+		case fm.keyRole != keyRoleNone:
+			pattern = "{}" // bare pk/sk: just the field value
+		}
+
+		if pattern != "" {
 			var err error
 			fm.format, err = parseKeyFormat(pattern, f.Name, t)
 			if err != nil {
 				return nil, err
 			}
-			if err = validateKeyFields(fm.format, t); err != nil {
+			if fm.keyRole != keyRoleNone {
+				err = validateKeyFields(fm.format, t)
+			} else {
+				err = validateDerivedField(fm.format, t, f, i)
+			}
+			if err != nil {
 				return nil, err
 			}
 		}
@@ -239,6 +254,10 @@ func buildStructMeta(t reflect.Type) (*structMeta, error) {
 			meta.pkField = fm
 		case keyRoleSK:
 			meta.skField = fm
+		default:
+			if fm.format != nil {
+				meta.derivedFields = append(meta.derivedFields, fm)
+			}
 		}
 		if fm.autoCreate || fm.autoUpdate {
 			meta.autoFields = append(meta.autoFields, fm)
@@ -268,6 +287,57 @@ func validateKeyFields(kf *keyFormat, t reflect.Type) error {
 				"unsupported key field type: want string, uuid.UUID, or encoding.TextMarshaler+TextUnmarshaler",
 				"type", t.Name(), "field", f.Name, "fieldType", f.Type.String())
 		}
+	}
+	return nil
+}
+
+// validateDerivedField checks that a non-key const=/format= attribute can be computed
+// on every write: the tagged field has to be a string to receive the result, it must
+// be persisted, and it must not depend on its own value — a self-referencing pattern
+// would re-encode what it wrote and grow the value on every Put.
+func validateDerivedField(kf *keyFormat, t reflect.Type, f reflect.StructField, selfIndex int) error {
+	if f.Type.Kind() != reflect.String {
+		return errorx.NewInternalError("dynamo",
+			"const= and format= on a non-key field require a string field",
+			"type", t.Name(), "field", f.Name, "fieldType", f.Type.String())
+	}
+	if dynamoAttrName(f) == "" {
+		return errorx.NewInternalError("dynamo",
+			"const= and format= on a non-key field need a persisted attribute, but dynamodbav is \"-\"",
+			"type", t.Name(), "field", f.Name)
+	}
+	for _, seg := range kf.segments {
+		if seg.fieldIndex < 0 {
+			continue
+		}
+		if seg.fieldIndex == selfIndex {
+			return errorx.NewInternalError("dynamo",
+				"a derived attribute cannot reference its own field; prefix= and {} are only valid on pk/sk",
+				"type", t.Name(), "field", f.Name)
+		}
+		src := t.Field(seg.fieldIndex)
+		if !supportedDerivedSourceType(src.Type) {
+			return errorx.NewInternalError("dynamo",
+				"unsupported source field type: want string, uuid.UUID, or encoding.TextMarshaler",
+				"type", t.Name(), "field", f.Name, "sourceField", src.Name, "sourceType", src.Type.String())
+		}
+	}
+	return nil
+}
+
+// applyDerived recomputes every const=/format= attribute from the item's current
+// field values, so a derived GSI key cannot drift from the fields it is built out of.
+func applyDerived(v reflect.Value, meta *structMeta) error {
+	for _, fm := range meta.derivedFields {
+		field := v.Field(fm.structIndex)
+		if !field.CanSet() {
+			continue
+		}
+		s, err := fm.format.encode(v)
+		if err != nil {
+			return err
+		}
+		field.SetString(s)
 	}
 	return nil
 }
@@ -340,6 +410,17 @@ func supportedKeyFieldType(ft reflect.Type) bool {
 	ptr := reflect.PointerTo(ft)
 	marshals := ft.Implements(textMarshalerType) || ptr.Implements(textMarshalerType)
 	return marshals && ptr.Implements(textUnmarshalerType)
+}
+
+// supportedDerivedSourceType reports whether values of ft can be encoded into a
+// derived attribute. Such an attribute is only ever written — it is read back by the
+// AWS marshaler like any other attribute, never split apart again — so being able to
+// encode is enough here, unlike a pk/sk component.
+func supportedDerivedSourceType(ft reflect.Type) bool {
+	if ft == uuidType || ft == stringType {
+		return true
+	}
+	return ft.Implements(textMarshalerType) || reflect.PointerTo(ft).Implements(textMarshalerType)
 }
 
 // fieldToString converts a struct field value to its string key representation.
