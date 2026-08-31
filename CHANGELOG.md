@@ -4,6 +4,110 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Cross-account AWS access (`aws`)** — `AssumeRoleConfig` returns an SDK config
+  that authenticates by assuming a role in another account, for services that act
+  inside a customer's account rather than their own:
+
+  ```go ignore
+  cfg, err := mjaws.Of(app).AssumeRoleConfig(mjaws.AssumeRoleOptions{
+      RoleARN:     tenant.RoleARN,
+      ExternalID:  tenant.ExternalID,
+      Region:      tenant.Region,
+      SessionName: "notification-" + tenant.ID.String(),
+  })
+  tenantAWS, err := mjaws.Of(app).Derive(cfg, mjaws.SES)
+  ```
+
+  The returned config is a *copy* of `DefaultConfig` with its credentials and
+  region replaced, which is the point of the method: overwriting those fields on
+  `DefaultConfig` itself repoints every client the application already built —
+  DynamoDB and its own SES included — at the assumed account. The credentials
+  provider is wrapped in a credentials cache, so a config built once serves many
+  calls from one `AssumeRole` rather than one per request. A `RoleSessionName`
+  that STS would reject is reported here instead of on every later call.
+
+  `Derive` builds a second `*AWS` over that config, inheriting the `[aws]`
+  settings and the logger while giving clients only to the named services. Use it
+  instead of assembling an `AWS` value field by field: a struct literal leaves
+  every field the package adds later at its zero value, and the unnamed clients
+  nil, in a way no compiler notices.
+
+  `CallerIdentity` reports the ARN this application authenticates as — the
+  principal the other account's trust policy has to name. `STS` and
+  `SecretsManager` join the `Service` list, though neither has to be requested:
+  both clients are built on demand.
+
+- **`secretx` (`core`)** — separates a secret's storage from its use. Application
+  data holds a reference, a `Resolver` turns that reference into the value, and
+  the value travels in a `Value` that prints as `[REDACTED]` through `fmt`
+  (including `%#v`, and as a field of a containing struct), `slog` and
+  `encoding/json`. `Reveal` is the only way to the plaintext, which makes every
+  place that needs it greppable.
+
+  `Env` resolves `env:NAME` from the process environment. `Static` keeps secrets
+  in memory for tests and local runs and reports itself as `Insecure`, so a
+  startup `Guard(resolver, app.Config.App.IsProduction())` refuses to run a
+  production deployment that still has it wired in. A reference minted by one
+  store is rejected by another rather than silently misread.
+
+- **`aws.SecretStore`** — a `secretx.ReadWriter` over AWS Secrets Manager.
+  `Store` creates the secret the first time and adds a version after that, so the
+  ARN it returns stays stable across rotations and the row holding it is never
+  rewritten. `Delete` schedules deletion after the recovery window by default
+  (`WithForceDelete` for names that have to be reusable at once), and a reference
+  pointing at nothing gives a not-found error, distinguishable from a failure to
+  reach the store.
+
+- **`cache.Loader`** — load-through caching with single-flight deduplication:
+
+  ```go ignore
+  senders := cache.NewLoader[*tenantSender](cache.NewMemoryCache(app.Clock), 5*time.Minute)
+  sender, err := senders.Get(ctx, tenantID.String(), buildSender)
+  ```
+
+  Concurrent misses on one key run the loader once and share the result. A worker
+  that fans out — a sweeper claiming a batch, a consumer draining a queue — hits a
+  cold key from every goroutine at once, and the hand-written get/load/set turns
+  one expiry into a burst of identical reads. A failed load is not cached; a
+  `nil` pointer result is, which is what makes "known absent" cost one lookup
+  instead of one per request. `NewJSONLoader` stores entries as JSON for sharing
+  across replicas.
+
+- **`limitx.Keyed` (`core`)** — caps concurrency per key instead of in total:
+
+  ```go ignore
+  release, err := limiter.Acquire(ctx, tenantID)
+  if err != nil {
+      return err
+  }
+  defer release()
+  ```
+
+  A global worker pool is fair only while every unit of work costs about the
+  same. Once the work talks to something the key controls — a customer's SMTP
+  server, a partner's API — one slow endpoint holds every worker it is given and
+  a pool of N is starved by a single key. Idle keys are forgotten, so the number
+  of keys seen does not accumulate.
+
+- **`tenant.WithNegativeTTL` (`core`)** — caches "no such tenant" for its own,
+  shorter TTL, so requests carrying an unknown tenant ID cost one lookup instead
+  of one per request. Only a not-found error is cached: a timeout or a dropped
+  connection is never remembered as an absent tenant. It is off by default
+  because it trades freshness for that protection.
+
+### Fixed
+
+- **`tenant.CachedStore` documented negative caching it did not do** — the type's
+  comment said "not found" lookups were cached for the configured TTL, while
+  `FindTenant` returned the error without storing anything. Code trusting the
+  documented behaviour was paying a lookup per request for every unknown tenant.
+  The comment now matches the default, and `WithNegativeTTL` opts into the
+  behaviour it described.
+
 ## [0.37.0] - 2026-08-24
 
 ### Added
