@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`tenant.CachedStore` cached an absent tenant inconsistently** — a `Store` may
+  report "no such tenant" two ways, and only one of them went through the
+  negative-caching policy. `(nil, nil)` — the spelling `middleware.Tenant` turns
+  into a 401, and so the one most stores use — fell through the *success* branch
+  and was cached as an ordinary positive entry, while `(nil, NotFoundError)` was
+  governed by `WithNegativeTTL`. The same answer was held for a different length
+  of time depending only on how the store spelled it, and `WithNegativeTTL`
+  silently governed the less common half.
+
+  Both spellings are now one answer, held for one TTL, and replayed on a hit
+  exactly as the store gave them — so wrapping a `Store` in a `CachedStore` never
+  changes what its caller sees. Any other error is still never cached: a timeout
+  says nothing about whether a tenant exists.
+
+### Changed
+
+- **`WithNegativeTTL` now defaults to the positive TTL rather than to off**, and
+  `WithNegativeTTL(0)` is what switches negative caching off. This restores the
+  contract the type documented before 0.38.0 — "both successful and not-found
+  lookups are cached for the configured TTL" — and applies it to both spellings
+  above.
+
+  0.38.0 briefly made not-found caching opt-in. That was the wrong default in the
+  direction that matters: it leaves a stream of requests carrying an unknown
+  tenant ID reaching the tenant store once per request, which is a load amplifier
+  reachable before the tenant is authenticated. It was also never true for the
+  `(nil, nil)` spelling, so for most stores the "off by default" did not describe
+  what the code did. Callers who want the fresher behaviour should pass
+  `WithNegativeTTL(0)`, or a few seconds to keep most of the protection.
+
 ## [0.38.0] - 2026-08-31
 
 ### Added
