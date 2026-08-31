@@ -6,6 +6,7 @@ require (
 	github.com/hatami57/microjet/core v0.37.0
 	github.com/hatami57/microjet/host v0.37.0
 	github.com/redis/go-redis/v9 v9.20.0
+	golang.org/x/sync v0.22.0
 )
 
 require (
