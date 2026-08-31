@@ -3,8 +3,8 @@ module github.com/hatami57/microjet/otelx
 go 1.26.2
 
 require (
-	github.com/hatami57/microjet/core v0.37.0
-	github.com/hatami57/microjet/host v0.37.0
+	github.com/hatami57/microjet/core v0.38.0
+	github.com/hatami57/microjet/host v0.38.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
