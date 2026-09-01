@@ -2,7 +2,7 @@ module github.com/hatami57/microjet/examples/errors
 
 go 1.26.2
 
-require github.com/hatami57/microjet/core v0.38.0
+require github.com/hatami57/microjet/core v0.39.0
 
 replace (
 	github.com/hatami57/microjet/aws => ../../aws

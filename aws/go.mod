@@ -17,8 +17,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.76.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0
 	github.com/google/uuid v1.6.0
-	github.com/hatami57/microjet/core v0.38.0
-	github.com/hatami57/microjet/host v0.38.0
+	github.com/hatami57/microjet/core v0.39.0
+	github.com/hatami57/microjet/host v0.39.0
 	golang.org/x/sync v0.20.0
 )
 
