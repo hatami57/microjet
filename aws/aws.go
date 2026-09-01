@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/hatami57/microjet/core/configx"
 	"github.com/hatami57/microjet/core/errorx"
@@ -39,12 +40,16 @@ type AWS struct {
 	// SecretsManagerClient is built by Init when the SecretsManager service is
 	// requested, and otherwise on first use by SecretStore.
 	SecretsManagerClient *secretsmanager.Client
+	// SSMClient is built by Init when the SSM service is requested, and
+	// otherwise on first use by ParameterStore.
+	SSMClient *ssm.Client
 
 	config   Config
 	services []Service
 
-	// mu guards the lazy STSClient build. Every other field is written during
-	// Init, before the client is shared.
+	// mu guards the lazy client builds — STSClient, SecretsManagerClient and
+	// SSMClient. Every other field is written during Init, before the client is
+	// shared.
 	mu sync.Mutex
 }
 
@@ -68,6 +73,9 @@ const (
 	// SecretsManager builds the client behind SecretStore. Requesting it is
 	// optional: SecretStore builds it on demand.
 	SecretsManager Service = "aws-secretsmanager"
+	// SSM builds the client behind ParameterStore. Requesting it is optional:
+	// ParameterStore builds it on demand.
+	SSM Service = "aws-ssm"
 )
 
 // ReadConfig implements configx.Configurable, reading the [aws] section into the
@@ -138,6 +146,8 @@ func (a *AWS) initClients() error {
 			a.STSClient = sts.NewFromConfig(a.DefaultConfig)
 		case SecretsManager:
 			a.SecretsManagerClient = secretsmanager.NewFromConfig(a.DefaultConfig)
+		case SSM:
+			a.SSMClient = ssm.NewFromConfig(a.DefaultConfig)
 		default:
 			return errorx.NewInternalError("aws", "undefined aws service", "service", service)
 		}

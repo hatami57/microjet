@@ -6,6 +6,37 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`aws.ParameterStore`** — a second `secretx.ReadWriter`, backed by SSM
+  Parameter Store, interchangeable with `aws.SecretStore`:
+
+  ```go ignore
+  store := mjaws.Of(app).ParameterStore(mjaws.WithParameterNamePrefix("prod/"))
+  ref, err := store.Store(ctx, "smtp/"+tenantID.String(), secretx.New(password))
+  ```
+
+  Same interface and same contract, chosen on price: Parameter Store's standard
+  tier holds a secret for free where Secrets Manager bills per secret per month,
+  and what that fee buys — Lambda rotation, resource policies, cross-region
+  replication — is unused by an application that stores a credential its own user
+  supplied. Reach for `SecretStore` when one of the three is actually in use, and
+  for this otherwise.
+
+  Three differences are worth knowing. `Delete` is immediate rather than
+  scheduled, so a stable per-tenant name can be deleted and recreated without the
+  `WithForceDelete` that `SecretStore` needs — at the cost of the recovery
+  window. The standard tier caps a value at 4KB and an account at 10,000
+  parameters per region, both lifted by the account's default tier
+  configuration rather than by this code. And a `SecureString` is KMS-encrypted,
+  so `Resolve` needs `kms:Decrypt` as well as `ssm:GetParameter`;
+  `WithParameterKeyID` names a customer managed key instead of `aws/ssm`.
+
+  The reference is the parameter's path, so it begins with `/` where a Secrets
+  Manager reference begins with `arn:` — a stored reference still says which
+  store issued it. `SSM` joins the `Service` list, though requesting it is
+  optional: the client is built on demand, as `SecretsManager`'s is.
+
 ### Fixed
 
 - **`tenant.CachedStore` cached an absent tenant inconsistently** — a `Store` may

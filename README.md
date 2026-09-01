@@ -44,7 +44,7 @@ import "github.com/hatami57/microjet/host"
 | `gormx/migrate` | `github.com/hatami57/microjet/gormx/migrate` | Opt-in versioned SQL migrations (goose wrapper) |
 | `outbox` | `github.com/hatami57/microjet/outbox` | Transactional outbox: enqueue events in a DB tx, relay to the broker |
 | `testx` | `github.com/hatami57/microjet/testx` | Test helpers: in-memory app builder, fake broker, HTTP request helpers |
-| `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, SES, DynamoDB clients |
+| `aws` | `github.com/hatami57/microjet/aws` | S3, SQS, SES, DynamoDB clients, secret stores (Secrets Manager, SSM Parameter Store) |
 | `core/types` | `github.com/hatami57/microjet/core/types` | Message envelope, pagination types |
 | `core/types/money` | `github.com/hatami57/microjet/core/types/money` | Currency-aware decimal money |
 | `core/utils` | `github.com/hatami57/microjet/core/utils` | JSON, converters, env, disk |
@@ -558,7 +558,7 @@ core ─ errorx, configx, logx, jsonx, time, tenant, types (money), utils
         ├── messaging  pub/sub abstraction  ── messaging/nats (driver)
         ├── cache      memory / Redis
         ├── otelx      OpenTelemetry tracing
-        ├── aws        S3, SQS, SES, DynamoDB
+        ├── aws        S3, SQS, SES, DynamoDB, secret stores
         ├── outbox     transactional outbox   (+ gormx, messaging)
         └── testx      test harness           (+ httpx, gormx/sqlite, messaging, cache)
 ```
