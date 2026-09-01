@@ -68,10 +68,10 @@ github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/hatami57/microjet/core v0.30.0 h1:WSNM8Au6f4xL0WEPaKtp2TlDhTobyVhOPnZ5cx+bJVU=
-github.com/hatami57/microjet/core v0.30.0/go.mod h1:wTEdMvbqWjoDe41HRL4KlnBgUBHUS3+KsIbvwmbnukw=
-github.com/hatami57/microjet/host v0.30.0 h1:DrAULbuxaR/gDZIQTlHr2/0eNjTEArrnSTAysq+LQYw=
-github.com/hatami57/microjet/host v0.30.0/go.mod h1:razVRJkpUe5ccvnxmFiT1ZFiZCmz8EpAP5aJ0rHVWqE=
+github.com/hatami57/microjet/core v0.39.0 h1:Fwvs3BP6SsEWZXIfnH3nN4BcTSgbgyYCXWhAoF2c+PY=
+github.com/hatami57/microjet/core v0.39.0/go.mod h1:wTEdMvbqWjoDe41HRL4KlnBgUBHUS3+KsIbvwmbnukw=
+github.com/hatami57/microjet/host v0.39.0 h1:egl9rPJ2gDhrA/5JbBWBXxy+LsWqq7QdZJn+G2DRfVY=
+github.com/hatami57/microjet/host v0.39.0/go.mod h1:+td9VdPARMK5H2EJ3/E4xSVm0o5IpHYqiQUbj/FpIWI=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
