@@ -66,8 +66,12 @@ func (r *viperConfigReader) Read(key string, dest any) error {
 
 // ReadMap returns all keys and their values under a config key.
 // Sub-tables appear as map[string]any values, scalars as their native types.
+// Defaults registered under the key are included even when the config file
+// defines some of its keys (see promoteResolved); environment variables are not,
+// since binding them needs a destination struct to walk.
 func (r *viperConfigReader) ReadMap(key string) map[string]any {
 	r.claimed[topSection(key)] = true
+	promoteResolved(r.v, key)
 	return r.v.GetStringMap(key)
 }
 
@@ -88,13 +92,29 @@ func (r *viperConfigReader) ReadAll(dest any) error {
 // config, as in ReadAll).
 func (r *viperConfigReader) applyEnvOverrides(section string, t reflect.Type) {
 	bindEnvLeaves(r.v, section, t)
+	promoteResolved(r.v, section)
+}
+
+// promoteResolved copies every known key under section into viper's override
+// layer, resolved through the normal precedence order.
+//
+// It exists because viper's Get returns the value from the first layer that
+// holds the requested key rather than merging the layers: Get("app") on a
+// config layer holding {name} returns that map alone, so every default
+// registered under app.* is shadowed by the one key the config layer happens to
+// define. Promoting each leaf leaves the override layer holding the complete,
+// resolved section, which is what Get — and so UnmarshalKey and GetStringMap —
+// then reads.
+//
+// section is the dotted config key being read, or "" for the whole tree.
+func promoteResolved(v *viper.Viper, section string) {
 	prefix := section + "."
-	for _, k := range r.v.AllKeys() {
+	for _, k := range v.AllKeys() {
 		if section != "" && k != section && !strings.HasPrefix(k, prefix) {
 			continue
 		}
-		if r.v.IsSet(k) {
-			r.v.Set(k, r.v.Get(k))
+		if v.IsSet(k) {
+			v.Set(k, v.Get(k))
 		}
 	}
 }

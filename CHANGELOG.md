@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`configx.NewMapReader` dropped a section's defaults once that section was
+  seeded** — a map reader seeded with `{"bot": {"token": "…"}}` returned the
+  zero value for every *other* key under `[bot]`, silently discarding the
+  defaults each `Configurable` registers in `ReadConfig`. Seeding one key of a
+  section therefore blanked the rest of it:
+
+  ```go ignore
+  r := configx.NewMapReader(map[string]any{"bot": map[string]any{"token": "…"}})
+  r.SetDefault("bot.pollTimeout", "10s")
+  r.Read("bot", &cfg) // cfg.PollTimeout was 0, not 10s
+  ```
+
+  The cause is that viper's `Get` returns the value from the first layer holding
+  the requested key rather than merging the layers, so `Get("bot")` found the
+  config layer's one-key map and never consulted the default layer. The file
+  reader was unaffected only by accident: its env-override pass already promoted
+  each resolved leaf into the override layer, leaving a complete section behind.
+  That promotion is now a shared helper (`promoteResolved`) that `Read` and
+  `ReadMap` run on both readers, so the two agree.
+
+  This contradicted the documented contract — "seeded values win over
+  `SetDefault`" describes a fallback, not the erasure that happened — and it
+  failed quietly: an embedded App or a test injecting one value through
+  `host.WithConfigReader` booted with zeroed timeouts and disabled flags rather
+  than an error. `ReadAll` was never affected (`Unmarshal` reads viper's merged
+  settings), and `host.WithConfigValue` on the default file reader was not
+  either.
+
 ## [0.39.0] - 2026-09-01
 
 ### Added

@@ -42,13 +42,23 @@ func NewMapReader(values map[string]any) Reader {
 func (r *mapReader) SetDefault(key string, value any) { r.v.SetDefault(key, value) }
 
 // Read unmarshals the subtree at the dotted key into dest, decoding strings to
-// typed fields (durations, slices) as the file reader does.
-func (r *mapReader) Read(key string, dest any) error { return r.v.UnmarshalKey(key, dest) }
+// typed fields (durations, slices) as the file reader does. Defaults fill any
+// key the seeded map leaves out, including within a section it does partly
+// define (see promoteResolved).
+func (r *mapReader) Read(key string, dest any) error {
+	promoteResolved(r.v, key)
+	return r.v.UnmarshalKey(key, dest)
+}
 
 // ReadMap returns the subtree at key as a map; sub-tables are nested maps.
-func (r *mapReader) ReadMap(key string) map[string]any { return r.v.GetStringMap(key) }
+// Defaults fill gaps as they do in Read.
+func (r *mapReader) ReadMap(key string) map[string]any {
+	promoteResolved(r.v, key)
+	return r.v.GetStringMap(key)
+}
 
-// ReadAll unmarshals the whole value tree into dest.
+// ReadAll unmarshals the whole value tree into dest. Unmarshal reads viper's
+// merged settings rather than a single layer, so gaps are already filled.
 func (r *mapReader) ReadAll(dest any) error { return r.v.Unmarshal(dest) }
 
 // Set records an override that wins over the seeded values and defaults,

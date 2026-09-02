@@ -154,3 +154,18 @@ func TestReadAllClaimsEverything(t *testing.T) {
 		t.Fatalf("UnusedSections() after ReadAll = %v, want nil", unused)
 	}
 }
+
+// The file reader shares promoteResolved with the map reader, so a section the
+// config file defines in part still reports the defaults for the keys it omits.
+func TestViperReaderReadMapIncludesDefaults(t *testing.T) {
+	r, err := NewViperConfigReader("APP")
+	if err != nil {
+		t.Fatalf("NewViperConfigReader: %v", err)
+	}
+	r.SetDefault("widgets.size", 42)
+
+	got := r.ReadMap("widgets")
+	if got["size"] != 42 {
+		t.Errorf("size = %v, want the default 42", got["size"])
+	}
+}
