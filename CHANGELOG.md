@@ -44,6 +44,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scoped to the underlying `*sql.DB`: Tables and repositories on the same
   database still share the transaction (outbox included), and those on another
   database run outside it.
+- **httpx: `Client` reported a failed body read as success** — `io.ReadAll`
+  errors were discarded, so a 2xx whose connection dropped before the body
+  arrived decoded nothing and returned nil, and one that dropped mid-body
+  surfaced as a misleading decode error. Read failures are now transport
+  failures (status 0): reported as such, retried under `WithRetry`, and counted
+  by the circuit breaker.
 - **host: DI workers of the same type started only once** — `AsyncWorker` and
   `PeriodicWorker` services were deduplicated by type, so a second instance
   provided under another name silently never ran. They are now deduplicated by

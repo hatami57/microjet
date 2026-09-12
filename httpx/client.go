@@ -271,7 +271,13 @@ func (c *Client) doOnce(ctx context.Context, method, url string, bodyBytes []byt
 	}
 	defer resp.Body.Close()
 
-	data, _ := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		// The connection failed mid-body. Report it like any transport failure
+		// (status 0), so it is retried and never mistaken for an empty success.
+		return 0, errorx.NewInternalError("http", "reading response body failed").
+			WithParams("status", resp.StatusCode, "url", req.URL.String()).WithInner(err)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return resp.StatusCode, errorx.NewInternalError("http", fmt.Sprintf("upstream returned %d", resp.StatusCode)).
 			WithParams("status", resp.StatusCode, "body", string(data), "url", req.URL.String())

@@ -3,10 +3,13 @@ package httpx
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/hatami57/microjet/core/errorx"
@@ -134,6 +137,42 @@ func TestClientDoesNotRetryNonIdempotentByDefault(t *testing.T) {
 	}
 	if got := calls.Load(); got != 1 {
 		t.Errorf("server saw %d calls, want 1 (POST not retried by default)", got)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// TestClientBodyReadErrorIsTransportFailure verifies a 200 whose body fails
+// before any byte arrives is reported as an error, not decoded as an empty
+// success, and that it is retried like any other transport failure.
+func TestClientBodyReadErrorIsTransportFailure(t *testing.T) {
+	var calls atomic.Int32
+	transport := roundTripFunc(func(*http.Request) (*http.Response, error) {
+		body := io.NopCloser(iotest.ErrReader(io.ErrUnexpectedEOF))
+		if calls.Add(1) > 1 {
+			body = io.NopCloser(strings.NewReader(`{"ok":"yes"}`))
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: body}, nil
+	})
+	var out struct {
+		OK string `json:"ok"`
+	}
+
+	c := NewClient("http://upstream.invalid", WithHTTPClient(&http.Client{Transport: transport}))
+	err := c.GetJSON(context.Background(), "/", &out)
+	if ce := errorx.GetError(err); ce == nil || ce.Message != "reading response body failed" {
+		t.Fatalf("GetJSON error = %v, want the body read failure", err)
+	}
+
+	calls.Store(0)
+	c = NewClient("http://upstream.invalid", WithHTTPClient(&http.Client{Transport: transport}), WithRetry(1, time.Millisecond))
+	if err := c.GetJSON(context.Background(), "/", &out); err != nil {
+		t.Fatalf("GetJSON with retry: %v", err)
+	}
+	if out.OK != "yes" || calls.Load() != 2 {
+		t.Errorf("ok = %q after %d calls, want yes after 2 (one retry)", out.OK, calls.Load())
 	}
 }
 
