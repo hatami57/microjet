@@ -44,6 +44,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scoped to the underlying `*sql.DB`: Tables and repositories on the same
   database still share the transaction (outbox included), and those on another
   database run outside it.
+- **httpx: `Idempotency` stored failed requests as empty successes** — an error
+  recorded with `c.Error` is rendered by the `Error` middleware only after
+  `Idempotency` returns, so the middleware saw the default 200 with an empty
+  body and stored that. The retry of a request that failed with 404, 409 or 500
+  then got an empty 200 and the handler never ran again. Requests carrying
+  `c.Errors` are no longer stored; their retry re-runs the handler.
+- **httpx: `Idempotency` replayed one resource's response for another** — keys
+  were scoped by route template, so `POST /things/1` and `POST /things/2` with
+  the same key shared a stored response and resource 2's handler was skipped.
+  Keys are now scoped by the request URI (path and query).
 - **httpx: `Timeout` could crash the process and corrupt its 503** — the
   handler wrote headers into the real header map, which the deadline watcher
   wrote the 503 into from another goroutine: a data race the runtime can abort
@@ -62,6 +72,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   provided under another name silently never ran. They are now deduplicated by
   identity — a service provided under several keys still starts once — and the
   worker's log name includes its registration name.
+
+### Changed
+
+- **httpx: `Idempotency` scopes keys by caller and fingerprints the body** —
+  the same key sent by two callers used to share one stored response, leaking
+  one caller's response to the other. Keys are now scoped by the tenant
+  (`Tenant` middleware) and JWT subject (`JWT` middleware) when present, so
+  register `Idempotency` after them. The request body is hashed and stored with
+  the response; reusing a key with a different body returns 422 Unprocessable
+  Entity instead of replaying. Store keys are now fixed-length SHA-256 hashes
+  of the scope, method, request URI and key, so responses stored before the
+  upgrade are not replayed after it.
+
+### Added
+
+- `middleware.WithIdempotencyScope(func(*gin.Context) string)` — identify
+  callers some other way (API keys, sessions) for `Idempotency` key scoping.
 
 ## [0.39.0] - 2026-09-01
 

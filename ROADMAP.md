@@ -105,8 +105,8 @@ Not done (was lower-priority, not selected): **DB migration guidance
   `Relay` with at-least-once delivery, `host.WithOutbox` (migrate + periodic
   relay worker).
 - ✅ Idempotency-key middleware `middleware.Idempotency` (replays stored response
-  for repeated non-safe requests; method+route scoped; cache.Cache-compatible
-  store).
+  for repeated non-safe requests; scoped by caller, method and request URI;
+  body-fingerprinted; cache.Cache-compatible store).
 - ✅ Circuit breaker for `httpx.Client` (`WithCircuitBreaker`; consecutive
   server-side failures open it; half-open trial).
 - ✅ `testx` module: in-memory app builder, throwaway DB, fake broker, HTTP
