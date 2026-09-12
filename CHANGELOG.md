@@ -44,6 +44,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scoped to the underlying `*sql.DB`: Tables and repositories on the same
   database still share the transaction (outbox included), and those on another
   database run outside it.
+- **host: DI workers of the same type started only once** — `AsyncWorker` and
+  `PeriodicWorker` services were deduplicated by type, so a second instance
+  provided under another name silently never ran. They are now deduplicated by
+  identity — a service provided under several keys still starts once — and the
+  worker's log name includes its registration name.
 
 ## [0.39.0] - 2026-09-01
 

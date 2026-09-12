@@ -68,22 +68,32 @@ func (a *App) startWorkers(ctx context.Context) *sync.WaitGroup {
 	}
 
 	// Then DI-registered services implementing AsyncWorker/PeriodicWorker, in
-	// registration order (orderedRange). Dedupe by type so a service that
-	// satisfies both interfaces (or is seen twice) starts only once; PeriodicWorker
-	// takes precedence over AsyncWorker.
+	// registration order (orderedRange); PeriodicWorker takes precedence over
+	// AsyncWorker. A service provided under several keys (say, its concrete type
+	// and an interface) is one worker, so services are deduplicated by identity —
+	// the pointer for pointer types, the value for other comparable ones — and
+	// each starts once. Distinct instances of one type, provided side by side
+	// under different names, each start.
 	var diWorkers []worker
-	seen := make(map[string]bool)
-	a.orderedRange(func(_, item any) bool {
-		name := reflect.TypeOf(item).String()
-		if seen[name] {
+	seen := make(map[any]bool)
+	a.orderedRange(func(key, item any) bool {
+		if _, ok := item.(AsyncWorker); !ok {
 			return true
+		}
+		if reflect.ValueOf(item).Comparable() {
+			if seen[item] {
+				return true
+			}
+			seen[item] = true
+		}
+		name := reflect.TypeOf(item).String()
+		if k, ok := key.(serviceKey); ok && k.name != "" {
+			name += " (name " + k.name + ")"
 		}
 		switch w := item.(type) {
 		case PeriodicWorker:
-			seen[name] = true
 			diWorkers = append(diWorkers, worker{name: name, fn: w.Run, interval: w.Interval()})
 		case AsyncWorker:
-			seen[name] = true
 			diWorkers = append(diWorkers, worker{name: name, fn: w.Run})
 		}
 		return true

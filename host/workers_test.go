@@ -57,3 +57,41 @@ func TestDIAsyncWorkerStartsExactlyOnce(t *testing.T) {
 		t.Errorf("worker Run invoked %d times, want exactly 1", got)
 	}
 }
+
+func TestDINamedWorkersOfOneTypeAllStart(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	a, b := &countingWorker{}, &countingWorker{}
+	ProvideService(app, a, "a")
+	ProvideService(app, b, "b")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := app.startWorkers(ctx)
+	cancel()
+	wg.Wait()
+
+	if a.count.Load() != 1 || b.count.Load() != 1 {
+		t.Errorf("worker Run invocations: a=%d b=%d, want 1 each", a.count.Load(), b.count.Load())
+	}
+}
+
+func TestDIWorkerProvidedUnderTwoKeysStartsOnce(t *testing.T) {
+	app, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	w := &countingWorker{}
+	ProvideService(app, w)
+	ProvideService[AsyncWorker](app, w)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := app.startWorkers(ctx)
+	cancel()
+	wg.Wait()
+
+	if got := w.count.Load(); got != 1 {
+		t.Errorf("worker Run invoked %d times, want exactly 1", got)
+	}
+}
