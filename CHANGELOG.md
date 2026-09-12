@@ -44,6 +44,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scoped to the underlying `*sql.DB`: Tables and repositories on the same
   database still share the transaction (outbox included), and those on another
   database run outside it.
+- **httpx: `Timeout` could crash the process and corrupt its 503** — the
+  handler wrote headers into the real header map, which the deadline watcher
+  wrote the 503 into from another goroutine: a data race the runtime can abort
+  on with `fatal error: concurrent map writes`, beyond `gin.Recovery`'s reach.
+  Headers the handler had already set (a `Content-Length`, cookies) were also
+  sent with the 503, truncating its body. The handler now writes into its own
+  header map, copied to the response only when it finishes in time.
 - **httpx: `Client` reported a failed body read as success** — `io.ReadAll`
   errors were discarded, so a 2xx whose connection dropped before the body
   arrived decoded nothing and returned nil, and one that dropped mid-body

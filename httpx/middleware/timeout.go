@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"maps"
 	"net/http"
 	"sync"
 	"time"
@@ -36,7 +37,7 @@ func Timeout(d time.Duration) gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), d)
 		c.Request = c.Request.WithContext(ctx)
 
-		tw := &timeoutWriter{ResponseWriter: c.Writer, code: http.StatusOK}
+		tw := &timeoutWriter{ResponseWriter: c.Writer, code: http.StatusOK, header: c.Writer.Header().Clone()}
 		c.Writer = tw
 
 		// A watcher goroutine sends the 503 the instant the deadline fires, even
@@ -99,6 +100,23 @@ type timeoutWriter struct {
 	buf   bytes.Buffer
 	code  int
 	state writerState
+	// header is the handler's view of the response headers: a copy of the real
+	// ones taken as the request entered Timeout. Handing the handler its own map
+	// keeps it off the real one, which the watcher writes the 503 into from
+	// another goroutine; commit copies it across once the handler has returned.
+	header http.Header
+}
+
+// Header returns the handler's private header map until the response is
+// committed, and the real one after. So a timed-out handler never touches the
+// 503's headers, and none of its own (a Content-Length, a cookie) leak into it.
+func (w *timeoutWriter) Header() http.Header {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.state == stPassthrough {
+		return w.ResponseWriter.Header()
+	}
+	return w.header
 }
 
 func (w *timeoutWriter) WriteHeader(code int) {
@@ -169,6 +187,9 @@ func (w *timeoutWriter) commit() {
 		return
 	}
 	w.state = stPassthrough
+	h := w.ResponseWriter.Header()
+	clear(h)
+	maps.Copy(h, w.header)
 	w.ResponseWriter.WriteHeader(w.code)
 	if w.buf.Len() > 0 {
 		_, _ = w.ResponseWriter.Write(w.buf.Bytes())
@@ -194,9 +215,9 @@ func (w *timeoutWriter) writeTimeout() {
 	w.ResponseWriter.Flush()
 }
 
-// enablePassthrough discards any buffered output and sends subsequent writes
-// straight to the client. Used on panic so upstream recovery can respond; a
-// no-op once we have already timed out and responded.
+// enablePassthrough discards any buffered output and headers and sends
+// subsequent writes straight to the client. Used on panic so upstream recovery
+// can respond; a no-op once we have already timed out and responded.
 func (w *timeoutWriter) enablePassthrough() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
