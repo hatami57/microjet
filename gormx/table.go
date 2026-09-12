@@ -12,7 +12,21 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type txKey struct{}
+// txKey is the context key RunTx stores its transaction under. It is scoped to
+// the database the transaction was opened on, so a Table or repository on
+// another database never picks up — and writes into — a transaction that is not
+// its own.
+type txKey struct{ pool any }
+
+// txKeyFor returns the transaction key for db's database. It resolves db to its
+// *sql.DB so every session and Table derived from one gorm.Open shares a key; a
+// custom ConnPool that cannot report one is keyed by itself.
+func txKeyFor(db *gorm.DB) txKey {
+	if sqlDB, err := db.DB(); err == nil {
+		return txKey{pool: sqlDB}
+	}
+	return txKey{pool: db.ConnPool}
+}
 
 // BaseRepository holds a database connection and provides RunTx for transaction management.
 // Embed it in your own repository structs to inherit transaction support without
@@ -45,21 +59,24 @@ type txKey struct{}
 //	}
 type BaseRepository struct {
 	gormDB *gorm.DB
+	txKey  txKey
 }
 
 func NewBaseRepository(db *gorm.DB) BaseRepository {
-	return BaseRepository{gormDB: db}
+	return BaseRepository{gormDB: db, txKey: txKeyFor(db)}
 }
 
 // RunTx executes op inside a database transaction, rolling back on any error.
-// If a transaction is already present in ctx, op runs within that transaction
-// (propagation required — the outermost RunTx owns commit/rollback).
+// If a transaction on the same database is already present in ctx, op runs
+// within that transaction (propagation required — the outermost RunTx owns
+// commit/rollback). A transaction on a different database is ignored: RunTx
+// opens its own, which commits or rolls back independently of the outer one.
 func (r *BaseRepository) RunTx(ctx context.Context, op func(context.Context) error) error {
-	if _, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
+	if _, ok := ctx.Value(r.txKey).(*gorm.DB); ok {
 		return op(ctx)
 	}
 	return r.gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return op(context.WithValue(ctx, txKey{}, tx))
+		return op(context.WithValue(ctx, r.txKey, tx))
 	})
 }
 
@@ -80,6 +97,7 @@ type preloadEntry struct {
 // Call WhereIf to accumulate conditional WHERE clauses.
 type Table[TEntity any] struct {
 	gormDB   *gorm.DB
+	txKey    txKey
 	preloads []preloadEntry
 	scopes   []func(*gorm.DB) *gorm.DB
 }
@@ -145,7 +163,7 @@ func (b *BaseListRequest[T]) CreateNextPageToken(_ []T) (*string, error) { retur
 
 // NewTable creates a Table for TEntity backed by a database.
 func NewTable[TEntity any](db *gorm.DB) *Table[TEntity] {
-	return &Table[TEntity]{gormDB: db}
+	return &Table[TEntity]{gormDB: db, txKey: txKeyFor(db)}
 }
 
 // clone returns a shallow copy of the Table. The preloads and scopes slices are
@@ -154,6 +172,7 @@ func NewTable[TEntity any](db *gorm.DB) *Table[TEntity] {
 func (t *Table[TEntity]) clone() *Table[TEntity] {
 	return &Table[TEntity]{
 		gormDB:   t.gormDB,
+		txKey:    t.txKey,
 		preloads: t.preloads,
 		scopes:   t.scopes,
 	}
@@ -361,7 +380,7 @@ func (t *Table[TEntity]) model() *TEntity {
 
 func (t *Table[TEntity]) db(ctx context.Context) *gorm.DB {
 	var base *gorm.DB
-	if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
+	if tx, ok := ctx.Value(t.txKey).(*gorm.DB); ok {
 		base = tx.WithContext(ctx)
 	} else {
 		base = t.gormDB.WithContext(ctx)

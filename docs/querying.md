@@ -76,6 +76,8 @@ if n == 0 {
 // For read-modify-write that can't be expressed as one statement, take a row lock inside
 // a transaction. LockForUpdate emits SELECT … FOR UPDATE on Postgres/MySQL; on SQLite the
 // clause is dropped (write safety comes from transaction-level serialization there).
+// RunTx only joins a transaction on its own database: a Table on another database
+// runs outside it, and a nested RunTx there opens (and commits) its own.
 repo.RunTx(ctx, func(ctx context.Context) error {
     acct, err := accounts.LockForUpdate().Get(ctx, "id = ?", id)
     if err != nil {

@@ -36,6 +36,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   settings), and `host.WithConfigValue` on the default file reader was not
   either.
 
+- **gormx: a transaction could swallow writes meant for another database** —
+  `RunTx` stored its transaction under one context key shared by every
+  database, so a `Table` on database B used inside A's `RunTx` wrote into A's
+  transaction (and was rolled back or committed with it), and a nested `RunTx`
+  on B joined A's transaction instead of opening one on B. The key is now
+  scoped to the underlying `*sql.DB`: Tables and repositories on the same
+  database still share the transaction (outbox included), and those on another
+  database run outside it.
+
 ## [0.39.0] - 2026-09-01
 
 ### Added

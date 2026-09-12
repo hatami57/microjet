@@ -758,3 +758,89 @@ func TestLockForUpdateWithinTx(t *testing.T) {
 		t.Fatalf("price = %d, want 105", got.Price)
 	}
 }
+
+func countWidgets(t *testing.T, db *gorm.DB) int64 {
+	t.Helper()
+	var n int64
+	if err := db.Model(&widget{}).Count(&n).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	return n
+}
+
+// TestTableIgnoresTransactionOnAnotherDatabase verifies a Table only joins a
+// transaction opened on its own database: a write to B inside A's RunTx lands
+// in B, outside A's transaction, so A's rollback leaves it in place.
+func TestTableIgnoresTransactionOnAnotherDatabase(t *testing.T) {
+	dbA, dbB := newWidgetDB(t), newWidgetDB(t)
+	repoA := NewBaseRepository(dbA)
+	tableA, tableB := NewTable[widget](dbA), NewTable[widget](dbB)
+	rollback := errors.New("rollback")
+
+	err := repoA.RunTx(context.Background(), func(ctx context.Context) error {
+		if err := tableA.Create(ctx, &widget{ID: 1, Name: "a"}); err != nil {
+			return err
+		}
+		if err := tableB.Create(ctx, &widget{ID: 2, Name: "b"}); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("RunTx: %v", err)
+	}
+	if n := countWidgets(t, dbA); n != 0 {
+		t.Errorf("database A rows = %d, want 0 (rolled back)", n)
+	}
+	if n := countWidgets(t, dbB); n != 1 {
+		t.Errorf("database B rows = %d, want 1 (written outside A's transaction)", n)
+	}
+}
+
+// TestRunTxOnAnotherDatabaseOpensItsOwnTransaction verifies a nested RunTx on
+// another database does not join the outer transaction: it opens its own, which
+// commits independently of the outer one rolling back.
+func TestRunTxOnAnotherDatabaseOpensItsOwnTransaction(t *testing.T) {
+	dbA, dbB := newWidgetDB(t), newWidgetDB(t)
+	repoA, repoB := NewBaseRepository(dbA), NewBaseRepository(dbB)
+	tableB := NewTable[widget](dbB)
+	rollback := errors.New("rollback")
+
+	err := repoA.RunTx(context.Background(), func(ctx context.Context) error {
+		if err := repoB.RunTx(ctx, func(ctx context.Context) error {
+			return tableB.Create(ctx, &widget{ID: 1, Name: "b"})
+		}); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("RunTx: %v", err)
+	}
+	if n := countWidgets(t, dbB); n != 1 {
+		t.Errorf("database B rows = %d, want 1 (its own transaction committed)", n)
+	}
+}
+
+// TestTableJoinsTransactionOnSameDatabase verifies Tables built separately on
+// one database — including from a derived session, as outbox and other modules
+// do — share the transaction RunTx opened there.
+func TestTableJoinsTransactionOnSameDatabase(t *testing.T) {
+	db := newWidgetDB(t)
+	repo := NewBaseRepository(db)
+	table := NewTable[widget](db.Session(&gorm.Session{}))
+	rollback := errors.New("rollback")
+
+	err := repo.RunTx(context.Background(), func(ctx context.Context) error {
+		if err := table.Create(ctx, &widget{ID: 1, Name: "a"}); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("RunTx: %v", err)
+	}
+	if n := countWidgets(t, db); n != 0 {
+		t.Errorf("rows = %d, want 0 (the write joined the rolled-back transaction)", n)
+	}
+}
