@@ -140,3 +140,25 @@ func (m mapReader) Read(key string, dest any) error {
 }
 func (m mapReader) ReadMap(string) map[string]any { return nil }
 func (m mapReader) ReadAll(any) error             { return nil }
+
+func TestInFlightHealthCheckCannotRestoreReadiness(t *testing.T) {
+	srv := NewServer(ServerConfig{}, testLogger())
+	if err := srv.Init(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	srv.AddReadinessCheck("blocked", func(context.Context) error { close(entered); <-release; return nil })
+	go func() { srv.updateHealth(); close(done) }()
+	<-entered
+	srv.SetReady(false)
+	close(release)
+	<-done
+	resp, err := srv.healthSrv.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != grpc_health_v1.HealthCheckResponse_NOT_SERVING {
+		t.Fatalf("status = %v", resp.Status)
+	}
+}

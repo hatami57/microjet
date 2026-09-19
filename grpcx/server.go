@@ -69,6 +69,7 @@ type Server struct {
 	// notReady forces the health service to NOT_SERVING once shutdown begins; see
 	// SetReady and core.ReadinessToggler.
 	notReady atomic.Bool
+	healthMu sync.Mutex
 
 	healthStop chan struct{}
 	errCh      chan error
@@ -93,6 +94,8 @@ func (s *Server) Server() *grpc.Server { return s.grpcServer }
 // balancer stops routing) while the process keeps draining in-flight RPCs. The
 // host flips this off at the start of graceful shutdown.
 func (s *Server) SetReady(ready bool) {
+	s.healthMu.Lock()
+	defer s.healthMu.Unlock()
 	s.notReady.Store(!ready)
 	if !ready && s.healthSrv != nil {
 		s.healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
@@ -227,6 +230,12 @@ func (s *Server) updateHealth() {
 			status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
 		}
 		cancel()
+	}
+	s.healthMu.Lock()
+	defer s.healthMu.Unlock()
+	// A readiness probe may have finished after shutdown disabled readiness.
+	if s.notReady.Load() {
+		status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
 	}
 	s.healthSrv.SetServingStatus("", status)
 }
