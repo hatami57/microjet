@@ -79,11 +79,13 @@ func parseQueryField(field reflect.Value, queryValue string) (any, error) {
 		if err != nil {
 			return uuid.Nil, err
 		}
+		field.Set(reflect.ValueOf(uid))
 		return uid, nil
 	}
 	switch field.Kind() {
 	case reflect.String:
-		return queryValue, nil
+		field.SetString(queryValue)
+		return field.Interface(), nil
 	case reflect.Int, reflect.Int32, reflect.Int64:
 		i, err := strconv.ParseInt(queryValue, 10, 64)
 		if err == nil {
