@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- gRPC error translation preserves cancellation and deadline status codes, including wrapped errors.
 - Tenant lookups retain request cancellation, deadlines, and context values.
 - Configuration loading reports malformed or unreadable local TOML overlays.
 - Production HTTP errors hide internal subjects, messages, codes, and diagnostic parameters.

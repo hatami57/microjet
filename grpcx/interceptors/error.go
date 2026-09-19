@@ -53,6 +53,10 @@ func TranslateError(err error, debug bool) error {
 		return err
 	}
 
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return status.FromContextError(err).Err()
+	}
+
 	if debug {
 		return status.Error(codes.Internal, err.Error())
 	}

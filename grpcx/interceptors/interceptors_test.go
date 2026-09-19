@@ -3,6 +3,7 @@ package interceptors
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/hatami57/microjet/core"
@@ -140,5 +141,23 @@ func TestRequestIDUnaryClientNoopWithoutID(t *testing.T) {
 	}
 	if had {
 		t.Fatal("outgoing metadata was set even though the context carried no id")
+	}
+}
+
+func TestTranslateContextErrors(t *testing.T) {
+	for _, debug := range []bool{false, true} {
+		for _, tc := range []struct {
+			err  error
+			code codes.Code
+		}{
+			{context.Canceled, codes.Canceled},
+			{context.DeadlineExceeded, codes.DeadlineExceeded},
+		} {
+			for _, err := range []error{tc.err, fmt.Errorf("operation: %w", tc.err)} {
+				if got := status.Code(TranslateError(err, debug)); got != tc.code {
+					t.Errorf("got %v, want %v", got, tc.code)
+				}
+			}
+		}
 	}
 }
