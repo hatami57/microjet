@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Timeout responses remain 503 when handler completion races or precedes scheduling of the deadline watcher.
 - HTTP servers ignore forwarded client IP headers by default; trusted proxy IPs and CIDRs must be configured explicitly.
 - Pagination defaults zero sizes to 10, caps HTTP sizes at 1000, rejects invalid SQL sizes and offsets, and prevents offset overflow.
 - JSON decoding rejects nonpointer and nil destinations instead of silently modifying a local copy.

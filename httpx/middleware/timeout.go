@@ -58,10 +58,19 @@ func Timeout(d time.Duration) gin.HandlerFunc {
 
 		panicked := true
 		defer func() {
+			// The watcher may not have run yet, or may select done when both
+			// channels are ready. Decide expiry independently of its scheduling.
+			expired := ctx.Err() != nil
+			if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+				expired = true
+			}
 			// Retire the watcher before deciding the response, so it can no longer
 			// write to the connection, then release the context.
 			close(done)
 			watcher.Wait()
+			if expired {
+				tw.writeTimeout()
+			}
 			cancel()
 			if panicked {
 				// Handler panicked: drop any partial buffered output and let the

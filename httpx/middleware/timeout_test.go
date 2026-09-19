@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -188,5 +189,24 @@ func TestTimeoutDisabledWhenNonPositive(t *testing.T) {
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (timeout disabled)", rec.Code)
+	}
+}
+
+func TestTimeoutExpiredContextAlwaysReturns503(t *testing.T) {
+	r := gin.New()
+	r.Use(Timeout(time.Minute))
+	r.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "late response") })
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	// Both watcher channels may already be ready by the time it is scheduled.
+	for range 100 {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx))
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want 503", w.Code)
+		}
+		if strings.Contains(w.Body.String(), "late response") {
+			t.Fatal("expired response was committed")
+		}
 	}
 }
