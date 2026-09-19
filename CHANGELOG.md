@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP initialization rejects a certificate or key configured without its counterpart.
 - HTTP int32 helpers and query binding reject values outside the destination integer range.
 - Query binding assigns string and UUID values to the destination struct.
 - gRPC error translation preserves cancellation and deadline status codes, including wrapped errors.

@@ -42,7 +42,7 @@ type ServerConfig struct {
 	MaxHeaderBytes int `mapstructure:"maxHeaderBytes"`
 
 	// CertFile and KeyFile enable TLS. When both are set the server serves HTTPS
-	// via ListenAndServeTLS; otherwise it serves plain HTTP.
+	// via ListenAndServeTLS. Supplying only one is an initialization error.
 	CertFile string `mapstructure:"certFile"`
 	KeyFile  string `mapstructure:"keyFile"`
 
@@ -227,6 +227,9 @@ func (s *Server) ReadConfig(l configx.Reader) error {
 // begin listening, leaving a window for setup work (route registration) before
 // the server serves. Call Start (the host does this in its start phase) to serve.
 func (s *Server) Init() error {
+	if (s.config.CertFile == "") != (s.config.KeyFile == "") {
+		return errorx.NewInternalError("http", "TLS requires both certFile and keyFile")
+	}
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", s.config.Host, s.config.Port),
 		Handler: s.Router,
