@@ -169,3 +169,34 @@ func TestViperReaderReadMapIncludesDefaults(t *testing.T) {
 		t.Errorf("size = %v, want the default 42", got["size"])
 	}
 }
+
+func TestLocalConfigOverlayErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name, content string
+		wantErr       bool
+	}{
+		{"valid", "[http]\nport = 9123\n", false},
+		{"malformed", "[http\nport = 9123", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
+			if err := os.WriteFile("config.local.toml", []byte(tc.content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			r, err := NewViperConfigReader("")
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("error = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if err == nil {
+				var cfg struct{ Port int }
+				if err := r.Read("http", &cfg); err != nil {
+					t.Fatal(err)
+				}
+				if cfg.Port != 9123 {
+					t.Fatalf("port = %d", cfg.Port)
+				}
+			}
+		})
+	}
+}

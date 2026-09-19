@@ -215,7 +215,11 @@ func newViper(envPrefix string) (*viper.Viper, error) {
 	}
 
 	v.SetConfigName("config.local")
-	_ = v.MergeInConfig() // optional overlay; absence is fine
+	if err := v.MergeInConfig(); err != nil {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
+			return nil, errorx.NewInternalError("config", "reading local config file").WithInner(err)
+		}
+	}
 
 	return v, nil
 }
