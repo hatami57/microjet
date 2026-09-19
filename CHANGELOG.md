@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- JWT verification rejects empty HMAC secrets and custom key resolvers without an algorithm allowlist.
 ## [0.40.0] - 2026-09-12
 
 ### Fixed

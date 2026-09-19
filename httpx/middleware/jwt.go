@@ -26,7 +26,7 @@ type JWTConfig struct {
 	Keyfunc jwt.Keyfunc
 	// Algorithms lists accepted signing methods. Defaults to ["HS256"] when using
 	// Secret. Always set this when supplying a Keyfunc to prevent algorithm
-	// confusion attacks.
+	// confusion attacks. A custom Keyfunc without an allowlist is rejected.
 	Algorithms []string
 	// ContextKey overrides where claims are stored on the gin context
 	// (default "jwtClaims").
@@ -40,6 +40,9 @@ type JWTConfig struct {
 // claims on the context. On any failure it records errorx.ErrUnauthorized and
 // aborts, leaving the response to the Error middleware.
 func JWT(cfg JWTConfig) gin.HandlerFunc {
+	// Fail closed without changing the middleware constructor's API.
+	invalidConfig := (cfg.Keyfunc == nil && len(cfg.Secret) == 0) ||
+		(cfg.Keyfunc != nil && len(cfg.Algorithms) == 0)
 	keyfunc := cfg.Keyfunc
 	if keyfunc == nil {
 		secret := cfg.Secret
@@ -70,6 +73,11 @@ func JWT(cfg JWTConfig) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		if invalidConfig {
+			_ = c.Error(errorx.ErrUnauthorized.WithMessage("invalid authentication configuration"))
+			c.Abort()
+			return
+		}
 		tokenStr := extract(c)
 		if tokenStr == "" {
 			_ = c.Error(errorx.ErrUnauthorized.WithMessage("missing bearer token")) // gin returns the error it just recorded

@@ -87,3 +87,26 @@ func TestJWTExpiredRejected(t *testing.T) {
 		t.Error("expired token should be rejected")
 	}
 }
+
+func TestJWTRejectsUnsafeConfiguration(t *testing.T) {
+	for _, cfg := range []JWTConfig{
+		{},
+		{Secret: []byte{}},
+		{Keyfunc: func(*jwt.Token) (any, error) { return []byte("key"), nil }},
+	} {
+		r := gin.New()
+		r.Use(Error(false), JWT(cfg))
+		r.GET("/", func(c *gin.Context) { t.Error("unsafe configuration authenticated request") })
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		secret := cfg.Secret
+		if cfg.Keyfunc != nil {
+			secret = []byte("key")
+		}
+		req.Header.Set("Authorization", "Bearer "+signHS256(t, secret, jwt.MapClaims{"sub": "attacker"}))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d", w.Code)
+		}
+	}
+}
