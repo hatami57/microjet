@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Tenant lookups retain request cancellation, deadlines, and context values.
 - Configuration loading reports malformed or unreadable local TOML overlays.
 - Production HTTP errors hide internal subjects, messages, codes, and diagnostic parameters.
 - JWT verification rejects empty HMAC secrets and custom key resolvers without an algorithm allowlist.

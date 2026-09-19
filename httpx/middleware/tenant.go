@@ -31,7 +31,7 @@ func Tenant(tenantStore tenant.Store) gin.HandlerFunc {
 			return
 		}
 
-		t, err := tenantStore.FindTenant(c, tenantID)
+		t, err := tenantStore.FindTenant(c.Request.Context(), tenantID)
 		if err != nil {
 			_ = c.Error(err)
 			c.Abort()
