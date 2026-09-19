@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- JSON decoding rejects nonpointer and nil destinations instead of silently modifying a local copy.
 - S3 downloads replace the destination only after a complete download and successful close; failures remove temporary files.
 - PostgreSQL connection parameters preserve spaces, quotes, and backslashes without interpreting them as extra options.
 - An in-flight gRPC readiness probe cannot restore serving status after readiness is disabled.

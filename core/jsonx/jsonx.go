@@ -13,7 +13,7 @@ func ToJSON[T any](data T) (string, error) {
 }
 
 func FromJSON[T any](jsonStr string, target T) error {
-	return jsoniter.Unmarshal([]byte(jsonStr), &target)
+	return jsoniter.Unmarshal([]byte(jsonStr), target)
 }
 
 func ToMap[T any](t T) (map[string]any, error) {
