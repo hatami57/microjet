@@ -70,8 +70,11 @@ func GetInt64Param(c *gin.Context, key string) (int64, error) {
 }
 
 func GetInt32Param(c *gin.Context, key string) (int32, error) {
-	v, err := GetInt64Param(c, key)
-	return int32(v), err
+	value, err := GetParam(c, key)
+	if err != nil {
+		return 0, err
+	}
+	return parseInt32(value, key)
 }
 
 func GetQuery(c *gin.Context, key string) (*string, error) {
@@ -99,8 +102,11 @@ func GetInt64Query(c *gin.Context, key string) (int64, error) {
 }
 
 func GetInt32Query(c *gin.Context, key string) (int32, error) {
-	v, err := GetInt64Query(c, key)
-	return int32(v), err
+	value, err := GetQuery(c, key)
+	if err != nil {
+		return 0, err
+	}
+	return parseInt32(*value, key)
 }
 
 func GetBoolQuery(c *gin.Context, key string) (bool, error) {
@@ -171,4 +177,12 @@ func parseUUID(value, key string) (uuid.UUID, error) {
 		return uuid.Nil, errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid UUID for '%s'", key))
 	}
 	return v, nil
+}
+
+func parseInt32(value, key string) (int32, error) {
+	n, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		return 0, errorx.ErrBadRequest.WithMessage(fmt.Sprintf("Invalid integer for '%s'", key))
+	}
+	return int32(n), nil
 }
