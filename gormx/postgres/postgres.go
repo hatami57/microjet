@@ -4,6 +4,7 @@ package postgres
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/hatami57/microjet/core/errorx"
@@ -30,8 +31,7 @@ func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error)
 		"sslmode", cfg.SSLMode,
 	)
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
+	dsn := connectionString(cfg)
 
 	db, err := gorm.Open(gormpg.Open(dsn), &gorm.Config{
 		Logger:               gormx.NewGormLogger(log, cfg.LogLevel),
@@ -55,4 +55,15 @@ func (postgresDriver) Open(cfg gormx.Config, log *slog.Logger) (*gorm.DB, error)
 
 	log.Info("connected to postgresql", "host", cfg.Host, "port", cfg.Port, "db", cfg.Name)
 	return db, nil
+}
+
+// Quote every string parameter so spaces, quotes and backslashes stay in its value.
+func connectionString(cfg gormx.Config) string {
+	quote := func(value string) string {
+		value = strings.ReplaceAll(value, `\`, `\\`)
+		value = strings.ReplaceAll(value, `'`, `\'`)
+		return "'" + value + "'"
+	}
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		quote(cfg.Host), cfg.Port, quote(cfg.User), quote(cfg.Password), quote(cfg.Name), quote(cfg.SSLMode))
 }

@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- PostgreSQL connection parameters preserve spaces, quotes, and backslashes without interpreting them as extra options.
 - An in-flight gRPC readiness probe cannot restore serving status after readiness is disabled.
 - HTTP initialization rejects a certificate or key configured without its counterpart.
 - HTTP int32 helpers and query binding reject values outside the destination integer range.
