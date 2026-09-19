@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- HTTP servers ignore forwarded client IP headers by default; trusted proxy IPs and CIDRs must be configured explicitly.
 - Pagination defaults zero sizes to 10, caps HTTP sizes at 1000, rejects invalid SQL sizes and offsets, and prevents offset overflow.
 - JSON decoding rejects nonpointer and nil destinations instead of silently modifying a local copy.
 - S3 downloads replace the destination only after a complete download and successful close; failures remove temporary files.
@@ -21,6 +22,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Configuration loading reports malformed or unreadable local TOML overlays.
 - Production HTTP errors hide internal subjects, messages, codes, and diagnostic parameters.
 - JWT verification rejects empty HMAC secrets and custom key resolvers without an algorithm allowlist.
+
 ## [0.40.0] - 2026-09-12
 
 ### Fixed

@@ -53,6 +53,10 @@ type ServerConfig struct {
 	// access-log line, not logs handlers emit through the request logger. Valid
 	// values: debug, info, warn, error.
 	LogLevel string `mapstructure:"logLevel"`
+
+	// TrustedProxies lists proxy IPs or CIDRs allowed to supply client IP headers.
+	// Empty disables trust in forwarding headers. Applied during Init.
+	TrustedProxies []string `mapstructure:"trustedProxies"`
 }
 
 // ReadinessFunc reports whether a dependency is ready to serve traffic. It
@@ -138,6 +142,7 @@ func NewServer(cfg ServerConfig, logger *slog.Logger) *Server {
 	}
 
 	router := gin.New()
+	_ = router.SetTrustedProxies(nil)
 	metrics := middleware.NewMetrics()
 
 	s := &Server{
@@ -227,6 +232,9 @@ func (s *Server) ReadConfig(l configx.Reader) error {
 // begin listening, leaving a window for setup work (route registration) before
 // the server serves. Call Start (the host does this in its start phase) to serve.
 func (s *Server) Init() error {
+	if err := s.Router.SetTrustedProxies(s.config.TrustedProxies); err != nil {
+		return errorx.NewInternalError("http", "invalid trusted proxy configuration").WithInner(err)
+	}
 	if (s.config.CertFile == "") != (s.config.KeyFile == "") {
 		return errorx.NewInternalError("http", "TLS requires both certFile and keyFile")
 	}
