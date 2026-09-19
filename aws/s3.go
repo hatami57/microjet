@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -59,11 +60,15 @@ func (a *AWS) S3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) er
 }
 
 func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileRequest) error {
-	f, err := os.Create(req.LocalFilePath)
+	if req == nil {
+		return errorx.NewInternalError("aws", "req is nil")
+	}
+	f, err := os.CreateTemp(filepath.Dir(req.LocalFilePath), ".microjet-s3-*")
 	if err != nil {
 		return errorx.NewInternalError("aws", "failed to create file").WithInner(err)
 	}
 	defer f.Close()
+	defer func() { _ = os.Remove(f.Name()) }()
 
 	a.Logger.Debug("downloading from s3", slog.String("path", req.LocalFilePath))
 	result, err := a.S3Client.GetObject(ctx, &s3.GetObjectInput{
@@ -77,6 +82,12 @@ func (a *AWS) internalS3DownloadFile(ctx context.Context, req *S3DownloadFileReq
 
 	if _, err := io.Copy(f, result.Body); err != nil {
 		return errorx.NewInternalError("aws", "failed to stream object to file").WithInner(err)
+	}
+	if err := f.Close(); err != nil {
+		return errorx.NewInternalError("aws", "failed to close downloaded file").WithInner(err)
+	}
+	if err := os.Rename(f.Name(), req.LocalFilePath); err != nil {
+		return errorx.NewInternalError("aws", "failed to replace downloaded file").WithInner(err)
 	}
 	a.Logger.Debug("download completed from s3", slog.String("path", req.LocalFilePath))
 	return nil
