@@ -10,7 +10,7 @@ import (
 )
 
 // Error translates errors recorded on the gin context into structured JSON
-// responses. When debug is false, inner causes are never exposed to clients.
+// responses. In production, internal errors are generic and inner causes are hidden.
 func Error(debug bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
@@ -57,6 +57,13 @@ func Error(debug bool) gin.HandlerFunc {
 			default:
 				// Internal or unknown typed error.
 				response.Error = "internal_server_error"
+				if !debug {
+					response = errorx.ErrorResponse{
+						Error:   "internal_server_error",
+						Subject: "Unknown",
+						Message: "An internal server error occurred",
+					}
+				}
 			}
 		default:
 			// Untyped error: never expose the raw string in production.

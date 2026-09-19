@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -126,5 +127,18 @@ func TestUntypedErrorIsGenericInProduction(t *testing.T) {
 	}
 	if resp.Message != "An internal server error occurred" {
 		t.Errorf("message = %q", resp.Message)
+	}
+}
+
+func TestInternalErrorDetailsRedacted(t *testing.T) {
+	for _, debug := range []bool{false, true} {
+		w, _ := runWith(debug, func(c *gin.Context) {
+			c.Error(errorx.NewInternalError("secret-subject", "secret-message", "url", "secret-param").WithInner(errors.New("secret-cause")))
+		})
+		for _, secret := range []string{"secret-subject", "secret-message", "secret-param", "secret-cause"} {
+			if strings.Contains(w.Body.String(), secret) != debug {
+				t.Errorf("debug=%v: unexpected response %s", debug, w.Body.String())
+			}
+		}
 	}
 }
