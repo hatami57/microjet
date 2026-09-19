@@ -8,6 +8,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Pagination defaults zero sizes to 10, caps HTTP sizes at 1000, rejects invalid SQL sizes and offsets, and prevents offset overflow.
 - JSON decoding rejects nonpointer and nil destinations instead of silently modifying a local copy.
 - S3 downloads replace the destination only after a complete download and successful close; failures remove temporary files.
 - PostgreSQL connection parameters preserve spaces, quotes, and backslashes without interpreting them as extra options.

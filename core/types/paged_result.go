@@ -8,6 +8,12 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+// DefaultPageSize is used when a page size is omitted (zero).
+const DefaultPageSize = 10
+
+// MaxPageSize bounds allocation and query work for a single page.
+const MaxPageSize = 1000
+
 type PagedResult[T any] struct {
 	Items         []T     `json:"items"`
 	PageSize      int32   `json:"pageSize"`

@@ -60,6 +60,9 @@ func (r *PageRequest[TEntity, TValue]) OrderBy() string {
 }
 
 func (r *PageRequest[TEntity, TValue]) PageSize() int {
+	if r.PagedResultRequest.PageSize == 0 {
+		return types.DefaultPageSize
+	}
 	return int(r.PagedResultRequest.PageSize)
 }
 
@@ -71,7 +74,11 @@ func (r *PageRequest[TEntity, TValue]) Offset() (offset int, ok bool) {
 		return 0, false
 	}
 	page := max(int(*r.Page), 1)
-	return (page - 1) * r.PageSize(), true
+	size := r.PageSize()
+	if size <= 0 || (page-1) > int(^uint(0)>>1)/size {
+		return -1, true // Table.List rejects invalid or overflowing offsets.
+	}
+	return (page - 1) * size, true
 }
 
 func (r *PageRequest[TEntity, TValue]) CurrentPageData() ([]any, error) {

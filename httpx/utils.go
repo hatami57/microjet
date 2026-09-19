@@ -139,16 +139,18 @@ func Body[T any](c *gin.Context) (T, error) {
 // PagedRequest builds a pagination request from the query string. The pageSize
 // query param defaults to 10 when absent, and a malformed pageSize also falls
 // back to 10 rather than erroring — listing endpoints favor a sensible default
-// over rejecting the request.
+// over rejecting the request. Nonpositive sizes use the default; sizes above
+// types.MaxPageSize are capped.
 //
 // A "page" query param (1-based) selects offset pagination for page-number jumps;
 // when absent the request uses cursor pagination via "nextPageToken". A malformed
 // page is ignored, falling back to cursor mode.
 func PagedRequest(c *gin.Context) *types.PagedResultRequest {
 	pageSize, err := strconv.ParseInt(c.DefaultQuery("pageSize", "10"), 10, 32)
-	if err != nil {
-		pageSize = 10
+	if err != nil || pageSize <= 0 {
+		pageSize = types.DefaultPageSize
 	}
+	pageSize = min(pageSize, types.MaxPageSize)
 	nextToken, _ := GetQuery(c, "nextPageToken")
 	req := &types.PagedResultRequest{
 		PageSize:      int32(pageSize),

@@ -743,6 +743,10 @@ func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity
 		opts = NewPageOptions[TEntity]()
 	}
 
+	pageSize, err := checkedPageSize(opts.pageSize)
+	if err != nil {
+		return nil, err
+	}
 	q := t.applyPreloads(t.db(ctx)).Order(opts.orderBy)
 	if opts.cursor != nil {
 		where, err := opts.cursor()
@@ -755,7 +759,7 @@ func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity
 	}
 
 	// Fetch one extra row to detect a following page when generating a token.
-	limit := opts.pageSize
+	limit := pageSize
 	if opts.nextToken != nil && limit > 0 {
 		limit++
 	}
@@ -769,8 +773,8 @@ func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity
 	}
 
 	var nextPageToken *string
-	if opts.nextToken != nil && opts.pageSize > 0 && len(items) > opts.pageSize {
-		items = items[:opts.pageSize]
+	if opts.nextToken != nil && len(items) > pageSize {
+		items = items[:pageSize]
 		var err error
 		if nextPageToken, err = opts.nextToken(items); err != nil {
 			return nil, err
@@ -779,7 +783,7 @@ func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity
 
 	return &types.PagedResult[TEntity]{
 		Items:         items,
-		PageSize:      int32(opts.pageSize),
+		PageSize:      int32(pageSize),
 		TotalCount:    -1,
 		NextPageToken: nextPageToken,
 	}, nil
@@ -791,12 +795,18 @@ func (t *Table[TEntity]) ListPage(ctx context.Context, opts *PageOptions[TEntity
 // Scoper, its Scope() is applied on top of those scopes. If it implements CursorScoper,
 // its CursorScope() replaces CurrentPageData().
 func (t *Table[TEntity]) List(ctx context.Context, req ListRequest[TEntity]) (*types.PagedResult[TEntity], error) {
-	pageSize := req.PageSize()
+	pageSize, err := checkedPageSize(req.PageSize())
+	if err != nil {
+		return nil, err
+	}
 
 	// Offset mode takes precedence when the request opts in via OffsetPager: it
 	// bypasses the forward-only cursor and computes a total count for page jumps.
 	if op, ok := any(req).(OffsetPager); ok {
 		if offset, isOffset := op.Offset(); isOffset {
+			if offset < 0 {
+				return nil, errorx.ErrBadRequest.WithMessage("invalid pagination offset")
+			}
 			return t.listByOffset(ctx, req, pageSize, offset)
 		}
 	}
@@ -938,4 +948,14 @@ func (t *Table[TEntity]) ProjectFirst(ctx context.Context, dest any) (bool, erro
 		return false, err
 	}
 	return true, nil
+}
+
+func checkedPageSize(n int) (int, error) {
+	if n == 0 {
+		return types.DefaultPageSize, nil
+	}
+	if n < 0 || n > types.MaxPageSize {
+		return 0, errorx.ErrBadRequest.WithMessage("page size must be between 1 and 1000")
+	}
+	return n, nil
 }
