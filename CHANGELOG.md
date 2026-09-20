@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.41.0] - 2026-09-20
 
 A hardening release. Every entry below is a fix, but the ones under **Changed**
 close a hole by tightening a default or rejecting a configuration that used to
