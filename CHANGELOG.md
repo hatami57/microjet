@@ -6,23 +6,68 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+A hardening release. Every entry below is a fix, but the ones under **Changed**
+close a hole by tightening a default or rejecting a configuration that used to
+be accepted — read them before upgrading.
+
+### Changed
+
+- **`[http] trustedProxies` now gates forwarding headers, and defaults to
+  trusting nobody.** `c.ClientIP()` previously honored `X-Forwarded-For` and
+  `X-Real-IP` from any peer, so a client could pick its own identity for
+  per-IP rate limiting and the access log. The server now trusts those headers
+  only from the proxy IPs and CIDRs listed in config:
+
+  ```toml
+  [http]
+  trustedProxies = ["10.0.0.0/8"] # the load balancer's addresses
+  ```
+
+  Behind a proxy, set this or `ClientIP()` reports the proxy's address for
+  every request. With no proxy in front, leave it empty.
+- **`middleware.JWT` fails closed on an unsafe configuration.** A config with
+  neither `Secret` nor `Keyfunc` used to install an HMAC verifier with an empty
+  key — a token the client signs itself authenticates. A custom `Keyfunc`
+  without an `Algorithms` allowlist left the door open to algorithm confusion.
+  Both now reject every request with 401 instead.
+- **Production HTTP error responses no longer carry internal diagnostics.**
+  Outside debug mode, internal errors are rendered without their subject,
+  message, code, and params. `httpx.Client` puts upstream URLs and response
+  bodies into those params, so a handler forwarding a client error with
+  `c.Error(err)` could leak them; the HTTP surface now matches the gRPC one.
+- **Page sizes are bounded.** An omitted, malformed, or nonpositive `pageSize`
+  resolves to `types.DefaultPageSize` (10) and anything larger than
+  `types.MaxPageSize` (1000) is capped, in both `httpx.PagedRequest` and
+  `gormx` pagination. `Table.List` rejects an invalid page size or offset,
+  including one whose page number would overflow.
+- **An incomplete TLS configuration is a startup error.** `[http] certFile`
+  without `keyFile` (or the reverse) used to silently serve plaintext; `Init`
+  now fails.
+
 ### Fixed
 
-- Timeout responses remain 503 when handler completion races or precedes scheduling of the deadline watcher.
-- HTTP servers ignore forwarded client IP headers by default; trusted proxy IPs and CIDRs must be configured explicitly.
-- Pagination defaults zero sizes to 10, caps HTTP sizes at 1000, rejects invalid SQL sizes and offsets, and prevents offset overflow.
-- JSON decoding rejects nonpointer and nil destinations instead of silently modifying a local copy.
-- S3 downloads replace the destination only after a complete download and successful close; failures remove temporary files.
-- PostgreSQL connection parameters preserve spaces, quotes, and backslashes without interpreting them as extra options.
-- An in-flight gRPC readiness probe cannot restore serving status after readiness is disabled.
-- HTTP initialization rejects a certificate or key configured without its counterpart.
-- HTTP int32 helpers and query binding reject values outside the destination integer range.
-- Query binding assigns string and UUID values to the destination struct.
-- gRPC error translation preserves cancellation and deadline status codes, including wrapped errors.
-- Tenant lookups retain request cancellation, deadlines, and context values.
-- Configuration loading reports malformed or unreadable local TOML overlays.
-- Production HTTP errors hide internal subjects, messages, codes, and diagnostic parameters.
-- JWT verification rejects empty HMAC secrets and custom key resolvers without an algorithm allowlist.
+- PostgreSQL connection parameter values preserve spaces, quotes, and
+  backslashes instead of being parsed as additional connection options.
+- S3 downloads write through a temporary file and replace the destination only
+  after a complete download and a successful close; a failed download removes
+  the temporary file and leaves any existing destination intact.
+- `jsonx` decoding rejects a nonpointer or nil destination instead of decoding
+  into a local copy and reporting success.
+- Timeout responses stay 503 when the handler finishes as the deadline watcher
+  is scheduled, or before it runs at all.
+- A gRPC readiness probe already in flight can no longer restore serving status
+  after readiness has been switched off for shutdown, so a draining server stays
+  unready.
+- gRPC error translation preserves `Canceled` and `DeadlineExceeded` status
+  codes, including when the context error is wrapped.
+- HTTP int32 helpers and query binding reject values outside the destination
+  integer's range rather than wrapping silently.
+- Query binding assigns string and UUID values to the destination struct
+  instead of leaving those fields zero.
+- Tenant lookups receive the request context, so they observe its cancellation,
+  deadline, and values.
+- Configuration loading reports a malformed or unreadable `config.local.toml`
+  instead of ignoring the overlay.
 
 ## [0.40.0] - 2026-09-12
 

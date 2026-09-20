@@ -15,7 +15,7 @@ import "github.com/hatami57/microjet/host"
 - **Application Orchestrator** — Fluent builder API (`MustNew().WithModules(gormx.Module(postgres.Driver()), httpx.Module()).MustRun()`) with deferred error handling, a dependency injection container, composable [modules](docs/modules.md) for tree-structured feature wiring, and managed graceful shutdown. Every capability — database, HTTP, AWS, messaging, cache, tracing, outbox — is installed the same way, as a `host.Module`, so the `host` runtime itself depends on none of them: you pull in only the satellite modules you actually use.
 - **Structured Errors** — Typed error system with 6 categories (BadRequest, NotFound, Business, Unauthorized, Forbidden, Internal), builder-pattern enrichment, sentinel errors, `errors.As` extraction, and `errors.Is` matching by category (`errors.Is(err, errorx.ErrNotFound)`).
 - **Configuration** — TOML-based config loading with environment variable overrides, local config merging, post-load hooks, and generic typed access to arbitrary sections. A missing config file is non-fatal — defaults plus env vars are enough to boot.
-- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI and `/debug/pprof` profiling (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), configurable timeouts and TLS, opt-in hardening middleware (security headers, body-size limit, per-request timeout), and Kubernetes-aware graceful shutdown (readiness flips to draining before the pod is torn down).
+- **HTTP Server** — Gin-based server with built-in middleware (structured logging, error translation, recovery), health endpoint, Swagger UI and `/debug/pprof` profiling (debug mode only), typed param/query/body binding, request validation that turns `binding`/`validate` tag failures into a 400 with per-field details (keyed by JSON name), multi-tenant support (with an optional TTL-cached tenant store), configurable timeouts and TLS (both `certFile` and `keyFile` or neither), explicit trusted-proxy configuration for `ClientIP()` (forwarding headers are untrusted by default), opt-in hardening middleware (security headers, body-size limit, per-request timeout), and Kubernetes-aware graceful shutdown (readiness flips to draining before the pod is torn down).
 - **HTTP Client & Web Helpers** — `httpx.Client` for JSON calls to upstreams (default headers, per-request options, non-2xx → `errorx.Error`), with optional retries (`WithRetry`) and a circuit breaker (`WithCircuitBreaker`) that fails fast when an upstream is down; `MergeParams` (query+form) and `WriteAutoPostForm` (self-submitting redirect form) for callback-style flows.
 - **SQL / GORM** — `gormx.Module(driver)` with plug-in drivers (`gormx/postgres`, `gormx/sqlite` — pure-Go, no cgo). Generic `Table[T]` with CRUD (incl. `UpdateMap`/`UpdateColumn(s)` partial updates and `Raw`/`Exec` SQL escape hatches), a chainable query builder (`Where`/`WhereIf`/`Order`/`Limit`/`Offset`/`Select`/`Omit`/`Joins`/`Group`/`Having`/`Distinct`/`Unscoped`/`LockForUpdate`), single-row getters (`First`/`Last`/`Take`/`Get`/`Exists`), collectors (`Pluck`/`PluckDistinct`), aggregates (`Count`/`Sum`/`Avg`/`Max`/`Min`/`Aggregate`), struct or map projections (`Project`/`ProjectFirst`), cursor- and offset-based pagination, transactions, batch inserts and batched reads (`FindInBatches`), and eager loading. Portable constraint-error classifiers (`IsDuplicateKey`/`IsForeignKeyViolation`/`IsCheckConstraintViolation`/`IsRecordNotFound`) map driver-specific violations without importing gorm or sniffing SQLSTATE codes. `gormx.Module(driver, name)` supports multiple databases side by side. Auto-managed `CreatedAt`/`UpdatedAt` timestamps are stamped through the App's injected `TimeProvider` (`host.WithClock`), so they honor the same clock as the rest of the app and can be frozen in tests.
 - **AWS Integration** — Unified S3 (single/concurrent download, upload), SQS (send JSON messages), SES (send HTML/text email, with permanent-vs-retryable failure classification), and DynamoDB client initialization.
@@ -227,7 +227,12 @@ readHeaderTimeout = "5s"
 writeTimeout = "10s"
 idleTimeout = "60s"
 maxHeaderBytes = 1048576 # 1 MiB
-# TLS: when both are set the server serves HTTPS.
+# Proxies allowed to supply client IP headers (X-Forwarded-For, X-Real-IP).
+# Empty (the default) trusts no proxy, so ClientIP() is the socket peer and
+# forwarding headers cannot be spoofed. Behind a load balancer, list its IPs
+# or CIDRs — otherwise per-IP rate limiting and access logs see the LB.
+# trustedProxies = ["10.0.0.0/8"]
+# TLS: set both or neither — a lone certFile or keyFile fails at startup.
 # certFile = "/etc/tls/tls.crt"
 # keyFile = "/etc/tls/tls.key"
 # Per-component log level, independent of the global [log] level below. Omit to
@@ -377,6 +382,16 @@ r.Use(middleware.Timeout(15 * time.Second))                             // 503 w
   streaming (SSE) responses; the handler is not force-killed, only its context is
   cancelled.
 
+- `JWT(cfg)` — verifies bearer tokens and puts the claims on the context. It fails
+  closed: a config with neither `Secret` nor `Keyfunc`, or a custom `Keyfunc`
+  without an `Algorithms` allowlist, rejects every request with 401 rather than
+  accepting tokens signed with an empty key or a confused algorithm.
+
+Middleware that identifies callers by IP — `RateLimit` by default, and the access
+log — reads `c.ClientIP()`, which honors forwarding headers only from the proxies
+listed in `[http] trustedProxies`. Leave it empty unless a proxy in front of the
+app sanitizes those headers.
+
 For gzip, use [`gin-contrib/gzip`](https://github.com/gin-contrib/gzip) directly —
 wrapping it would add nothing.
 
@@ -396,6 +411,12 @@ body, _ := httpx.Body[CreateUserRequest](c)
 // Pagination request from query string
 pagedReq := httpx.PagedRequest(c)
 ```
+
+`PagedRequest` bounds what a client can ask for: an absent, malformed or
+nonpositive `pageSize` falls back to `types.DefaultPageSize` (10) and anything
+above `types.MaxPageSize` (1000) is capped, so a listing endpoint cannot be
+pushed into an unbounded query. `gormx` applies the same default and rejects an
+offset that would overflow.
 
 ## Money
 
