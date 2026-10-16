@@ -844,3 +844,78 @@ func TestTableJoinsTransactionOnSameDatabase(t *testing.T) {
 		t.Errorf("rows = %d, want 0 (the write joined the rolled-back transaction)", n)
 	}
 }
+
+// TestWithTxJoinsGormTransaction verifies a Table and a nested RunTx join a
+// transaction opened directly with gorm once WithTx puts it in the context:
+// their writes roll back with it.
+func TestWithTxJoinsGormTransaction(t *testing.T) {
+	db := newWidgetDB(t)
+	repo := NewBaseRepository(db)
+	table := NewTable[widget](db)
+	rollback := errors.New("rollback")
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		ctx := WithTx(context.Background(), tx)
+		if err := table.Create(ctx, &widget{ID: 1, Name: "a"}); err != nil {
+			return err
+		}
+		if err := repo.RunTx(ctx, func(ctx context.Context) error {
+			return table.Create(ctx, &widget{ID: 2, Name: "b"})
+		}); err != nil {
+			return err
+		}
+		// The Table writes are visible to the transaction itself.
+		var n int64
+		if err := tx.Model(&widget{}).Count(&n).Error; err != nil {
+			return err
+		}
+		if n != 2 {
+			t.Errorf("rows inside the transaction = %d, want 2", n)
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("Transaction: %v", err)
+	}
+	if n := countWidgets(t, db); n != 0 {
+		t.Errorf("rows = %d, want 0 (rolled back with the gorm transaction)", n)
+	}
+}
+
+// TestWithTxCommits verifies writes through a WithTx context commit with the
+// gorm transaction.
+func TestWithTxCommits(t *testing.T) {
+	db := newWidgetDB(t)
+	table := NewTable[widget](db)
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		return table.Create(WithTx(context.Background(), tx), &widget{ID: 1, Name: "a"})
+	})
+	if err != nil {
+		t.Fatalf("Transaction: %v", err)
+	}
+	if n := countWidgets(t, db); n != 1 {
+		t.Errorf("rows = %d, want 1 (committed)", n)
+	}
+}
+
+// TestWithTxIgnoredByAnotherDatabase verifies a gorm transaction put in the
+// context with WithTx is scoped to its database like one opened by RunTx.
+func TestWithTxIgnoredByAnotherDatabase(t *testing.T) {
+	dbA, dbB := newWidgetDB(t), newWidgetDB(t)
+	tableB := NewTable[widget](dbB)
+	rollback := errors.New("rollback")
+
+	err := dbA.Transaction(func(tx *gorm.DB) error {
+		if err := tableB.Create(WithTx(context.Background(), tx), &widget{ID: 1, Name: "b"}); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("Transaction: %v", err)
+	}
+	if n := countWidgets(t, dbB); n != 1 {
+		t.Errorf("database B rows = %d, want 1 (written outside A's transaction)", n)
+	}
+}

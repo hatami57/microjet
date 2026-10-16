@@ -88,6 +88,16 @@ repo.RunTx(ctx, func(ctx context.Context) error {
     return err
 })
 
+// Code that opens transactions with gorm directly can hand one to context-based code
+// (Tables, RunTx, outbox) with gormx.WithTx: everything below commits or rolls back together.
+db.Transaction(func(tx *gorm.DB) error {
+    ctx := gormx.WithTx(ctx, tx)
+    if err := tx.Model(&acct).Update("frozen", true).Error; err != nil {
+        return err
+    }
+    return audits.Create(ctx, &Audit{AccountID: acct.ID, Action: "freeze"})
+})
+
 // UpdateColumn(s) write raw columns without hooks or timestamp auto-updates; Raw/Exec are
 // the escape hatch for SQL the builder can't express (both honor the ctx transaction).
 var report []SalesRow

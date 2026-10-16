@@ -80,6 +80,21 @@ func (r *BaseRepository) RunTx(ctx context.Context, op func(context.Context) err
 	})
 }
 
+// WithTx returns a copy of ctx carrying tx, a transaction opened directly with
+// gorm (the *gorm.DB passed to a db.Transaction callback), so code that takes a
+// context — Tables, RunTx, and modules such as outbox — joins that transaction
+// as it would one opened by RunTx. The outermost Transaction still owns commit
+// and rollback. Like RunTx, the transaction is scoped to its database: Tables
+// on another database ignore it.
+//
+//	db.Transaction(func(tx *gorm.DB) error {
+//	    ctx := gormx.WithTx(ctx, tx)
+//	    ... // tx.Save(...) and orders.Create(ctx, ...) commit together
+//	})
+func WithTx(ctx context.Context, tx *gorm.DB) context.Context {
+	return context.WithValue(ctx, txKeyFor(tx), tx)
+}
+
 // NewTableFor creates a Table derived from the same database connection as the BaseRepository.
 // Use this during repository construction so all tables share the same connection.
 func NewTableFor[TEntity any](r *BaseRepository) *Table[TEntity] {

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`gormx.WithTx(ctx, tx)` joins a transaction opened directly with gorm.**
+  Until now only `RunTx` could put a transaction in the context, so code using
+  `db.Transaction(func(tx *gorm.DB) error {...})` could not make Tables, a
+  nested `RunTx`, the outbox, or other context-based modules write inside it.
+  `WithTx` puts that `tx` in the context; like `RunTx`, it is scoped to its
+  database.
+
 ## [0.41.0] - 2026-09-20
 
 A hardening release. Every entry below is a fix, but the ones under **Changed**
